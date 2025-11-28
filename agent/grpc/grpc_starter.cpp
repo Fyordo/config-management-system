@@ -10,7 +10,7 @@
 using grpc::Server;
 using grpc::ServerBuilder;
 
-const std::string& address("0.0.0.0");
+const std::string address("0.0.0.0");
 
 void RunServer(int argc, char** argv) {
     PingServiceImpl service;
