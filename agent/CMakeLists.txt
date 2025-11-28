@@ -51,7 +51,11 @@ endforeach()
 
 add_custom_target(generate_proto ALL DEPENDS ${PROTO_SRCS})
 
-add_executable(cmsagent main.cpp ${PROTO_SRCS})
+add_executable(cmsagent
+    main.cpp
+    grpc/ping_service.cpp
+    ${PROTO_SRCS}
+)
 
 add_dependencies(cmsagent generate_proto)
 
@@ -60,6 +64,7 @@ target_include_directories(cmsagent
         ${Protobuf_INCLUDE_DIRS}
         ${GRPC_INCLUDE_DIR}
         ${GENERATED_PROTO_DIR}
+        ${CMAKE_CURRENT_SOURCE_DIR}/grpc
 )
 
 target_link_libraries(cmsagent
