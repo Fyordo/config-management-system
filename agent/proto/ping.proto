@@ -1,0 +1,15 @@
+syntax = "proto3";
+
+package com.fyorlando.cms;
+
+service PingService {
+  rpc Ping (PingReq) returns (PongResp);
+}
+
+message PingReq {
+  string str = 1;
+}
+
+message PongResp {
+  string body = 1;
+}
