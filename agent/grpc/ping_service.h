@@ -1,4 +1,3 @@
-// Simple gRPC Ping service implementation declaration.
 #pragma once
 
 #include <grpcpp/grpcpp.h>
