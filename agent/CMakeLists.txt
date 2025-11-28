@@ -53,7 +53,8 @@ add_custom_target(generate_proto ALL DEPENDS ${PROTO_SRCS})
 
 add_executable(cmsagent
     main.cpp
-    grpc/ping_service.cpp
+    grpc/impl/ping_service.cpp
+    grpc/grpc_starter.cpp
     ${PROTO_SRCS}
 )
 
