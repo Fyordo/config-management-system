@@ -29,18 +29,33 @@ class RocksDBFactory {
 
         val dbDir = File(rocksDbConfig.path)
 
-        if (!dbDir.exists()) {
-            logger.info { "Creating dir ${dbDir.absolutePath} for RocksDB" }
-            dbDir.mkdirs()
-        }
+        initDir(dbDir)
 
-        try {
-            return RocksDB.open(options, dbDir.absolutePath).apply {
-                logger.info { "RocksDB initialized successfully" }
+        checkDirRights(dbDir)
+
+        return try {
+            RocksDB.open(options, dbDir.absolutePath).apply {
+                logger.info { "RocksDB initialized successfully at ${dbDir.absolutePath}" }
             }
         } catch (e: Exception) {
+            options.close()
             logger.error(e) { "Failed to initialize RocksDB" }
-            throw IllegalStateException(e)
+            throw IllegalStateException("Failed to initialize RocksDB at ${dbDir.absolutePath}", e)
+        }
+    }
+
+    private fun checkDirRights(dbDir: File) {
+        if (!dbDir.canRead() || !dbDir.canWrite()) {
+            throw IllegalStateException("Insufficient permissions for RocksDB directory: ${dbDir.absolutePath}")
+        }
+    }
+
+    private fun initDir(dbDir: File) {
+        if (!dbDir.exists()) {
+            logger.info { "Creating dir ${dbDir.absolutePath} for RocksDB" }
+            if (!dbDir.mkdirs()) {
+                throw IllegalStateException("Failed to create RocksDB directory: ${dbDir.absolutePath}")
+            }
         }
     }
 }
