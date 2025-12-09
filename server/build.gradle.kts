@@ -61,6 +61,13 @@ dependencies {
 	testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test")
 	implementation("io.projectreactor.kotlin:reactor-kotlin-extensions")
 
+	// ===== RAFT (Apache Ratis) =====
+	val ratisVersion = "2.3.0"
+	implementation("org.apache.ratis:ratis-server:$ratisVersion")
+	implementation("org.apache.ratis:ratis-client:$ratisVersion")
+	implementation("org.apache.ratis:ratis-netty:$ratisVersion")
+	implementation("org.apache.ratis:ratis-grpc:$ratisVersion")
+
 	// ===== GRPC =====
 	implementation("io.grpc:grpc-services")
 	implementation("org.springframework.grpc:spring-grpc-spring-boot-starter")
