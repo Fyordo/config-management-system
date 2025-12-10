@@ -14,6 +14,11 @@ on:
       - 'server/**'
       - '.github/workflows/server-tests.yml'
 
+permissions:
+  contents: read
+  checks: write
+  pull-requests: write
+
 jobs:
   test:
     name: Run Server Tests
@@ -42,8 +47,11 @@ jobs:
         uses: EnricoMi/publish-unit-test-result-action@v2
         if: always()
         with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
           files: |
             server/build/test-results/test/*.xml
+          check_name: 'Server Test Results'
+          comment_mode: 'off'
 
       - name: Upload test reports
         uses: actions/upload-artifact@v4
