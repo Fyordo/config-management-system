@@ -44,15 +44,8 @@ extra["springGrpcVersion"] = "1.0.0"
 dependencies {
 	// ===== SPRING =====
 	implementation("org.springframework.boot:spring-boot-starter-actuator")
-	implementation("org.springframework.boot:spring-boot-starter-security")
 	implementation("org.springframework.boot:spring-boot-starter-webflux")
 	implementation("org.springframework.boot:spring-boot-configuration-processor")
-	testImplementation("org.springframework.boot:spring-boot-starter-actuator-test")
-	testImplementation("org.springframework.boot:spring-boot-starter-security-test")
-	testImplementation("org.springframework.boot:spring-boot-starter-webflux-test")
-
-	// ===== ROCKSDB =====
-	implementation("org.rocksdb:rocksdbjni:9.1.1")
 
 	// ===== COROUTINES =====
 	implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core")
@@ -61,11 +54,20 @@ dependencies {
 	testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test")
 	implementation("io.projectreactor.kotlin:reactor-kotlin-extensions")
 
+	// ===== RAFT (Apache Ratis) =====
+	val ratisVersion = "2.3.0"
+	implementation("org.apache.ratis:ratis-server:$ratisVersion")
+	implementation("org.apache.ratis:ratis-client:$ratisVersion")
+	implementation("org.apache.ratis:ratis-netty:$ratisVersion")
+	implementation("org.apache.ratis:ratis-grpc:$ratisVersion")
+
 	// ===== GRPC =====
 	implementation("io.grpc:grpc-services")
 	implementation("org.springframework.grpc:spring-grpc-spring-boot-starter")
 
 	// ===== TEST =====
+	testImplementation("org.springframework.boot:spring-boot-starter-actuator-test")
+	testImplementation("org.springframework.boot:spring-boot-starter-webflux-test")
 	testImplementation("org.springframework.grpc:spring-grpc-test")
 	testImplementation("org.jetbrains.kotlin:kotlin-test-junit5")
 	testRuntimeOnly("org.junit.platform:junit-platform-launcher")
