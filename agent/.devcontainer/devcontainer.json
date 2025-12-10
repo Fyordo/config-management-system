@@ -1,0 +1,34 @@
+{
+  "name": "agent-cpp-grpc",
+  "build": {
+    "dockerfile": "Dockerfile",
+    "context": "..",
+    "args": {
+      "VARIANT": "ubuntu-22.04"
+    }
+  },
+  "runArgs": [
+    "--init"
+  ],
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-vscode.cpptools",
+        "ms-vscode.cmake-tools",
+        "twxs.cmake",
+        "xaver.clang-format"
+      ],
+      "settings": {
+        "C_Cpp.default.configurationProvider": "ms-vscode.cmake-tools",
+        "cmake.generator": "Ninja"
+      }
+    }
+  },
+  "remoteUser": "vscode",
+  "postCreateCommand": "cmake --version && protoc --version && grpc_cpp_plugin --version || true",
+  "forwardPorts": [
+    50051
+  ],
+  "features": {}
+}
+
