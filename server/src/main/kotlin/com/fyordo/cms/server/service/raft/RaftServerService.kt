@@ -21,6 +21,7 @@ import java.util.*
 import java.util.concurrent.TimeUnit
 
 private val logger = KotlinLogging.logger {}
+private const val PEERS_PARTS_DELIMITER = ':'
 
 @Service
 class RaftServerService(
@@ -77,16 +78,33 @@ class RaftServerService(
 
             raftProps.peers.forEach { peerConfig ->
                 if (peerConfig.isNotBlank()) {
-                    val parts = peerConfig.split(":")
+                    val parts = peerConfig.split(PEERS_PARTS_DELIMITER)
                     if (parts.size == 3) {
-                        val peerId = RaftPeerId.valueOf(parts[0])
-                        val peerAddress = InetSocketAddress(parts[1], parts[2].toInt())
+                        val peerIdRaw = parts[0]
+                        val peerHost = parts[1]
+                        val peerPort = parts[2].toIntOrNull()
+
+                        if (peerPort == null) {
+                            logger.warn { "Invalid RAFT peer port in config entry: '$peerConfig'" }
+                            return@forEach
+                        }
+
+                        // Не добавляем самого себя повторно, если он уже сконфигурирован как локальный peer
+                        if (peerIdRaw == raftProps.nodeId && peerHost == raftProps.host && peerPort == raftProps.port) {
+                            logger.info { "Skipping self RAFT peer entry from configuration: '$peerConfig'" }
+                            return@forEach
+                        }
+
+                        val peerId = RaftPeerId.valueOf(peerIdRaw)
+                        val peerAddress = InetSocketAddress(peerHost, peerPort)
                         allPeers.add(
                             RaftPeer.newBuilder()
                                 .setId(peerId)
                                 .setAddress(peerAddress)
                                 .build()
                         )
+                    } else {
+                        logger.warn { "Invalid RAFT peer config entry: '$peerConfig', expected format 'id:host:port'" }
                     }
                 }
             }

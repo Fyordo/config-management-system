@@ -16,7 +16,7 @@ import java.net.InetSocketAddress
 import java.util.*
 
 private val logger = KotlinLogging.logger {}
-private const val PEERS_PARTS_DELIMITER = '@'
+private const val PEERS_PARTS_DELIMITER = ':'
 
 @Service
 class RaftClientFacade(
