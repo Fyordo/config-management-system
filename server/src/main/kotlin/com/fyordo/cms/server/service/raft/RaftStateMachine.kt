@@ -4,10 +4,14 @@ import com.fyordo.cms.server.dto.raft.RaftCommand
 import com.fyordo.cms.server.dto.raft.RaftOp
 import com.fyordo.cms.server.dto.raft.RaftResult
 import com.fyordo.cms.server.dto.raft.RaftResultStatus
+import com.fyordo.cms.server.serialization.property.deserializePropertyValue
+import com.fyordo.cms.server.serialization.property.serializePropertyInternalDto
 import com.fyordo.cms.server.serialization.property.serializePropertyValue
+import com.fyordo.cms.server.serialization.query.deserializePropertyQueryFilter
 import com.fyordo.cms.server.serialization.raft.deserializeRaftCommand
 import com.fyordo.cms.server.serialization.raft.serializeRaftResult
-import com.fyordo.cms.server.service.storage.InMemoryStorage
+import com.fyordo.cms.server.serialization.serializeList
+import com.fyordo.cms.server.service.storage.PropertyInMemoryStorage
 import com.fyordo.cms.server.utils.EMPTY_BYTES
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -27,9 +31,9 @@ import java.util.concurrent.CompletableFuture
 private val logger = KotlinLogging.logger {}
 
 @Component
-class RaftStateMachine : BaseStateMachine() {
-    private val store = InMemoryStorage()
-
+class RaftStateMachine(
+    private val store: PropertyInMemoryStorage
+) : BaseStateMachine() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
     override fun initialize(
@@ -90,7 +94,7 @@ class RaftStateMachine : BaseStateMachine() {
     private fun processCommand(command: RaftCommand): RaftResult {
         return when (command.operation) {
             RaftOp.PUT -> {
-                store[command.key] = command.value
+                store[command.key!!] = deserializePropertyValue(command.value)
                 RaftResult(
                     result = EMPTY_BYTES,
                     status = RaftResultStatus.OK
@@ -98,7 +102,7 @@ class RaftStateMachine : BaseStateMachine() {
             }
 
             RaftOp.GET -> {
-                store[command.key]?.let {
+                store[command.key!!]?.let {
                     RaftResult(
                         result = serializePropertyValue(it),
                         status = RaftResultStatus.OK
@@ -110,7 +114,7 @@ class RaftStateMachine : BaseStateMachine() {
             }
 
             RaftOp.DELETE -> {
-                store.remove(command.key)?.let {
+                store.remove(command.key!!)?.let {
                     RaftResult(
                         result = EMPTY_BYTES,
                         status = RaftResultStatus.OK
@@ -118,6 +122,16 @@ class RaftStateMachine : BaseStateMachine() {
                 } ?: RaftResult(
                     result = EMPTY_BYTES,
                     status = RaftResultStatus.NOT_FOUND
+                )
+            }
+
+            RaftOp.QUERY -> {
+                val filter = deserializePropertyQueryFilter(command.value)
+                RaftResult(
+                    result = serializeList(
+                        store.getByFilter(filter).toList(), ::serializePropertyInternalDto
+                    ),
+                    status = RaftResultStatus.OK
                 )
             }
         }

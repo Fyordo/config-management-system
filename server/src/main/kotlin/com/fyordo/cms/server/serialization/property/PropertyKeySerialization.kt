@@ -1,58 +1,80 @@
 package com.fyordo.cms.server.serialization.property
 
 import com.fyordo.cms.server.dto.property.PropertyKey
+import java.io.ByteArrayInputStream
+import java.io.ByteArrayOutputStream
+import java.io.DataInputStream
+import java.io.DataOutputStream
 
-private const val DELIMITER = "/"
-
-fun serializePropertyKey(key: PropertyKey): String {
-    return when(key.version.toInt()) {
-        1 -> serializePropertyKeyV1(key)
+fun serializePropertyKey(propertyKey: PropertyKey): ByteArray {
+    return when (propertyKey.version.toInt()) {
+        1 -> serializePropertyKeyV1(propertyKey)
         else -> throw NotImplementedError()
     }
 }
 
-fun deserializePropertyKey(key: String): PropertyKey {
-    val parts = key.split(DELIMITER)
-    if (parts.isEmpty()) {
-        throw IllegalStateException("No version in key $key")
-    }
-    val version = try {
-        parts[0].toInt()
-    } catch (e: Exception) {
-        throw IllegalStateException("Wrong version in key $key [${parts[0]}]", e)
-    }
+fun deserializePropertyKey(propertyKey: ByteArray): PropertyKey {
+    val byteStream = ByteArrayInputStream(propertyKey)
+    val dataStream = DataInputStream(byteStream)
 
-    return when(version) {
-        1 -> deserializePropertyKeyV1(version, parts)
+    val version = dataStream.readByte().toInt()
+
+    return when (version) {
+        1 -> deserializePropertyKeyV1(version, dataStream)
         else -> throw NotImplementedError()
     }
 }
 
-private fun serializePropertyKeyV1(key: PropertyKey): String {
-    if (key.version.toInt() != 1) {
-        throw IllegalStateException("Only version 1 is supported")
-    }
-    return "${key.version}$DELIMITER" +
-            "${key.namespace}$DELIMITER" +
-            "${key.service}$DELIMITER" +
-            "${key.appId}$DELIMITER" +
-            key.key
-}
-
-private fun deserializePropertyKeyV1(version: Int, parts: List<String>): PropertyKey {
+fun serializePropertyKeyV1(propertyKey: PropertyKey): ByteArray {
+    val version = propertyKey.version.toInt()
     if (version != 1) {
         throw IllegalStateException("Only version 1 is supported")
     }
 
-    if (parts.size != 5) {
-        throw IllegalStateException("Key v1 should contain exactly 5 parts")
+    val byteStream = ByteArrayOutputStream()
+    val dataStream = DataOutputStream(byteStream)
+
+    dataStream.writeByte(version)
+    
+    // Сериализация строковых полей
+    writeString(dataStream, propertyKey.namespace)
+    writeString(dataStream, propertyKey.service)
+    writeString(dataStream, propertyKey.appId)
+    writeString(dataStream, propertyKey.key)
+
+    dataStream.flush()
+
+    return byteStream.toByteArray()
+}
+
+fun deserializePropertyKeyV1(version: Int, dataStream: DataInputStream): PropertyKey {
+    if (version != 1) {
+        throw IllegalStateException("Only version 1 is supported")
     }
+
+    val namespace = readString(dataStream)
+    val service = readString(dataStream)
+    val appId = readString(dataStream)
+    val key = readString(dataStream)
 
     return PropertyKey(
         version = version.toByte(),
-        namespace = parts[1],
-        service = parts[2],
-        appId = parts[3],
-        key = parts[4],
+        namespace = namespace,
+        service = service,
+        appId = appId,
+        key = key
     )
+}
+
+private fun writeString(dataStream: DataOutputStream, value: String) {
+    val bytes = value.toByteArray(Charsets.UTF_8)
+    dataStream.writeInt(bytes.size)
+    dataStream.write(bytes)
+}
+
+private fun readString(dataStream: DataInputStream): String {
+    val length = dataStream.readInt()
+    val bytes = ByteArray(length)
+    dataStream.readFully(bytes)
+    return String(bytes, Charsets.UTF_8)
 }

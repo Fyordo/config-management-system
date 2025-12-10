@@ -1,11 +1,10 @@
 package com.fyordo.cms.server.serialization.raft
 
+import com.fyordo.cms.server.dto.property.PropertyKey
 import com.fyordo.cms.server.dto.raft.RaftCommand
 import com.fyordo.cms.server.dto.raft.RaftOp
 import com.fyordo.cms.server.serialization.property.deserializePropertyKey
-import com.fyordo.cms.server.serialization.property.deserializePropertyValue
 import com.fyordo.cms.server.serialization.property.serializePropertyKey
-import com.fyordo.cms.server.serialization.property.serializePropertyValue
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.DataInputStream
@@ -46,11 +45,15 @@ fun serializeRaftCommandV1(command: RaftCommand): String {
 
     dataStream.writeByte(command.operation.value.toInt())
 
-    val keyBytes = serializePropertyKey(command.key).toByteArray(Charsets.UTF_8)
-    dataStream.writeInt(keyBytes.size)
-    dataStream.write(keyBytes)
+    if (command.key == null) {
+        dataStream.writeInt(0)
+    } else {
+        val keyBytes = serializePropertyKey(command.key)
+        dataStream.writeInt(keyBytes.size)
+        dataStream.write(keyBytes)
+    }
 
-    val valueBytes = serializePropertyValue(command.value)
+    val valueBytes = command.value
     dataStream.writeInt(valueBytes.size)
     dataStream.write(valueBytes)
 
@@ -68,19 +71,21 @@ fun deserializeRaftCommandV1(version: Int, dataStream: DataInputStream): RaftCom
     val operation = RaftOp.getByValue(operationByte)
 
     val keyLength = dataStream.readInt()
-    val keyBytes = ByteArray(keyLength)
-    dataStream.readFully(keyBytes)
-    val key = deserializePropertyKey(String(keyBytes, Charsets.UTF_8))
+    var key: PropertyKey? = null
+    if (keyLength != 0) {
+        val keyBytes = ByteArray(keyLength)
+        dataStream.readFully(keyBytes)
+        key = deserializePropertyKey(keyBytes)
+    }
 
     val valueLength = dataStream.readInt()
     val valueBytes = ByteArray(valueLength)
     dataStream.readFully(valueBytes)
-    val value = deserializePropertyValue(valueBytes)
 
     return RaftCommand(
         operation = operation,
         key = key,
-        value = value,
+        value = valueBytes,
         version = version.toByte()
     )
 }

@@ -1,7 +1,6 @@
-package com.fyordo.cms.server.rest
+package com.fyordo.cms.server.rest.v1
 
 import com.fyordo.cms.server.service.raft.RaftServerService
-import mu.KotlinLogging
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RestController

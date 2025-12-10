@@ -2,13 +2,12 @@ package com.fyordo.cms.server.dto.raft
 
 import com.fyordo.cms.server.dto.Versioned
 import com.fyordo.cms.server.dto.property.PropertyKey
-import com.fyordo.cms.server.dto.property.PropertyValue
 
 data class RaftCommand(
     override val version: Byte = 1,
     val operation: RaftOp,
-    val key: PropertyKey,
-    val value: PropertyValue
+    val key: PropertyKey?,
+    val value: ByteArray
 ) : Versioned {
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
@@ -17,7 +16,7 @@ data class RaftCommand(
         if (version != other.version) return false
         if (operation != other.operation) return false
         if (key != other.key) return false
-        if (value != other.value) return false
+        if (!value.contentEquals(other.value)) return false
 
         return true
     }
@@ -26,13 +25,16 @@ data class RaftCommand(
         var result: Int = version.toInt()
         result = 31 * result + operation.hashCode()
         result = 31 * result + key.hashCode()
-        result = 31 * result + value.hashCode()
+        result = 31 * result + value.contentHashCode()
         return result
     }
 }
 
 enum class RaftOp(val value: Byte) {
-    GET(1), PUT(2), DELETE(3);
+    GET(1),
+    PUT(2),
+    DELETE(3),
+    QUERY(4);
 
     companion object {
         private val VALUES = entries.associateBy(RaftOp::value)

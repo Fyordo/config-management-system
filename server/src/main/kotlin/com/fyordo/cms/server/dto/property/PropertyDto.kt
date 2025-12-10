@@ -8,6 +8,11 @@ data class PropertyDto(
         key = PropertyKeyDto(propertyKey),
         value = PropertyValueDto(propertyValue)
     )
+
+    constructor(internalDto: PropertyInternalDto) : this(
+        key = PropertyKeyDto(internalDto.key),
+        value = PropertyValueDto(internalDto.value)
+    )
 }
 
 data class PropertyKeyDto(

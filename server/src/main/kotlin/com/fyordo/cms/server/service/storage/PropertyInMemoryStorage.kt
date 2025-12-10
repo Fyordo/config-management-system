@@ -1,14 +1,20 @@
 package com.fyordo.cms.server.service.storage
 
+import com.fyordo.cms.server.dto.property.PropertyInternalDto
 import com.fyordo.cms.server.dto.property.PropertyKey
 import com.fyordo.cms.server.dto.property.PropertyValue
+import com.fyordo.cms.server.dto.query.PropertyQueryFilter
 import mu.KotlinLogging
+import org.springframework.stereotype.Component
 import java.util.concurrent.locks.ReadWriteLock
 import java.util.concurrent.locks.ReentrantReadWriteLock
 
 private val logger = KotlinLogging.logger {}
 
-class InMemoryStorage {
+@Component
+class PropertyInMemoryStorage(
+    private val pathHolder: PropertyPathHolder
+) {
     private val lock: ReadWriteLock = ReentrantReadWriteLock()
     private val storage = mutableMapOf<PropertyKey, PropertyValue>()
 
@@ -16,6 +22,7 @@ class InMemoryStorage {
         lock.writeLock().lock()
         try {
             storage[key] = value
+            pathHolder.addProperty(key)
             logger.debug { "Stored value $key -> $value" }
         } catch (e: Exception) {
             logger.error(e) { "Failed to store value $key -> $value" }
@@ -36,10 +43,35 @@ class InMemoryStorage {
         }
     }
 
+    fun getByFilter(filter: PropertyQueryFilter): Sequence<PropertyInternalDto> {
+        val namespaces = pathHolder.getNamespaces().filter {
+            filter.namespaceRegex?.toRegex()?.matches(it) ?: true
+        }
+        val services = pathHolder.getServices().filter {
+            filter.serviceRegex?.toRegex()?.matches(it) ?: true
+        }
+        val appIds = pathHolder.getAppIds().filter {
+            filter.appIdRegex?.toRegex()?.matches(it) ?: true
+        }
+        val keys = pathHolder.getKeys().filter {
+            filter.keyRegex?.toRegex()?.matches(it) ?: true
+        }
+
+        return storage.asSequence().filter {
+            namespaces.contains(it.key.namespace) and
+                    services.contains(it.key.service) and
+                    appIds.contains(it.key.appId) and
+                    keys.contains(it.key.key)
+        }
+            .map { PropertyInternalDto(it.key, it.value) }
+            .take(filter.limit)
+    }
+
     fun remove(key: PropertyKey): PropertyValue? {
         lock.writeLock().lock()
         try {
             return storage.remove(key).also {
+                pathHolder.removeProperty(key)
                 logger.debug { "Removed key $key" }
             }
         } catch (e: Exception) {
