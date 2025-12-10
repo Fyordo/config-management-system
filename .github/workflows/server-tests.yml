@@ -3,7 +3,7 @@ name: Server Tests
 on:
   push:
     branches:
-      - "*"
+      - master
     paths:
       - 'server/**'
       - '.github/workflows/server-tests.yml'
