@@ -44,12 +44,8 @@ extra["springGrpcVersion"] = "1.0.0"
 dependencies {
 	// ===== SPRING =====
 	implementation("org.springframework.boot:spring-boot-starter-actuator")
-	implementation("org.springframework.boot:spring-boot-starter-security")
 	implementation("org.springframework.boot:spring-boot-starter-webflux")
 	implementation("org.springframework.boot:spring-boot-configuration-processor")
-	testImplementation("org.springframework.boot:spring-boot-starter-actuator-test")
-	testImplementation("org.springframework.boot:spring-boot-starter-security-test")
-	testImplementation("org.springframework.boot:spring-boot-starter-webflux-test")
 
 	// ===== COROUTINES =====
 	implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core")
@@ -70,6 +66,8 @@ dependencies {
 	implementation("org.springframework.grpc:spring-grpc-spring-boot-starter")
 
 	// ===== TEST =====
+	testImplementation("org.springframework.boot:spring-boot-starter-actuator-test")
+	testImplementation("org.springframework.boot:spring-boot-starter-webflux-test")
 	testImplementation("org.springframework.grpc:spring-grpc-test")
 	testImplementation("org.jetbrains.kotlin:kotlin-test-junit5")
 	testRuntimeOnly("org.junit.platform:junit-platform-launcher")
