@@ -51,9 +51,6 @@ dependencies {
 	testImplementation("org.springframework.boot:spring-boot-starter-security-test")
 	testImplementation("org.springframework.boot:spring-boot-starter-webflux-test")
 
-	// ===== ROCKSDB =====
-	implementation("org.rocksdb:rocksdbjni:9.1.1")
-
 	// ===== COROUTINES =====
 	implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core")
 	implementation("org.jetbrains.kotlinx:kotlinx-coroutines-jdk8")

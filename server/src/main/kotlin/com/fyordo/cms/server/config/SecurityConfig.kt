@@ -15,7 +15,7 @@ class SecurityConfig {
             .authorizeExchange { exchanges ->
                 exchanges
                     .pathMatchers("/actuator/health", "/actuator/prometheus").permitAll()
-                    .anyExchange().authenticated()
+                    .anyExchange().permitAll()
             }
             .csrf { it.disable() }
             .build()

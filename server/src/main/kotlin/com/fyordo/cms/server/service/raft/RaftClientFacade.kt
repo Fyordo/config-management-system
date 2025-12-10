@@ -2,7 +2,7 @@ package com.fyordo.cms.server.service.raft
 
 import com.fyordo.cms.server.config.props.RaftConfiguration
 import com.fyordo.cms.server.dto.RaftCommand
-import com.fyordo.cms.server.helper.serializeCommand
+import com.fyordo.cms.server.serialization.serializeRaftCommand
 import jakarta.annotation.PostConstruct
 import jakarta.annotation.PreDestroy
 import kotlinx.coroutines.Dispatchers
@@ -105,7 +105,7 @@ class RaftClientFacade(
 
     suspend fun sendCommand(command: RaftCommand): String {
         return try {
-            val serialized = serializeCommand(command)
+            val serialized = serializeRaftCommand(command)
             withContext(Dispatchers.IO) {
                 val reply = raftClient.io().send(Message.valueOf(serialized))
                 reply.message.content.toStringUtf8()
@@ -118,7 +118,7 @@ class RaftClientFacade(
 
     suspend fun sendQuery(command: RaftCommand): String {
         return try {
-            val serialized = serializeCommand(command)
+            val serialized = serializeRaftCommand(command)
             withContext(Dispatchers.IO) {
                 val reply = raftClient.io().sendReadOnly(Message.valueOf(serialized))
                 reply.message.content.toStringUtf8()
