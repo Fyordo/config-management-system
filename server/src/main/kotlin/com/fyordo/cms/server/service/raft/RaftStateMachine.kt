@@ -13,11 +13,14 @@ import com.fyordo.cms.server.serialization.raft.serializeRaftResult
 import com.fyordo.cms.server.serialization.serializeList
 import com.fyordo.cms.server.service.storage.PropertyInMemoryStorage
 import com.fyordo.cms.server.utils.EMPTY_BYTES
+import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.future.future
+import kotlinx.coroutines.job
+import kotlinx.coroutines.runBlocking
 import mu.KotlinLogging
 import org.apache.ratis.protocol.Message
 import org.apache.ratis.protocol.RaftGroupId
@@ -34,7 +37,7 @@ private val logger = KotlinLogging.logger {}
 class RaftStateMachine(
     private val store: PropertyInMemoryStorage
 ) : BaseStateMachine() {
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default + CoroutineName("RaftStateMachine"))
 
     override fun initialize(
         server: RaftServer,
@@ -46,9 +49,9 @@ class RaftStateMachine(
     }
 
     override fun close() {
+        logger.info { "RaftStateMachine is closing" }
         try {
-            scope.cancel("RaftStateMachine is closing")
-            logger.info { "CoroutineScope cancelled" }
+            scope.cancel("Cancelling CoroutineScope")
         } catch (e: Exception) {
             logger.warn(e) { "Error cancelling scope" }
         } finally {
@@ -71,7 +74,12 @@ class RaftStateMachine(
                     .let(Message::valueOf)
             }.getOrElse { e ->
                 logger.warn(e) { "Error applying transaction" }
-                Message.valueOf("ERROR: ${e.message}")
+                Message.valueOf(serializeRaftResult(
+                    RaftResult(
+                        result = EMPTY_BYTES,
+                        status = RaftResultStatus.ERROR
+                    )
+                ))
             }
         }
 
@@ -81,20 +89,26 @@ class RaftStateMachine(
                 request.content
                     .toStringUtf8()
                     .let(::deserializeRaftCommand)
-                    .also { logger.info { "Query: ${it.operation} ${it.key}" } }
+                    .also { logger.debug { "Query: ${it.operation} ${it.key}" } }
                     .let(::processCommand)
                     .let(::serializeRaftResult)
                     .let(Message::valueOf)
             }.getOrElse { e ->
                 logger.error(e) { "Error processing query" }
-                Message.valueOf("ERROR: ${e.message}")
+                Message.valueOf(serializeRaftResult(
+                    RaftResult(
+                        result = EMPTY_BYTES,
+                        status = RaftResultStatus.ERROR
+                    )
+                ))
             }
         }
 
     private fun processCommand(command: RaftCommand): RaftResult {
         return when (command.operation) {
             RaftOp.PUT -> {
-                store[command.key!!] = deserializePropertyValue(command.value)
+                requireNotNull(command.key) { "Command PUT should contain a key" }
+                store[command.key] = deserializePropertyValue(command.value)
                 RaftResult(
                     result = EMPTY_BYTES,
                     status = RaftResultStatus.OK
@@ -102,7 +116,8 @@ class RaftStateMachine(
             }
 
             RaftOp.GET -> {
-                store[command.key!!]?.let {
+                requireNotNull(command.key) { "Command PUT should contain a key" }
+                store[command.key]?.let {
                     RaftResult(
                         result = serializePropertyValue(it),
                         status = RaftResultStatus.OK
@@ -114,7 +129,8 @@ class RaftStateMachine(
             }
 
             RaftOp.DELETE -> {
-                store.remove(command.key!!)?.let {
+                requireNotNull(command.key) { "Command PUT should contain a key" }
+                store.remove(command.key)?.let {
                     RaftResult(
                         result = EMPTY_BYTES,
                         status = RaftResultStatus.OK

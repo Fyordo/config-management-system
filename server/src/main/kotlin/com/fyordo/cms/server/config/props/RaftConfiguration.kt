@@ -19,5 +19,11 @@ data class RaftConfiguration(
 
     val heartbeatIntervalMs: Long = 1000,
 
-    val peers: List<String> = emptyList()
+    val peers: List<String> = emptyList(),
+
+    val segmentSizeMax: String = "8MB",
+
+    val preAllocatedSize: String = "4MB",
+
+    val autoTriggerThreshold: Long = 10000,
 )

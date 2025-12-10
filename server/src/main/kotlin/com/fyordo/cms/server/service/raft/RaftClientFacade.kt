@@ -3,6 +3,7 @@ package com.fyordo.cms.server.service.raft
 import com.fyordo.cms.server.config.props.RaftConfiguration
 import com.fyordo.cms.server.dto.raft.RaftCommand
 import com.fyordo.cms.server.serialization.raft.serializeRaftCommand
+import com.fyordo.cms.server.utils.raft.parsePeers
 import jakarta.annotation.PostConstruct
 import jakarta.annotation.PreDestroy
 import kotlinx.coroutines.Dispatchers
@@ -65,28 +66,12 @@ class RaftClientFacade(
         )
 
         raftProps.peers.forEach { peerConfig ->
-            if (peerConfig.isBlank()) {
-                logger.warn { "Peer config is empty" }
-                return@forEach
-            }
-
-            val parts = peerConfig.split(PEERS_PARTS_DELIMITER)
-            if (parts.size != 3) {
-                logger.warn { "Peer config $peerConfig has wrong format" }
-                return@forEach
-            }
-
-            val peerId = RaftPeerId.valueOf(parts[0])
-            val peerAddress = InetSocketAddress(
-                parts[1],
-                parts[2].toInt()
-            )
-            add(
-                RaftPeer.newBuilder()
-                    .setId(peerId)
-                    .setAddress(peerAddress)
-                    .build()
-            )
+            parsePeers(
+                peerConfig,
+                raftProps.nodeId,
+                raftProps.host,
+                raftProps.port,
+            )?.let { add(it) }
         }
     }
 

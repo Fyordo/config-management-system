@@ -1,6 +1,7 @@
 package com.fyordo.cms.server.service.raft
 
 import com.fyordo.cms.server.config.props.RaftConfiguration
+import com.fyordo.cms.server.utils.raft.parsePeers
 import jakarta.annotation.PostConstruct
 import jakarta.annotation.PreDestroy
 import mu.KotlinLogging
@@ -21,7 +22,7 @@ import java.util.*
 import java.util.concurrent.TimeUnit
 
 private val logger = KotlinLogging.logger {}
-private const val PEERS_PARTS_DELIMITER = ':'
+private const val UNKNOWN = "<UNKNOWN>"
 
 @Service
 class RaftServerService(
@@ -57,11 +58,11 @@ class RaftServerService(
                     TimeDuration.valueOf(raftProps.heartbeatIntervalMs, TimeUnit.MILLISECONDS)
                 )
 
-                RaftServerConfigKeys.Log.setSegmentSizeMax(this, SizeInBytes.valueOf("8MB"))
-                RaftServerConfigKeys.Log.setPreallocatedSize(this, SizeInBytes.valueOf("4MB"))
+                RaftServerConfigKeys.Log.setSegmentSizeMax(this, SizeInBytes.valueOf(raftProps.segmentSizeMax))
+                RaftServerConfigKeys.Log.setPreallocatedSize(this, SizeInBytes.valueOf(raftProps.preAllocatedSize))
 
                 RaftServerConfigKeys.Snapshot.setAutoTriggerEnabled(this, true)
-                RaftServerConfigKeys.Snapshot.setAutoTriggerThreshold(this, 10000L)
+                RaftServerConfigKeys.Snapshot.setAutoTriggerThreshold(this, raftProps.autoTriggerThreshold)
 
                 // Настройка gRPC транспорта
                 GrpcConfigKeys.Server.setPort(this, raftProps.port)
@@ -77,36 +78,12 @@ class RaftServerService(
             val allPeers = mutableListOf(localPeer)
 
             raftProps.peers.forEach { peerConfig ->
-                if (peerConfig.isNotBlank()) {
-                    val parts = peerConfig.split(PEERS_PARTS_DELIMITER)
-                    if (parts.size == 3) {
-                        val peerIdRaw = parts[0]
-                        val peerHost = parts[1]
-                        val peerPort = parts[2].toIntOrNull()
-
-                        if (peerPort == null) {
-                            logger.warn { "Invalid RAFT peer port in config entry: '$peerConfig'" }
-                            return@forEach
-                        }
-
-                        // Не добавляем самого себя повторно, если он уже сконфигурирован как локальный peer
-                        if (peerIdRaw == raftProps.nodeId && peerHost == raftProps.host && peerPort == raftProps.port) {
-                            logger.info { "Skipping self RAFT peer entry from configuration: '$peerConfig'" }
-                            return@forEach
-                        }
-
-                        val peerId = RaftPeerId.valueOf(peerIdRaw)
-                        val peerAddress = InetSocketAddress(peerHost, peerPort)
-                        allPeers.add(
-                            RaftPeer.newBuilder()
-                                .setId(peerId)
-                                .setAddress(peerAddress)
-                                .build()
-                        )
-                    } else {
-                        logger.warn { "Invalid RAFT peer config entry: '$peerConfig', expected format 'id:host:port'" }
-                    }
-                }
+                parsePeers(
+                    peerConfig,
+                    raftProps.nodeId,
+                    raftProps.host,
+                    raftProps.port,
+                )?.let { allPeers.add(it) }
             }
 
             logger.info { "RAFT peers configured: ${allPeers.map { it.id }}" }
@@ -145,8 +122,6 @@ class RaftServerService(
         }
     }
 
-    fun getRaftServer(): RaftServer = raftServer
-
     fun getGroupId(): RaftGroupId = raftGroupId
 
     fun isLeader(): Boolean {
@@ -159,7 +134,7 @@ class RaftServerService(
         }
     }
 
-    fun getLeaderId(): String? {
+    fun getLeaderId(): String {
         return runCatching {
             val division = raftServer.getDivision(raftGroupId)
             val currentRole = division?.info?.currentRole
@@ -167,12 +142,12 @@ class RaftServerService(
             if (division?.info?.isLeader == true) {
                 raftProps.nodeId
             } else {
-                currentRole?.toString() ?: "unknown"
+                currentRole?.toString() ?: UNKNOWN
             }
         }.onFailure {
             logger.warn(it) { "Error getting leader ID" }
-            "unknown"
-        }.getOrNull()
+            UNKNOWN
+        }.getOrDefault(UNKNOWN)
     }
 }
 

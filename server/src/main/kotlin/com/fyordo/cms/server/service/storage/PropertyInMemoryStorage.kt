@@ -44,27 +44,33 @@ class PropertyInMemoryStorage(
     }
 
     fun getByFilter(filter: PropertyQueryFilter): Sequence<PropertyInternalDto> {
-        val namespaces = pathHolder.getNamespaces().filter {
-            filter.namespaceRegex?.toRegex()?.matches(it) ?: true
-        }
-        val services = pathHolder.getServices().filter {
-            filter.serviceRegex?.toRegex()?.matches(it) ?: true
-        }
-        val appIds = pathHolder.getAppIds().filter {
-            filter.appIdRegex?.toRegex()?.matches(it) ?: true
-        }
-        val keys = pathHolder.getKeys().filter {
-            filter.keyRegex?.toRegex()?.matches(it) ?: true
-        }
+        lock.readLock().lock()
 
-        return storage.asSequence().filter {
-            namespaces.contains(it.key.namespace) and
-                    services.contains(it.key.service) and
-                    appIds.contains(it.key.appId) and
-                    keys.contains(it.key.key)
+        try {
+            val namespaces = pathHolder.getNamespaces().filter {
+                filter.namespaceRegex?.toRegex()?.matches(it) ?: true
+            }
+            val services = pathHolder.getServices().filter {
+                filter.serviceRegex?.toRegex()?.matches(it) ?: true
+            }
+            val appIds = pathHolder.getAppIds().filter {
+                filter.appIdRegex?.toRegex()?.matches(it) ?: true
+            }
+            val keys = pathHolder.getKeys().filter {
+                filter.keyRegex?.toRegex()?.matches(it) ?: true
+            }
+
+            return storage.asSequence().filter {
+                namespaces.contains(it.key.namespace) and
+                        services.contains(it.key.service) and
+                        appIds.contains(it.key.appId) and
+                        keys.contains(it.key.key)
+            }
+                .map { PropertyInternalDto(it.key, it.value) }
+                .take(filter.limit)
+        } finally {
+            lock.readLock().unlock()
         }
-            .map { PropertyInternalDto(it.key, it.value) }
-            .take(filter.limit)
     }
 
     fun remove(key: PropertyKey): PropertyValue? {
