@@ -1,4 +1,4 @@
-package com.fyordo.cms.server.serialization
+package com.fyordo.cms.server.serialization.property
 
 import com.fyordo.cms.server.dto.property.PropertyKey
 

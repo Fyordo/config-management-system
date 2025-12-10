@@ -1,9 +1,14 @@
 package com.fyordo.cms.server.service.raft
 
-import com.fyordo.cms.server.dto.RaftCommand
-import com.fyordo.cms.server.dto.RaftOp
-import com.fyordo.cms.server.serialization.deserializeRaftCommand
+import com.fyordo.cms.server.dto.raft.RaftCommand
+import com.fyordo.cms.server.dto.raft.RaftOp
+import com.fyordo.cms.server.dto.raft.RaftResult
+import com.fyordo.cms.server.dto.raft.RaftResultStatus
+import com.fyordo.cms.server.serialization.property.serializePropertyValue
+import com.fyordo.cms.server.serialization.raft.deserializeRaftCommand
+import com.fyordo.cms.server.serialization.raft.serializeRaftResult
 import com.fyordo.cms.server.service.storage.InMemoryStorage
+import com.fyordo.cms.server.utils.EMPTY_BYTES
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -58,6 +63,7 @@ class RaftStateMachine : BaseStateMachine() {
                     .let(::deserializeRaftCommand)
                     .also { logger.debug { "Applying: ${it.operation} ${it.key}" } }
                     .let(::processCommand)
+                    .let(::serializeRaftResult)
                     .let(Message::valueOf)
             }.getOrElse { e ->
                 logger.warn(e) { "Error applying transaction" }
@@ -73,6 +79,7 @@ class RaftStateMachine : BaseStateMachine() {
                     .let(::deserializeRaftCommand)
                     .also { logger.info { "Query: ${it.operation} ${it.key}" } }
                     .let(::processCommand)
+                    .let(::serializeRaftResult)
                     .let(Message::valueOf)
             }.getOrElse { e ->
                 logger.error(e) { "Error processing query" }
@@ -80,19 +87,38 @@ class RaftStateMachine : BaseStateMachine() {
             }
         }
 
-    private fun processCommand(command: RaftCommand): String {
+    private fun processCommand(command: RaftCommand): RaftResult {
         return when (command.operation) {
             RaftOp.PUT -> {
                 store[command.key] = command.value
-                "OK"
+                RaftResult(
+                    result = EMPTY_BYTES,
+                    status = RaftResultStatus.OK
+                )
             }
 
             RaftOp.GET -> {
-                store[command.key]?.toString(Charsets.UTF_8) ?: "NULL"
+                store[command.key]?.let {
+                    RaftResult(
+                        result = serializePropertyValue(it),
+                        status = RaftResultStatus.OK
+                    )
+                } ?: RaftResult(
+                    result = EMPTY_BYTES,
+                    status = RaftResultStatus.NOT_FOUND
+                )
             }
 
             RaftOp.DELETE -> {
-                store.remove(command.key)?.let { "OK" } ?: "NOT_FOUND"
+                store.remove(command.key)?.let {
+                    RaftResult(
+                        result = EMPTY_BYTES,
+                        status = RaftResultStatus.OK
+                    )
+                } ?: RaftResult(
+                    result = EMPTY_BYTES,
+                    status = RaftResultStatus.NOT_FOUND
+                )
             }
         }
     }

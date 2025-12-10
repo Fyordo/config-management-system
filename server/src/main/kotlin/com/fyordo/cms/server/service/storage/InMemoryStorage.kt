@@ -1,6 +1,7 @@
 package com.fyordo.cms.server.service.storage
 
 import com.fyordo.cms.server.dto.property.PropertyKey
+import com.fyordo.cms.server.dto.property.PropertyValue
 import mu.KotlinLogging
 import java.util.concurrent.locks.ReadWriteLock
 import java.util.concurrent.locks.ReentrantReadWriteLock
@@ -9,9 +10,9 @@ private val logger = KotlinLogging.logger {}
 
 class InMemoryStorage {
     private val lock: ReadWriteLock = ReentrantReadWriteLock()
-    private val storage = mutableMapOf<PropertyKey, ByteArray>()
+    private val storage = mutableMapOf<PropertyKey, PropertyValue>()
 
-    operator fun set(key: PropertyKey, value: ByteArray) {
+    operator fun set(key: PropertyKey, value: PropertyValue) {
         lock.writeLock().lock()
         try {
             storage[key] = value
@@ -23,7 +24,7 @@ class InMemoryStorage {
         }
     }
 
-    operator fun get(key: PropertyKey): ByteArray? {
+    operator fun get(key: PropertyKey): PropertyValue? {
         lock.readLock().lock()
         try {
             return storage[key]
@@ -35,7 +36,7 @@ class InMemoryStorage {
         }
     }
 
-    fun remove(key: PropertyKey): ByteArray? {
+    fun remove(key: PropertyKey): PropertyValue? {
         lock.writeLock().lock()
         try {
             return storage.remove(key).also {

@@ -1,8 +1,8 @@
 package com.fyordo.cms.server.service.raft
 
 import com.fyordo.cms.server.config.props.RaftConfiguration
-import com.fyordo.cms.server.dto.RaftCommand
-import com.fyordo.cms.server.serialization.serializeRaftCommand
+import com.fyordo.cms.server.dto.raft.RaftCommand
+import com.fyordo.cms.server.serialization.raft.serializeRaftCommand
 import jakarta.annotation.PostConstruct
 import jakarta.annotation.PreDestroy
 import kotlinx.coroutines.Dispatchers

@@ -1,12 +1,16 @@
-package com.fyordo.cms.server.serialization
+package com.fyordo.cms.server.serialization.raft
 
-import com.fyordo.cms.server.dto.RaftCommand
-import com.fyordo.cms.server.dto.RaftOp
+import com.fyordo.cms.server.dto.raft.RaftCommand
+import com.fyordo.cms.server.dto.raft.RaftOp
+import com.fyordo.cms.server.serialization.property.deserializePropertyKey
+import com.fyordo.cms.server.serialization.property.deserializePropertyValue
+import com.fyordo.cms.server.serialization.property.serializePropertyKey
+import com.fyordo.cms.server.serialization.property.serializePropertyValue
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.DataInputStream
 import java.io.DataOutputStream
-import java.util.*
+import kotlin.io.encoding.Base64
 
 fun serializeRaftCommand(command: RaftCommand): String {
     return when (command.version.toInt()) {
@@ -16,7 +20,7 @@ fun serializeRaftCommand(command: RaftCommand): String {
 }
 
 fun deserializeRaftCommand(command: String): RaftCommand {
-    val bytes = Base64.getDecoder().decode(command)
+    val bytes = Base64.decode(command)
 
     val byteStream = ByteArrayInputStream(bytes)
     val dataStream = DataInputStream(byteStream)
@@ -46,13 +50,13 @@ fun serializeRaftCommandV1(command: RaftCommand): String {
     dataStream.writeInt(keyBytes.size)
     dataStream.write(keyBytes)
 
-    val valueBytes = command.value
+    val valueBytes = serializePropertyValue(command.value)
     dataStream.writeInt(valueBytes.size)
     dataStream.write(valueBytes)
 
     dataStream.flush()
 
-    return Base64.getEncoder().encodeToString(byteStream.toByteArray())
+    return Base64.encode(byteStream.toByteArray())
 }
 
 fun deserializeRaftCommandV1(version: Int, dataStream: DataInputStream): RaftCommand {
@@ -61,7 +65,7 @@ fun deserializeRaftCommandV1(version: Int, dataStream: DataInputStream): RaftCom
     }
 
     val operationByte = dataStream.readByte()
-    val operation = RaftOp.entries.first { it.value == operationByte }
+    val operation = RaftOp.getByValue(operationByte)
 
     val keyLength = dataStream.readInt()
     val keyBytes = ByteArray(keyLength)
@@ -71,11 +75,12 @@ fun deserializeRaftCommandV1(version: Int, dataStream: DataInputStream): RaftCom
     val valueLength = dataStream.readInt()
     val valueBytes = ByteArray(valueLength)
     dataStream.readFully(valueBytes)
+    val value = deserializePropertyValue(valueBytes)
 
     return RaftCommand(
         operation = operation,
         key = key,
-        value = valueBytes,
+        value = value,
         version = version.toByte()
     )
 }

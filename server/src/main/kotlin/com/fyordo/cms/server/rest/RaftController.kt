@@ -1,19 +1,13 @@
 package com.fyordo.cms.server.rest
 
-import com.fyordo.cms.server.dto.RaftCommand
-import com.fyordo.cms.server.dto.RaftOp
-import com.fyordo.cms.server.service.raft.RaftClientFacade
 import com.fyordo.cms.server.service.raft.RaftServerService
 import mu.KotlinLogging
-import org.springframework.web.bind.annotation.*
+import org.springframework.web.bind.annotation.GetMapping
+import org.springframework.web.bind.annotation.RequestMapping
+import org.springframework.web.bind.annotation.RestController
 
-private val logger = KotlinLogging.logger {}
-
-/**
- * REST контроллер для тестирования RAFT кластера
- */
 @RestController
-@RequestMapping("/api/raft")
+@RequestMapping("/raft")
 class RaftController(
     private val server: RaftServerService
 ) {
