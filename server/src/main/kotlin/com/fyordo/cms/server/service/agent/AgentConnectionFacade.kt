@@ -2,10 +2,20 @@ package com.fyordo.cms.server.service.agent
 
 import com.fyordo.cms.AgentChannelServiceOuterClass
 import com.fyordo.cms.server.dto.grpc.AgentId
+import com.fyordo.cms.server.grpc.PropertyUpdateBroadcaster
 import com.fyordo.cms.server.service.storage.PropertyInMemoryStorage
 import com.google.protobuf.ByteString
 import io.grpc.stub.ServerCallStreamObserver
 import io.grpc.stub.StreamObserver
+import jakarta.annotation.PostConstruct
+import jakarta.annotation.PreDestroy
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.onEach
 import mu.KotlinLogging
 import org.springframework.stereotype.Component
 import java.util.concurrent.ConcurrentHashMap
@@ -21,9 +31,51 @@ private data class Connection(
 
 @Component
 class AgentConnectionFacade(
-    private val propertyInMemoryStorage: PropertyInMemoryStorage
+    private val propertyInMemoryStorage: PropertyInMemoryStorage,
+    private val broadcaster: PropertyUpdateBroadcaster
 ) {
     private val connections: MutableMap<AgentId, Connection> = ConcurrentHashMap()
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+    @PostConstruct
+    fun init() {
+        broadcaster.updateFlow
+            .onEach { event ->
+                val agentId = AgentId(
+                    event.key.namespace,
+                    event.key.service,
+                    event.key.appId
+                )
+                
+                val updateEvent = AgentChannelServiceOuterClass.ServerPropertyUpdateEvent.newBuilder()
+                    .setProperty(
+                        AgentChannelServiceOuterClass.Property.newBuilder()
+                            .setKey(event.key.key)
+                            .setValue(ByteString.copyFrom(event.value?.value ?: ByteArray(0)))
+                    )
+                    .setLastModifiedMs(event.value?.lastModifiedMs ?: 0)
+                    .build()
+
+                sendToAgent(
+                    agentId,
+                    AgentChannelServiceOuterClass.ServerStreamEvent.newBuilder()
+                        .setUpdateEvent(updateEvent)
+                        .build()
+                )
+            }
+            .catch { e ->
+                logger.error(e) { "Error processing property update" }
+            }
+            .launchIn(scope)
+
+        logger.info { "AgentConnectionFacade initialized and subscribed to broadcaster" }
+    }
+
+    @PreDestroy
+    fun destroy() {
+        scope.cancel()
+        logger.info { "AgentConnectionFacade destroyed" }
+    }
 
     fun register(agentId: AgentId, streamObserver: StreamObserver<AgentChannelServiceOuterClass.ServerStreamEvent>) {
         logger.info { "Registering stream event: $agentId" }
