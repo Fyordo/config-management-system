@@ -6,6 +6,7 @@ import com.fyordo.cms.server.dto.property.PropertyValue
 import com.fyordo.cms.server.dto.raft.RaftCommand
 import com.fyordo.cms.server.dto.raft.RaftOp
 import com.fyordo.cms.server.dto.raft.RaftResultStatus
+import com.fyordo.cms.server.grpc.PropertyUpdateBroadcaster
 import com.fyordo.cms.server.serialization.property.deserializePropertyValue
 import com.fyordo.cms.server.serialization.property.serializePropertyValue
 import com.fyordo.cms.server.serialization.raft.deserializeRaftResult
@@ -111,7 +112,8 @@ class RaftFailoverIntegrationTest {
     private fun createNode(config: RaftConfiguration): RaftServerService {
         val pathHolder = PropertyPathHolder()
         val storage = PropertyInMemoryStorage(pathHolder)
-        val stateMachine = RaftStateMachine(storage)
+        val broadcaster = PropertyUpdateBroadcaster()
+        val stateMachine = RaftStateMachine(storage, broadcaster)
         val server = RaftServerService(config, stateMachine)
         server.init()
         return server

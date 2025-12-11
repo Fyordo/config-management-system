@@ -1,0 +1,17 @@
+syntax = "proto3";
+
+package com.fyordo.cms;
+
+service AgentCoordinationService {
+  rpc SelectNode (SelectNodeReq) returns (SelectNodeResp);
+}
+
+message SelectNodeReq {
+  string namespace = 1;
+  string service = 2;
+  string appId = 3;
+}
+
+message SelectNodeResp {
+  string nodeUrl = 1;
+}

@@ -30,6 +30,18 @@ class PropertyPathHolder {
         keys
     }
 
+    fun addNamespace(namespace: String) = modifyUnderLock {
+        namespaces.add(namespace)
+    }
+
+    fun addService(service: String) = modifyUnderLock {
+        services.add(service)
+    }
+
+    fun addAppId(appId: String) = modifyUnderLock {
+        appIds.add(appId)
+    }
+
     fun addProperty(key: PropertyKey) = modifyUnderLock {
         namespaces.add(key.namespace)
         services.add(key.service)

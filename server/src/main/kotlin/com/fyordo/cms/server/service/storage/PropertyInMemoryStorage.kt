@@ -73,6 +73,21 @@ class PropertyInMemoryStorage(
         }
     }
 
+    fun getInitForApp(namespace: String, service: String, appId: String): List<PropertyInternalDto> {
+        lock.readLock().lock()
+
+        try {
+            return storage.filter {
+                it.key.namespace == namespace &&
+                        it.key.service == service &&
+                        it.key.appId == appId
+            }
+                .map { PropertyInternalDto(it.key, it.value) }
+        } finally {
+            lock.readLock().unlock()
+        }
+    }
+
     fun remove(key: PropertyKey): PropertyValue? {
         lock.writeLock().lock()
         try {

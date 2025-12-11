@@ -1,9 +1,12 @@
 package com.fyordo.cms.server.service.raft
 
+import com.fyordo.cms.server.dto.property.PropertyKey
+import com.fyordo.cms.server.dto.property.PropertyValue
 import com.fyordo.cms.server.dto.raft.RaftCommand
 import com.fyordo.cms.server.dto.raft.RaftOp
 import com.fyordo.cms.server.dto.raft.RaftResult
 import com.fyordo.cms.server.dto.raft.RaftResultStatus
+import com.fyordo.cms.server.grpc.PropertyUpdateBroadcaster
 import com.fyordo.cms.server.serialization.property.deserializePropertyValue
 import com.fyordo.cms.server.serialization.property.serializePropertyInternalDto
 import com.fyordo.cms.server.serialization.property.serializePropertyValue
@@ -19,8 +22,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.future.future
-import kotlinx.coroutines.job
-import kotlinx.coroutines.runBlocking
 import mu.KotlinLogging
 import org.apache.ratis.protocol.Message
 import org.apache.ratis.protocol.RaftGroupId
@@ -35,7 +36,8 @@ private val logger = KotlinLogging.logger {}
 
 @Component
 class RaftStateMachine(
-    private val store: PropertyInMemoryStorage
+    private val store: PropertyInMemoryStorage,
+    private val propertyUpdateBroadcaster: PropertyUpdateBroadcaster
 ) : BaseStateMachine() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default + CoroutineName("RaftStateMachine"))
 
@@ -108,7 +110,11 @@ class RaftStateMachine(
         return when (command.operation) {
             RaftOp.PUT -> {
                 requireNotNull(command.key) { "Command PUT should contain a key" }
-                store[command.key] = deserializePropertyValue(command.value)
+                val propertyValue = deserializePropertyValue(command.value)
+                store[command.key] = propertyValue
+
+                publishUpdateFailSafe(command.key, propertyValue)
+                
                 RaftResult(
                     result = EMPTY_BYTES,
                     status = RaftResultStatus.OK
@@ -131,6 +137,7 @@ class RaftStateMachine(
             RaftOp.DELETE -> {
                 requireNotNull(command.key) { "Command PUT should contain a key" }
                 store.remove(command.key)?.let {
+                    publishUpdateFailSafe(command.key, null)
                     RaftResult(
                         result = EMPTY_BYTES,
                         status = RaftResultStatus.OK
@@ -150,6 +157,17 @@ class RaftStateMachine(
                     status = RaftResultStatus.OK
                 )
             }
+        }
+    }
+
+    private fun publishUpdateFailSafe(
+        key: PropertyKey,
+        propertyValue: PropertyValue?
+    ) {
+        try {
+            propertyUpdateBroadcaster.publishUpdate(key, propertyValue)
+        } catch (e: Exception) {
+            logger.warn(e) { "Failed to publish update event for key: $key" }
         }
     }
 }
