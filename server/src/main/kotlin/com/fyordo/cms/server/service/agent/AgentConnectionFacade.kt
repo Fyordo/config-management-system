@@ -125,7 +125,7 @@ class AgentConnectionFacade(
                     ).forEach {
                         properties.addProperties(
                             AgentChannelServiceOuterClass.Property.newBuilder()
-                                .setKey(it.key.toString())
+                                .setKey(it.key.key)
                                 .setValue(ByteString.copyFrom(it.value.value))
                         )
                     }
