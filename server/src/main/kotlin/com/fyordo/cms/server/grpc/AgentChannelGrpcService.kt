@@ -54,9 +54,10 @@ class AgentChannelGrpcService(
             val updateEvent = AgentChannelServiceOuterClass.ServerPropertyUpdateEvent.newBuilder()
                 .setProperty(
                     AgentChannelServiceOuterClass.Property.newBuilder()
-                        .setKey(event.key.toString())
+                        .setKey(event.key.key)
                         .setValue(ByteString.copyFrom(event.value?.value ?: ByteArray(0)))
                 )
+                .setLastModifiedMs(event.value?.lastModifiedMs ?: 0)
                 .build()
 
             agentConnectionFacade.sendToAgent(

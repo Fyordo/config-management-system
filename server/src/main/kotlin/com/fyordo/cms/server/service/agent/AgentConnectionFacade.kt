@@ -9,31 +9,37 @@ import io.grpc.stub.StreamObserver
 import mu.KotlinLogging
 import org.springframework.stereotype.Component
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.locks.ReentrantLock
+import kotlin.concurrent.withLock
 
 private val logger = KotlinLogging.logger {}
+
+private data class Connection(
+    val streamObserver: StreamObserver<AgentChannelServiceOuterClass.ServerStreamEvent>,
+    val lock: ReentrantLock = ReentrantLock()
+)
 
 @Component
 class AgentConnectionFacade(
     private val propertyInMemoryStorage: PropertyInMemoryStorage
 ) {
-    private val connections: MutableMap<AgentId, StreamObserver<AgentChannelServiceOuterClass.ServerStreamEvent>> =
-        ConcurrentHashMap()
+    private val connections: MutableMap<AgentId, Connection> = ConcurrentHashMap()
 
     fun register(agentId: AgentId, streamObserver: StreamObserver<AgentChannelServiceOuterClass.ServerStreamEvent>) {
         logger.info { "Registering stream event: $agentId" }
-        connections[agentId] = streamObserver
+        connections[agentId] = Connection(streamObserver)
     }
-    
+
     fun unregister(agentId: AgentId) {
         connections.remove(agentId)
         logger.info { "Unregistered agent: $agentId" }
     }
 
     fun sendToAgent(agentId: AgentId, result: AgentChannelServiceOuterClass.ServerStreamEvent) {
-        val streamObserver = connections[agentId]
-        if (streamObserver != null) {
+        val connection = connections[agentId]
+        connection?.lock?.withLock {
             try {
-                // Check if the call is cancelled before sending
+                val streamObserver = connection.streamObserver
                 if (streamObserver is ServerCallStreamObserver && streamObserver.isCancelled) {
                     logger.warn { "Stream is cancelled for agent: $agentId, removing connection" }
                     unregister(agentId)
@@ -48,35 +54,37 @@ class AgentConnectionFacade(
     }
 
     fun sendInitToAgent(agentId: AgentId) {
-        connections[agentId]?.let { streamObserver ->
-            try {
-                // Check if the call is cancelled before sending
-                if (streamObserver is ServerCallStreamObserver && streamObserver.isCancelled) {
-                    logger.warn { "Stream is cancelled for agent: $agentId, removing connection" }
-                    unregister(agentId)
-                    return
-                }
-                
-                val result = AgentChannelServiceOuterClass.ServerStreamEvent.newBuilder()
-                val properties = AgentChannelServiceOuterClass.ServerInitEvent.newBuilder()
-                propertyInMemoryStorage.getInitForApp(
-                    agentId.namespace,
-                    agentId.service,
-                    agentId.appId
-                ).forEach {
-                    properties.addProperties(
-                        AgentChannelServiceOuterClass.Property.newBuilder()
-                            .setKey(it.key.toString())
-                            .setValue(ByteString.copyFrom(it.value.value))
-                    )
-                }
-                result.setInitEvent(properties.build())
+        connections[agentId]?.let { connection ->
+            connection.lock.withLock {
+                try {
+                    val streamObserver = connection.streamObserver
+                    if (streamObserver is ServerCallStreamObserver && streamObserver.isCancelled) {
+                        logger.warn { "Stream is cancelled for agent: $agentId, removing connection" }
+                        unregister(agentId)
+                        return
+                    }
 
-                streamObserver.onNext(result.build())
-                logger.info { "Sent init config to agent: $agentId" }
-            } catch (e: Exception) {
-                logger.error(e) { "Error sending init config to agent: $agentId, removing connection" }
-                unregister(agentId)
+                    val result = AgentChannelServiceOuterClass.ServerStreamEvent.newBuilder()
+                    val properties = AgentChannelServiceOuterClass.ServerInitEvent.newBuilder()
+                    propertyInMemoryStorage.getInitForApp(
+                        agentId.namespace,
+                        agentId.service,
+                        agentId.appId
+                    ).forEach {
+                        properties.addProperties(
+                            AgentChannelServiceOuterClass.Property.newBuilder()
+                                .setKey(it.key.toString())
+                                .setValue(ByteString.copyFrom(it.value.value))
+                        )
+                    }
+                    result.setInitEvent(properties.build())
+
+                    streamObserver.onNext(result.build())
+                    logger.info { "Sent init config to agent: $agentId" }
+                } catch (e: Exception) {
+                    logger.error(e) { "Error sending init config to agent: $agentId, removing connection" }
+                    unregister(agentId)
+                }
             }
         } ?: run {
             logger.error { "AgentConnectionFacade.sendInitToAgent failed, no stream found for agentId=$agentId" }
@@ -84,19 +92,15 @@ class AgentConnectionFacade(
     }
 
     fun closeStream(agentId: AgentId) {
-        connections.remove(agentId)?.let {
+        connections.remove(agentId)?.let { connection ->
             logger.info { "Closed connection with agentId: $agentId" }
-            try {
-                it.onCompleted()
-            } catch (e: Exception) {
-                logger.warn(e) { "Error completing stream for agent: $agentId" }
+            connection.lock.withLock {
+                try {
+                    connection.streamObserver.onCompleted()
+                } catch (e: Exception) {
+                    logger.warn(e) { "Error completing stream for agent: $agentId" }
+                }
             }
-        }
-    }
-
-    fun close() {
-        connections.forEach {
-            closeStream(it.key)
         }
     }
 }
