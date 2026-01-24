@@ -1,4 +1,4 @@
-package com.fyordo.cms.server.grpc
+package com.fyordo.cms.server.grpc.stream
 
 import com.fyordo.cms.AgentChannelServiceOuterClass
 import com.fyordo.cms.server.dto.grpc.AgentId

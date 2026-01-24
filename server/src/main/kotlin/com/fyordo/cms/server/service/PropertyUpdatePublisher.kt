@@ -1,4 +1,4 @@
-package com.fyordo.cms.server.grpc
+package com.fyordo.cms.server.service
 
 import com.fyordo.cms.server.dto.grpc.PropertyUpdateEvent
 import com.fyordo.cms.server.dto.property.PropertyKey
@@ -13,7 +13,7 @@ import org.springframework.stereotype.Component
 private val logger = KotlinLogging.logger {}
 
 @Component
-class PropertyUpdateBroadcaster {
+class PropertyUpdatePublisher {
 
     private val _updateFlow = MutableSharedFlow<PropertyUpdateEvent>(
         replay = 0,

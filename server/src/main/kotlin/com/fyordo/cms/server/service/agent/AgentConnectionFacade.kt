@@ -2,7 +2,7 @@ package com.fyordo.cms.server.service.agent
 
 import com.fyordo.cms.AgentChannelServiceOuterClass
 import com.fyordo.cms.server.dto.grpc.AgentId
-import com.fyordo.cms.server.grpc.PropertyUpdateBroadcaster
+import com.fyordo.cms.server.service.PropertyUpdatePublisher
 import com.fyordo.cms.server.service.storage.PropertyInMemoryStorage
 import com.google.protobuf.ByteString
 import io.grpc.stub.ServerCallStreamObserver
@@ -32,7 +32,7 @@ private data class Connection(
 @Component
 class AgentConnectionFacade(
     private val propertyInMemoryStorage: PropertyInMemoryStorage,
-    private val broadcaster: PropertyUpdateBroadcaster
+    private val broadcaster: PropertyUpdatePublisher
 ) {
     private val connections: MutableMap<AgentId, Connection> = ConcurrentHashMap()
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)

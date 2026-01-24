@@ -14,7 +14,7 @@ import com.fyordo.cms.server.serialization.property.deserializePropertyValue
 import com.fyordo.cms.server.serialization.query.serializePropertyQueryFilter
 import com.fyordo.cms.server.serialization.raft.deserializeRaftResult
 import com.fyordo.cms.server.service.raft.RaftClientFacade
-import com.fyordo.cms.server.service.storage.PropertyPathHolder
+import com.fyordo.cms.server.service.storage.PropertyPartsHolder
 import com.fyordo.cms.server.utils.EMPTY_BYTES
 import org.springframework.http.HttpStatus
 import org.springframework.web.bind.annotation.*
@@ -24,7 +24,7 @@ import org.springframework.web.server.ResponseStatusException
 @RequestMapping("/v1/property/query")
 class PropertyQueryController(
     private val clientFacade: RaftClientFacade,
-    private val propertyPathHolder: PropertyPathHolder
+    private val propertyPartsHolder: PropertyPartsHolder
 ) {
     @GetMapping("/get")
     suspend fun get(@RequestParam key: String): PropertyDto {
@@ -52,10 +52,10 @@ class PropertyQueryController(
     @GetMapping("/constants")
     suspend fun constants(): Map<String, Set<String>> {
         return mapOf(
-            "namespaces" to propertyPathHolder.getNamespaces(),
-            "services" to propertyPathHolder.getServices(),
-            "keys" to propertyPathHolder.getKeys(),
-            "appIds" to propertyPathHolder.getAppIds(),
+            "namespaces" to propertyPartsHolder.getNamespaces(),
+            "services" to propertyPartsHolder.getServices(),
+            "keys" to propertyPartsHolder.getKeys(),
+            "appIds" to propertyPartsHolder.getAppIds(),
         )
     }
 

@@ -4,6 +4,7 @@ package com.fyordo.cms;
 
 service AgentCoordinationService {
   rpc SelectNode (SelectNodeReq) returns (SelectNodeResp);
+  rpc Disconnect (DisconnectReq) returns (DisconnectResp);
 }
 
 message SelectNodeReq {
@@ -14,4 +15,13 @@ message SelectNodeReq {
 
 message SelectNodeResp {
   string nodeUrl = 1;
+}
+
+message DisconnectReq {
+  string namespace = 1;
+  string service = 2;
+  string appId = 3;
+}
+
+message DisconnectResp {
 }

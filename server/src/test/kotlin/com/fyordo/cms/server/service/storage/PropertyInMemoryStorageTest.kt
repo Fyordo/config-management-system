@@ -10,11 +10,11 @@ import kotlin.test.*
 class PropertyInMemoryStorageTest {
 
     private lateinit var storage: PropertyInMemoryStorage
-    private lateinit var pathHolder: PropertyPathHolder
+    private lateinit var pathHolder: PropertyPartsHolder
 
     @BeforeEach
     fun setUp() {
-        pathHolder = PropertyPathHolder()
+        pathHolder = PropertyPartsHolder()
         storage = PropertyInMemoryStorage(pathHolder)
     }
 

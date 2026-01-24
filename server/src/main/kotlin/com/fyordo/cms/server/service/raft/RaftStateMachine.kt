@@ -6,7 +6,7 @@ import com.fyordo.cms.server.dto.raft.RaftCommand
 import com.fyordo.cms.server.dto.raft.RaftOp
 import com.fyordo.cms.server.dto.raft.RaftResult
 import com.fyordo.cms.server.dto.raft.RaftResultStatus
-import com.fyordo.cms.server.grpc.PropertyUpdateBroadcaster
+import com.fyordo.cms.server.service.PropertyUpdatePublisher
 import com.fyordo.cms.server.serialization.property.deserializePropertyValue
 import com.fyordo.cms.server.serialization.property.serializePropertyInternalDto
 import com.fyordo.cms.server.serialization.property.serializePropertyValue
@@ -37,7 +37,7 @@ private val logger = KotlinLogging.logger {}
 @Component
 class RaftStateMachine(
     private val store: PropertyInMemoryStorage,
-    private val propertyUpdateBroadcaster: PropertyUpdateBroadcaster
+    private val propertyUpdatePublisher: PropertyUpdatePublisher
 ) : BaseStateMachine() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default + CoroutineName("RaftStateMachine"))
 
@@ -165,7 +165,7 @@ class RaftStateMachine(
         propertyValue: PropertyValue?
     ) {
         try {
-            propertyUpdateBroadcaster.publishUpdate(key, propertyValue)
+            propertyUpdatePublisher.publishUpdate(key, propertyValue)
         } catch (e: Exception) {
             logger.warn(e) { "Failed to publish update event for key: $key" }
         }

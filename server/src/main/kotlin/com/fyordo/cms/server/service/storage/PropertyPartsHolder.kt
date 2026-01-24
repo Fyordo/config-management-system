@@ -6,7 +6,7 @@ import java.util.concurrent.locks.ReadWriteLock
 import java.util.concurrent.locks.ReentrantReadWriteLock
 
 @Component
-class PropertyPathHolder {
+class PropertyPartsHolder {
     private val lock: ReadWriteLock = ReentrantReadWriteLock()
 
     private val namespaces: MutableSet<String> = mutableSetOf()

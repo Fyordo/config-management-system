@@ -9,11 +9,11 @@ import kotlin.test.assertTrue
 
 class PropertyPathHolderTest {
 
-    private lateinit var pathHolder: PropertyPathHolder
+    private lateinit var pathHolder: PropertyPartsHolder
 
     @BeforeEach
     fun setUp() {
-        pathHolder = PropertyPathHolder()
+        pathHolder = PropertyPartsHolder()
     }
 
     @Test

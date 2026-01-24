@@ -6,13 +6,13 @@ import com.fyordo.cms.server.dto.property.PropertyValue
 import com.fyordo.cms.server.dto.raft.RaftCommand
 import com.fyordo.cms.server.dto.raft.RaftOp
 import com.fyordo.cms.server.dto.raft.RaftResultStatus
-import com.fyordo.cms.server.grpc.PropertyUpdateBroadcaster
+import com.fyordo.cms.server.service.PropertyUpdatePublisher
 import com.fyordo.cms.server.serialization.property.deserializePropertyValue
 import com.fyordo.cms.server.serialization.property.serializePropertyValue
 import com.fyordo.cms.server.serialization.raft.deserializeRaftResult
 import com.fyordo.cms.server.serialization.raft.serializeRaftCommand
 import com.fyordo.cms.server.service.storage.PropertyInMemoryStorage
-import com.fyordo.cms.server.service.storage.PropertyPathHolder
+import com.fyordo.cms.server.service.storage.PropertyPartsHolder
 import com.fyordo.cms.server.utils.EMPTY_BYTES
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
@@ -112,9 +112,9 @@ class RaftClusterIntegrationTest {
     }
 
     private fun createNode(config: RaftConfiguration): RaftServerService {
-        val pathHolder = PropertyPathHolder()
+        val pathHolder = PropertyPartsHolder()
         val storage = PropertyInMemoryStorage(pathHolder)
-        val broadcaster = PropertyUpdateBroadcaster()
+        val broadcaster = PropertyUpdatePublisher()
         val stateMachine = RaftStateMachine(storage, broadcaster)
         val server = RaftServerService(config, stateMachine)
         server.init()

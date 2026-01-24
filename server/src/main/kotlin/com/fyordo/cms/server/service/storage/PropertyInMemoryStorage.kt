@@ -13,7 +13,7 @@ private val logger = KotlinLogging.logger {}
 
 @Component
 class PropertyInMemoryStorage(
-    private val pathHolder: PropertyPathHolder
+    private val partsHolder: PropertyPartsHolder
 ) {
     private val lock: ReadWriteLock = ReentrantReadWriteLock()
     private val storage = mutableMapOf<PropertyKey, PropertyValue>()
@@ -22,7 +22,7 @@ class PropertyInMemoryStorage(
         lock.writeLock().lock()
         try {
             storage[key] = value
-            pathHolder.addProperty(key)
+            partsHolder.addProperty(key)
             logger.debug { "Stored value $key -> $value" }
         } catch (e: Exception) {
             logger.error(e) { "Failed to store value $key -> $value" }
@@ -47,16 +47,16 @@ class PropertyInMemoryStorage(
         lock.readLock().lock()
 
         try {
-            val namespaces = pathHolder.getNamespaces().filter {
+            val namespaces = partsHolder.getNamespaces().filter {
                 filter.namespaceRegex?.toRegex()?.matches(it) ?: true
             }
-            val services = pathHolder.getServices().filter {
+            val services = partsHolder.getServices().filter {
                 filter.serviceRegex?.toRegex()?.matches(it) ?: true
             }
-            val appIds = pathHolder.getAppIds().filter {
+            val appIds = partsHolder.getAppIds().filter {
                 filter.appIdRegex?.toRegex()?.matches(it) ?: true
             }
-            val keys = pathHolder.getKeys().filter {
+            val keys = partsHolder.getKeys().filter {
                 filter.keyRegex?.toRegex()?.matches(it) ?: true
             }
 
@@ -92,7 +92,7 @@ class PropertyInMemoryStorage(
         lock.writeLock().lock()
         try {
             return storage.remove(key).also {
-                pathHolder.removeProperty(key)
+                partsHolder.removeProperty(key)
                 logger.debug { "Removed key $key" }
             }
         } catch (e: Exception) {
