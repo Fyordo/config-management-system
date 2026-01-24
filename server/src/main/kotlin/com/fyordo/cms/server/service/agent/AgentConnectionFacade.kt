@@ -21,6 +21,7 @@ import org.springframework.stereotype.Component
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
+import kotlin.math.max
 
 private val logger = KotlinLogging.logger {}
 
@@ -118,6 +119,7 @@ class AgentConnectionFacade(
 
                     val result = AgentChannelServiceOuterClass.ServerStreamEvent.newBuilder()
                     val properties = AgentChannelServiceOuterClass.ServerInitEvent.newBuilder()
+                    var lastModifiedMs: Long = 0
                     propertyInMemoryStorage.getInitForApp(
                         agentId.namespace,
                         agentId.service,
@@ -128,18 +130,19 @@ class AgentConnectionFacade(
                                 .setKey(it.key.key)
                                 .setValue(ByteString.copyFrom(it.value.value))
                         )
+                        lastModifiedMs = max(lastModifiedMs, it.value.lastModifiedMs)
                     }
-                    result.setInitEvent(properties.build())
+                    result.setInitEvent(properties.setLastModifiedMs(lastModifiedMs).build())
 
                     streamObserver.onNext(result.build())
-                    logger.info { "Sent init config to agent: $agentId" }
+                    logger.info { "Sent init config to agent: [$agentId] with lastModifiedMs = [$lastModifiedMs]" }
                 } catch (e: Exception) {
-                    logger.error(e) { "Error sending init config to agent: $agentId, removing connection" }
+                    logger.error(e) { "Error sending init config to agent: [$agentId], removing connection" }
                     unregister(agentId)
                 }
             }
         } ?: run {
-            logger.error { "AgentConnectionFacade.sendInitToAgent failed, no stream found for agentId=$agentId" }
+            logger.error { "AgentConnectionFacade.sendInitToAgent failed, no stream found for agentId=[$agentId]" }
         }
     }
 
