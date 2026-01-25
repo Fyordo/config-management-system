@@ -1,6 +1,7 @@
 #pragma once
 
 #include <string>
+#include <atomic>
 
 struct AgentConfig {
     std::string namespace_;
@@ -13,5 +14,8 @@ struct AgentConfig {
     }
 };
 
+extern std::atomic<bool> g_shutdown_requested;
+
 void RunServer(int argc, char** argv);
 AgentConfig GetAndValidateConfigFromEnv();
+void SetupSignalHandlers();

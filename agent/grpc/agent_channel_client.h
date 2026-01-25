@@ -4,6 +4,7 @@
 #include <string>
 #include <thread>
 #include <atomic>
+#include <grpcpp/grpcpp.h>
 
 #include "grpc_starter.h"
 
@@ -12,13 +13,27 @@ public:
     AgentChannelClient(const AgentConfig& config, const std::string& server_address);
     ~AgentChannelClient();
     
+    // Delete copy and move operations
+    AgentChannelClient(const AgentChannelClient&) = delete;
+    AgentChannelClient& operator=(const AgentChannelClient&) = delete;
+    AgentChannelClient(AgentChannelClient&&) = delete;
+    AgentChannelClient& operator=(AgentChannelClient&&) = delete;
+    
     void Start();
     void Stop();
     
 private:
+    // Configuration constants
+    static constexpr std::chrono::seconds RECONNECT_DELAY{5};
+    static constexpr std::chrono::seconds CONNECTION_TIMEOUT{5};
+    static constexpr std::chrono::seconds HEARTBEAT_INTERVAL{30};
+    static constexpr std::chrono::milliseconds HEARTBEAT_CHECK_INTERVAL{100};
+    
     void Run();
-
-    bool ConnectToServer(std::shared_ptr<grpc_impl::Channel> &channel);
+    void RunReadLoop(std::shared_ptr<grpc::ClientReaderWriter<com::fyordo::cms::AgentStreamEvent, 
+                                                              com::fyordo::cms::ServerStreamEvent>> stream,
+                     std::shared_ptr<std::atomic<bool>> reading);
+    bool ConnectToServer(std::shared_ptr<grpc::Channel>& channel);
 
     AgentConfig config_;
     std::string server_address_;

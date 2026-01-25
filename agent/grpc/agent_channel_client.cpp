@@ -26,12 +26,12 @@ AgentChannelClient::~AgentChannelClient() {
 }
 
 void AgentChannelClient::Start() {
-    if (running_.load()) {
+    bool expected = false;
+    if (!running_.compare_exchange_strong(expected, true)) {
         std::cerr << "AgentChannelClient: Already running" << std::endl;
         return;
     }
     
-    running_.store(true);
     client_thread_ = std::thread(&AgentChannelClient::Run, this);
 }
 
@@ -54,7 +54,7 @@ void AgentChannelClient::Run() {
 
             bool connected = ConnectToServer(channel);
             if (!connected){
-                std::this_thread::sleep_for(std::chrono::seconds(5));
+                std::this_thread::sleep_for(RECONNECT_DELAY);
                 continue;
             }
 
@@ -71,9 +71,11 @@ void AgentChannelClient::Run() {
             
             if (!stream->Write(connect_event)) {
                 std::cerr << "AgentChannelClient: Failed to send connect event" << std::endl;
-                stream->WritesDone();
-                stream->Finish();
-                std::this_thread::sleep_for(std::chrono::seconds(5));
+                context.TryCancel();
+                grpc::Status status = stream->Finish();
+                std::cerr << "AgentChannelClient: Stream finished with status: " 
+                          << status.error_code() << " - " << status.error_message() << std::endl;
+                std::this_thread::sleep_for(RECONNECT_DELAY);
                 continue;
             }
             
@@ -81,31 +83,15 @@ void AgentChannelClient::Run() {
                       << "namespace: " << config_.namespace_ << ", "
                       << "service: " << config_.service << ", "
                       << "appId: " << config_.appId << std::endl;
-            
-            std::atomic<bool> reading(true);
-            std::thread read_thread([&stream, &reading]() {
-                ServerStreamEvent server_event;
-                while (reading.load() && stream->Read(&server_event)) {
-                    if (server_event.has_initevent()) {
-                        const auto& init = server_event.initevent();
-                        std::cout << "AgentChannelClient: Received ServerInitEvent - "
-                                  << "lastModifiedMs: " << init.lastmodifiedms() << ", "
-                                  << "properties count: " << init.properties_size() << std::endl;
-                    } else if (server_event.has_updateevent()) {
-                        const auto& update = server_event.updateevent();
-                        std::cout << "AgentChannelClient: Received ServerPropertyUpdateEvent - "
-                                  << "key: " << update.property().key() << ", "
-                                  << "lastModifiedMs: " << update.lastmodifiedms() << std::endl;
-                    }
-                }
-            });
+
+            auto reading = std::make_shared<std::atomic<bool>>(true);
+            std::thread read_thread(&AgentChannelClient::RunReadLoop, this, stream, reading);
             
             auto last_heartbeat = std::chrono::steady_clock::now();
-            const auto heartbeat_interval = std::chrono::seconds(30);
             
-            while (running_.load()) {
+            while (running_.load() && reading->load()) {
                 auto now = std::chrono::steady_clock::now();
-                if (now - last_heartbeat >= heartbeat_interval) {
+                if (now - last_heartbeat >= HEARTBEAT_INTERVAL) {
                     AgentStreamEvent heartbeat_event;
                     AgentHeartbeatEvent* heartbeat = heartbeat_event.mutable_heartbeat();
                     heartbeat->set_timestampms(
@@ -120,30 +106,62 @@ void AgentChannelClient::Run() {
                     last_heartbeat = now;
                 }
                 
-                std::this_thread::sleep_for(std::chrono::milliseconds(100));
+                std::this_thread::sleep_for(HEARTBEAT_CHECK_INTERVAL);
             }
-            
-            reading.store(false);
-            stream->WritesDone();
-            stream->Finish();
-            read_thread.join();
-            
-            std::cout << "AgentChannelClient: Disconnected from server" << std::endl;
+
+            reading->store(false);
+            context.TryCancel();
+
+            if (read_thread.joinable()) {
+                read_thread.join();
+            }
+
+            grpc::Status status = stream->Finish();
+            if (!status.ok()) {
+                std::cerr << "AgentChannelClient: Stream finished with error: " 
+                          << status.error_code() << " - " << status.error_message() << std::endl;
+            } else {
+                std::cout << "AgentChannelClient: Disconnected from server gracefully" << std::endl;
+            }
             
         } catch (const std::exception& e) {
             std::cerr << "AgentChannelClient: Exception: " << e.what() << std::endl;
         }
         
         if (running_.load()) {
-            std::cout << "AgentChannelClient: Reconnecting in 5 seconds..." << std::endl;
-            std::this_thread::sleep_for(std::chrono::seconds(5));
+            std::cout << "AgentChannelClient: Reconnecting in " << RECONNECT_DELAY.count() 
+                      << " seconds..." << std::endl;
+            std::this_thread::sleep_for(RECONNECT_DELAY);
         }
     }
 }
 
-bool AgentChannelClient::ConnectToServer(std::shared_ptr<grpc_impl::Channel> &channel)
+void AgentChannelClient::RunReadLoop(
+    std::shared_ptr<grpc::ClientReaderWriter<com::fyordo::cms::AgentStreamEvent, 
+                                             com::fyordo::cms::ServerStreamEvent>> stream,
+    std::shared_ptr<std::atomic<bool>> reading)
 {
-    if (channel->WaitForConnected(std::chrono::system_clock::now() + std::chrono::seconds(5)))
+    ServerStreamEvent server_event;
+    while (reading->load() && stream->Read(&server_event)) {
+        if (server_event.has_initevent()) {
+            const auto& init = server_event.initevent();
+            std::cout << "AgentChannelClient: Received ServerInitEvent - "
+                      << "lastModifiedMs: " << init.lastmodifiedms() << ", "
+                      << "properties count: " << init.properties_size() << std::endl;
+        } else if (server_event.has_updateevent()) {
+            const auto& update = server_event.updateevent();
+            std::cout << "AgentChannelClient: Received ServerPropertyUpdateEvent - "
+                      << "key: " << update.property().key() << ", "
+                      << "lastModifiedMs: " << update.lastmodifiedms() << std::endl;
+        }
+    }
+    reading->store(false);
+    std::cout << "AgentChannelClient: Read loop finished" << std::endl;
+}
+
+bool AgentChannelClient::ConnectToServer(std::shared_ptr<grpc::Channel>& channel)
+{
+    if (channel->WaitForConnected(std::chrono::system_clock::now() + CONNECTION_TIMEOUT))
     {
         std::cout << "AgentChannelClient: Connected to server at " << server_address_ << std::endl;
         return true;

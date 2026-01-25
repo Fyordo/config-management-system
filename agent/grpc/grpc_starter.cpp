@@ -5,10 +5,26 @@
 #include <cstdlib>
 #include <thread>
 #include <chrono>
+#include <csignal>
+#include <atomic>
 
 #include <grpcpp/grpcpp.h>
 #include "agent_channel_client.h"
 #include "grpc_starter.h"
+
+// Global shutdown flag
+std::atomic<bool> g_shutdown_requested{false};
+
+// Signal handler
+void SignalHandler(int signal) {
+    std::cout << "\nReceived signal " << signal << ", initiating shutdown..." << std::endl;
+    g_shutdown_requested.store(true);
+}
+
+void SetupSignalHandlers() {
+    std::signal(SIGINT, SignalHandler);
+    std::signal(SIGTERM, SignalHandler);
+}
 
 void RunServer(int argc, char** argv) {
     AgentConfig config = GetAndValidateConfigFromEnv();
@@ -19,39 +35,45 @@ void RunServer(int argc, char** argv) {
     std::cout << "  CMS_APPID: " << config.appId << std::endl;
     std::cout << "  CMS_SERVER_HOST: " << config.cmsServerHost << std::endl;
     
+    SetupSignalHandlers();
+    
     AgentChannelClient client(config, config.cmsServerHost);
     client.Start();
     std::cout << "AgentChannelClient: Started, connecting to " << config.cmsServerHost << std::endl;
     
-    std::cout << "Agent running, waiting for shutdown signal..." << std::endl;
-    while (true) {
-        std::this_thread::sleep_for(std::chrono::seconds(1));
+    std::cout << "Agent running, press Ctrl+C to stop..." << std::endl;
+    while (!g_shutdown_requested.load()) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
     }
     
+    std::cout << "Shutting down agent..." << std::endl;
     client.Stop();
+    std::cout << "Agent stopped successfully" << std::endl;
 }
 
 AgentConfig GetAndValidateConfigFromEnv() {
     AgentConfig config;
     
+    // Read environment variables before any threads are created (thread-safe)
     const char* namespace_env = std::getenv("CMS_NAMESPACE");
     const char* service_env = std::getenv("CMS_SERVICE");
     const char* appid_env = std::getenv("CMS_APPID");
     const char* cmsServerHost_env = std::getenv("CMS_SERVER_HOST");
     
-    if (namespace_env != nullptr) {
+    // Check for nullptr and empty strings
+    if (namespace_env != nullptr && *namespace_env != '\0') {
         config.namespace_ = std::string(namespace_env);
     }
     
-    if (service_env != nullptr) {
+    if (service_env != nullptr && *service_env != '\0') {
         config.service = std::string(service_env);
     }
     
-    if (appid_env != nullptr) {
+    if (appid_env != nullptr && *appid_env != '\0') {
         config.appId = std::string(appid_env);
     }
     
-    if (cmsServerHost_env != nullptr) {
+    if (cmsServerHost_env != nullptr && *cmsServerHost_env != '\0') {
         config.cmsServerHost = std::string(cmsServerHost_env);
     }
     
@@ -62,7 +84,7 @@ AgentConfig GetAndValidateConfigFromEnv() {
         if (config.appId.empty()) std::cerr << "  - CMS_APPID" << std::endl;
         if (config.cmsServerHost.empty()) std::cerr << "  - CMS_SERVER_HOST" << std::endl;
         std::cerr << "Please set all required environment variables before starting the agent." << std::endl;
-        exit(1);
+        throw std::runtime_error("Invalid configuration");
     }
 
     return config;

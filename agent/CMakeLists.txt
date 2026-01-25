@@ -1,6 +1,27 @@
 cmake_minimum_required(VERSION 3.20)
 project(cmsagent CXX)
 
+# Set C++ standard
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+
+# Enable warnings
+if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+    add_compile_options(-Wall -Wextra -Wpedantic)
+elseif(MSVC)
+    add_compile_options(/W4)
+endif()
+
+# Enable sanitizers for Debug builds
+if(CMAKE_BUILD_TYPE MATCHES "Debug")
+    if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+        message(STATUS "Enabling Address and Undefined Behavior Sanitizers")
+        add_compile_options(-fsanitize=address,undefined -fno-omit-frame-pointer)
+        add_link_options(-fsanitize=address,undefined)
+    endif()
+endif()
+
 find_package(Protobuf REQUIRED)
 
 find_library(GRPC_GRPCPP_LIBRARY NAMES grpc++)
@@ -17,7 +38,7 @@ if(NOT GRPC_CPP_PLUGIN)
 endif()
 
 set(PROTO_DIR "${CMAKE_CURRENT_SOURCE_DIR}/proto")
-set(GENERATED_PROTO_DIR "${CMAKE_CURRENT_SOURCE_DIR}/build/proto")
+set(GENERATED_PROTO_DIR "${CMAKE_BINARY_DIR}/generated/proto")
 
 file(MAKE_DIRECTORY "${GENERATED_PROTO_DIR}")
 
