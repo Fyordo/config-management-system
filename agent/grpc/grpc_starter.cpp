@@ -2,46 +2,68 @@
 #include <memory>
 #include <stdexcept>
 #include <string>
+#include <cstdlib>
+#include <thread>
+#include <chrono>
 
 #include <grpcpp/grpcpp.h>
-#include "impl/ping_service.h"
+#include "agent_channel_client.h"
 #include "grpc_starter.h"
 
-using grpc::Server;
-using grpc::ServerBuilder;
-
-const std::string address("0.0.0.0");
-
 void RunServer(int argc, char** argv) {
-    PingServiceImpl service;
-    const std::string port = getPortForGrpcOrDefault(argc, argv);
-
-    ServerBuilder builder;
-    builder.AddListeningPort(address + ":" +port, grpc::InsecureServerCredentials());
-    builder.RegisterService(&service);
-
-    std::unique_ptr<Server> server(builder.BuildAndStart());
-    std::cout << "Agent listening on " << address << " port " << port << std::endl;
-
-    server->Wait();
+    AgentConfig config = GetAndValidateConfigFromEnv();
+    
+    std::cout << "Agent configuration:" << std::endl;
+    std::cout << "  CMS_NAMESPACE: " << config.namespace_ << std::endl;
+    std::cout << "  CMS_SERVICE: " << config.service << std::endl;
+    std::cout << "  CMS_APPID: " << config.appId << std::endl;
+    std::cout << "  CMS_SERVER_HOST: " << config.cmsServerHost << std::endl;
+    
+    AgentChannelClient client(config, config.cmsServerHost);
+    client.Start();
+    std::cout << "AgentChannelClient: Started, connecting to " << config.cmsServerHost << std::endl;
+    
+    std::cout << "Agent running, waiting for shutdown signal..." << std::endl;
+    while (true) {
+        std::this_thread::sleep_for(std::chrono::seconds(1));
+    }
+    
+    client.Stop();
 }
 
-std::string getPortForGrpcOrDefault(int argc, char** argv) {
-    std::string port = "50051";
-    if (argc > 1) {
-        try {
-            int port_value = std::stoi(argv[1]);
-            if (port_value <= 0 || port_value > 65535) {
-                std::cerr << "Port must be between 1 and 65535" << std::endl;
-            }
-        } catch (const std::invalid_argument&) {
-            std::cerr << "Port argument must be a number" << std::endl;
-        } catch (const std::out_of_range&) {
-            std::cerr << "Port argument is out of valid range" << std::endl;
-        }
-
-        port = argv[1];
+AgentConfig GetAndValidateConfigFromEnv() {
+    AgentConfig config;
+    
+    const char* namespace_env = std::getenv("CMS_NAMESPACE");
+    const char* service_env = std::getenv("CMS_SERVICE");
+    const char* appid_env = std::getenv("CMS_APPID");
+    const char* cmsServerHost_env = std::getenv("CMS_SERVER_HOST");
+    
+    if (namespace_env != nullptr) {
+        config.namespace_ = std::string(namespace_env);
+    }
+    
+    if (service_env != nullptr) {
+        config.service = std::string(service_env);
+    }
+    
+    if (appid_env != nullptr) {
+        config.appId = std::string(appid_env);
+    }
+    
+    if (cmsServerHost_env != nullptr) {
+        config.cmsServerHost = std::string(cmsServerHost_env);
+    }
+    
+    if (!config.IsValid()) {
+        std::cerr << "Error: Required environment variables are not set:" << std::endl;
+        if (config.namespace_.empty()) std::cerr << "  - CMS_NAMESPACE" << std::endl;
+        if (config.service.empty()) std::cerr << "  - CMS_SERVICE" << std::endl;
+        if (config.appId.empty()) std::cerr << "  - CMS_APPID" << std::endl;
+        if (config.cmsServerHost.empty()) std::cerr << "  - CMS_SERVER_HOST" << std::endl;
+        std::cerr << "Please set all required environment variables before starting the agent." << std::endl;
+        exit(1);
     }
 
-    return port;
+    return config;
 }

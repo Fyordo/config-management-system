@@ -22,7 +22,8 @@ set(GENERATED_PROTO_DIR "${CMAKE_CURRENT_SOURCE_DIR}/build/proto")
 file(MAKE_DIRECTORY "${GENERATED_PROTO_DIR}")
 
 set(PROTO_FILES
-    "${PROTO_DIR}/ping.proto"
+    "${PROTO_DIR}/AgentChannelService.proto"
+    # "${PROTO_DIR}/AgentCoordinationService.proto"
 )
 
 set(PROTO_SRCS)
@@ -53,7 +54,7 @@ add_custom_target(generate_proto ALL DEPENDS ${PROTO_SRCS})
 
 add_executable(cmsagent
     main.cpp
-    grpc/impl/ping_service.cpp
+    grpc/agent_channel_client.cpp
     grpc/grpc_starter.cpp
     ${PROTO_SRCS}
 )
