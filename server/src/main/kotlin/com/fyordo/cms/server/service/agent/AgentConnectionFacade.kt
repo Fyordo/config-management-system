@@ -119,19 +119,21 @@ class AgentConnectionFacade(
 
                     val result = AgentChannelServiceOuterClass.ServerStreamEvent.newBuilder()
                     val properties = AgentChannelServiceOuterClass.ServerInitEvent.newBuilder()
-                    var lastModifiedMs: Long = 0
-                    propertyInMemoryStorage.getInitForApp(
+                    val propertiesList = propertyInMemoryStorage.getInitForApp(
                         agentId.namespace,
                         agentId.service,
                         agentId.appId
-                    ).forEach {
+                    )
+
+                    val lastModifiedMs = propertiesList.fold(0L) { maxTime, property ->
                         properties.addProperties(
                             AgentChannelServiceOuterClass.Property.newBuilder()
-                                .setKey(it.key.key)
-                                .setValue(ByteString.copyFrom(it.value.value))
+                                .setKey(property.key.key)
+                                .setValue(ByteString.copyFrom(property.value.value))
                         )
-                        lastModifiedMs = max(lastModifiedMs, it.value.lastModifiedMs)
+                        maxOf(maxTime, property.value.lastModifiedMs)
                     }
+
                     result.setInitEvent(properties.setLastModifiedMs(lastModifiedMs).build())
 
                     streamObserver.onNext(result.build())

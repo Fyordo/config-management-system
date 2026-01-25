@@ -1,6 +1,8 @@
 package com.fyordo.cms.server.service.storage
 
 import com.fyordo.cms.server.dto.property.PropertyKey
+import com.fyordo.cms.server.utils.read
+import com.fyordo.cms.server.utils.write
 import org.springframework.stereotype.Component
 import java.util.concurrent.locks.ReadWriteLock
 import java.util.concurrent.locks.ReentrantReadWriteLock
@@ -14,35 +16,27 @@ class PropertyPartsHolder {
     private val appIds: MutableSet<String> = mutableSetOf()
     private val keys: MutableSet<String> = mutableSetOf()
 
-    fun getNamespaces() = getUnderLock {
-        namespaces
-    }
+    fun getNamespaces(): Set<String> = lock.read { namespaces.toSet() }
 
-    fun getServices() = getUnderLock {
-        services
-    }
+    fun getServices(): Set<String> = lock.read { services.toSet() }
 
-    fun getAppIds() = getUnderLock {
-        appIds
-    }
+    fun getAppIds(): Set<String> = lock.read { appIds.toSet() }
 
-    fun getKeys() = getUnderLock {
-        keys
-    }
+    fun getKeys(): Set<String> = lock.read { keys.toSet() }
 
-    fun addNamespace(namespace: String) = modifyUnderLock {
+    fun addNamespace(namespace: String) = lock.write {
         namespaces.add(namespace)
     }
 
-    fun addService(service: String) = modifyUnderLock {
+    fun addService(service: String) = lock.write {
         services.add(service)
     }
 
-    fun addAppId(appId: String) = modifyUnderLock {
+    fun addAppId(appId: String) = lock.write {
         appIds.add(appId)
     }
 
-    fun addProperty(key: PropertyKey) = modifyUnderLock {
+    fun addProperty(key: PropertyKey) = lock.write {
         namespaces.add(key.namespace)
         services.add(key.service)
         appIds.add(key.appId)
@@ -54,7 +48,7 @@ class PropertyPartsHolder {
         hasOtherWithNamespace: Boolean,
         hasOtherWithService: Boolean,
         hasOtherWithAppId: Boolean
-    ) = modifyUnderLock {
+    ) = lock.write {
         keys.remove(key.key)
 
         if (!hasOtherWithNamespace) {
@@ -67,24 +61,6 @@ class PropertyPartsHolder {
 
         if (!hasOtherWithAppId) {
             appIds.remove(key.appId)
-        }
-    }
-
-    private inline fun getUnderLock(supplier: () -> Set<String>): Set<String> {
-        lock.readLock().lock()
-        try {
-            return supplier.invoke()
-        } finally {
-            lock.readLock().unlock()
-        }
-    }
-
-    private inline fun modifyUnderLock(modifier: () -> Unit) {
-        lock.writeLock().lock()
-        try {
-            return modifier.invoke()
-        } finally {
-            lock.writeLock().unlock()
         }
     }
 }

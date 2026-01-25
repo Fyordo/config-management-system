@@ -129,26 +129,49 @@ class PropertyPathHolderTest {
         pathHolder.addProperty(key)
         assertTrue(pathHolder.getKeys().contains("key"))
 
-        pathHolder.removeProperty(key)
+        // No other properties with same namespace/service/appId
+        pathHolder.removeProperty(
+            key,
+            hasOtherWithNamespace = false,
+            hasOtherWithService = false,
+            hasOtherWithAppId = false
+        )
         assertFalse(pathHolder.getKeys().contains("key"))
     }
 
     @Test
-    fun `should only remove key but keep other properties when removing`() {
-        val key = PropertyKey(
+    fun `should keep namespace service and appId when other properties exist`() {
+        val key1 = PropertyKey(
             version = 1,
             namespace = "ns",
             service = "svc",
             appId = "app",
-            key = "key"
+            key = "key1"
+        )
+        val key2 = PropertyKey(
+            version = 1,
+            namespace = "ns",
+            service = "svc",
+            appId = "app",
+            key = "key2"
         )
 
-        pathHolder.addProperty(key)
-        pathHolder.removeProperty(key)
+        pathHolder.addProperty(key1)
+        pathHolder.addProperty(key2)
+        
+        // Remove key1, but key2 still uses the same namespace/service/appId
+        pathHolder.removeProperty(
+            key1,
+            hasOtherWithNamespace = true,
+            hasOtherWithService = true,
+            hasOtherWithAppId = true
+        )
 
-        // Key should be removed
-        assertFalse(pathHolder.getKeys().contains("key"))
-        // But namespace, service, appId should remain
+        // key1 should be removed
+        assertFalse(pathHolder.getKeys().contains("key1"))
+        // key2 should still exist
+        assertTrue(pathHolder.getKeys().contains("key2"))
+        // namespace, service, appId should remain because key2 still uses them
         assertTrue(pathHolder.getNamespaces().contains("ns"))
         assertTrue(pathHolder.getServices().contains("svc"))
         assertTrue(pathHolder.getAppIds().contains("app"))
@@ -165,7 +188,12 @@ class PropertyPathHolderTest {
         )
 
         // Should not throw exception
-        pathHolder.removeProperty(key)
+        pathHolder.removeProperty(
+            key,
+            hasOtherWithNamespace = false,
+            hasOtherWithService = false,
+            hasOtherWithAppId = false
+        )
 
         assertTrue(pathHolder.getKeys().isEmpty())
     }
@@ -259,7 +287,7 @@ class PropertyPathHolderTest {
     }
 
     @Test
-    fun `should get mutable collections that can be modified`() {
+    fun `should return immutable copies of collections`() {
         val key = PropertyKey(
             version = 1,
             namespace = "ns",
@@ -275,11 +303,18 @@ class PropertyPathHolderTest {
         val appIds = pathHolder.getAppIds()
         val keys = pathHolder.getKeys()
 
-        // Collections should be mutable and contain added values
-        assertTrue(namespaces is MutableSet)
-        assertTrue(services is MutableSet)
-        assertTrue(appIds is MutableSet)
-        assertTrue(keys is MutableSet)
+        // Collections should be immutable copies
+        assertTrue(namespaces.contains("ns"))
+        assertTrue(services.contains("svc"))
+        assertTrue(appIds.contains("app"))
+        assertTrue(keys.contains("key"))
+        
+        // Verify they are not the same instance as internal collections
+        // (cannot directly test immutability in Kotlin, but they are Set<String> not MutableSet)
+        assertEquals(1, namespaces.size)
+        assertEquals(1, services.size)
+        assertEquals(1, appIds.size)
+        assertEquals(1, keys.size)
     }
 
     @Test
@@ -312,7 +347,141 @@ class PropertyPathHolderTest {
         keys.forEach { pathHolder.addProperty(it) }
         assertEquals(3, pathHolder.getKeys().size)
 
-        keys.forEach { pathHolder.removeProperty(it) }
+        // Remove first two keys - still have key3
+        pathHolder.removeProperty(
+            keys[0],
+            hasOtherWithNamespace = true,
+            hasOtherWithService = true,
+            hasOtherWithAppId = true
+        )
+        pathHolder.removeProperty(
+            keys[1],
+            hasOtherWithNamespace = true,
+            hasOtherWithService = true,
+            hasOtherWithAppId = true
+        )
+        
+        // Remove last key - no other properties left
+        pathHolder.removeProperty(
+            keys[2],
+            hasOtherWithNamespace = false,
+            hasOtherWithService = false,
+            hasOtherWithAppId = false
+        )
+        
         assertEquals(0, pathHolder.getKeys().size)
+        // All metadata should be removed too
+        assertTrue(pathHolder.getNamespaces().isEmpty())
+        assertTrue(pathHolder.getServices().isEmpty())
+        assertTrue(pathHolder.getAppIds().isEmpty())
+    }
+
+    @Test
+    fun `should remove all metadata when last property is removed`() {
+        val key = PropertyKey(
+            version = 1,
+            namespace = "ns",
+            service = "svc",
+            appId = "app",
+            key = "key"
+        )
+
+        pathHolder.addProperty(key)
+        
+        // Remove the only property - all metadata should be cleaned up
+        pathHolder.removeProperty(
+            key,
+            hasOtherWithNamespace = false,
+            hasOtherWithService = false,
+            hasOtherWithAppId = false
+        )
+
+        assertTrue(pathHolder.getKeys().isEmpty())
+        assertTrue(pathHolder.getNamespaces().isEmpty())
+        assertTrue(pathHolder.getServices().isEmpty())
+        assertTrue(pathHolder.getAppIds().isEmpty())
+    }
+
+    @Test
+    fun `should remove only unused metadata`() {
+        val key1 = PropertyKey(1, "ns1", "svc1", "app1", "key1")
+        val key2 = PropertyKey(1, "ns1", "svc2", "app2", "key2")
+
+        pathHolder.addProperty(key1)
+        pathHolder.addProperty(key2)
+
+        // Remove key1: ns1 is still used by key2, but svc1 and app1 are not
+        pathHolder.removeProperty(
+            key1,
+            hasOtherWithNamespace = true,  // ns1 still used by key2
+            hasOtherWithService = false,   // svc1 not used
+            hasOtherWithAppId = false      // app1 not used
+        )
+
+        assertTrue(pathHolder.getNamespaces().contains("ns1"))
+        assertFalse(pathHolder.getServices().contains("svc1"))
+        assertFalse(pathHolder.getAppIds().contains("app1"))
+        assertFalse(pathHolder.getKeys().contains("key1"))
+        
+        assertTrue(pathHolder.getServices().contains("svc2"))
+        assertTrue(pathHolder.getAppIds().contains("app2"))
+        assertTrue(pathHolder.getKeys().contains("key2"))
+    }
+
+    @Test
+    fun `should handle complex removal scenario with shared metadata`() {
+        // Setup: 3 keys with different combinations of shared metadata
+        val key1 = PropertyKey(1, "ns1", "svc", "app", "key1")
+        val key2 = PropertyKey(1, "ns1", "svc", "app", "key2")
+        val key3 = PropertyKey(1, "ns2", "svc", "app", "key3")
+
+        pathHolder.addProperty(key1)
+        pathHolder.addProperty(key2)
+        pathHolder.addProperty(key3)
+
+        assertEquals(2, pathHolder.getNamespaces().size) // ns1, ns2
+        assertEquals(1, pathHolder.getServices().size)   // svc
+        assertEquals(1, pathHolder.getAppIds().size)     // app
+        assertEquals(3, pathHolder.getKeys().size)       // key1, key2, key3
+
+        // Remove key1: ns1, svc, app still used by key2 and key3
+        pathHolder.removeProperty(
+            key1,
+            hasOtherWithNamespace = true,
+            hasOtherWithService = true,
+            hasOtherWithAppId = true
+        )
+
+        assertEquals(2, pathHolder.getNamespaces().size) // ns1, ns2 still present
+        assertEquals(1, pathHolder.getServices().size)   // svc still present
+        assertEquals(1, pathHolder.getAppIds().size)     // app still present
+        assertEquals(2, pathHolder.getKeys().size)       // key2, key3 remain
+
+        // Remove key2: ns1 no longer used, but svc and app still used by key3
+        pathHolder.removeProperty(
+            key2,
+            hasOtherWithNamespace = false, // ns1 not used anymore
+            hasOtherWithService = true,    // svc still used by key3
+            hasOtherWithAppId = true       // app still used by key3
+        )
+
+        assertEquals(1, pathHolder.getNamespaces().size) // only ns2
+        assertTrue(pathHolder.getNamespaces().contains("ns2"))
+        assertEquals(1, pathHolder.getServices().size)   // svc still present
+        assertEquals(1, pathHolder.getAppIds().size)     // app still present
+        assertEquals(1, pathHolder.getKeys().size)       // only key3
+
+        // Remove key3: last property, everything should be cleaned up
+        pathHolder.removeProperty(
+            key3,
+            hasOtherWithNamespace = false,
+            hasOtherWithService = false,
+            hasOtherWithAppId = false
+        )
+
+        assertTrue(pathHolder.getNamespaces().isEmpty())
+        assertTrue(pathHolder.getServices().isEmpty())
+        assertTrue(pathHolder.getAppIds().isEmpty())
+        assertTrue(pathHolder.getKeys().isEmpty())
     }
 }
