@@ -4,14 +4,15 @@ import com.fyordo.cms.server.dto.property.PropertyKey
 import com.fyordo.cms.server.dto.property.PropertyValue
 import com.fyordo.cms.server.dto.raft.RaftCommand
 import com.fyordo.cms.server.dto.raft.RaftOp
+import com.fyordo.cms.server.dto.raft.RaftOperationResult
 import com.fyordo.cms.server.dto.raft.RaftResult
-import com.fyordo.cms.server.serialization.property.deserializePropertyKey
-import com.fyordo.cms.server.serialization.property.serializePropertyKey
 import com.fyordo.cms.server.serialization.property.serializePropertyValue
 import com.fyordo.cms.server.serialization.raft.deserializeRaftResult
 import com.fyordo.cms.server.service.raft.RaftClientFacade
 import com.fyordo.cms.server.utils.EMPTY_BYTES
+import org.springframework.http.HttpStatus
 import org.springframework.web.bind.annotation.*
+import org.springframework.web.server.ResponseStatusException
 
 private const val CURRENT_VERSION: Byte = 1
 
@@ -34,11 +35,22 @@ class PropertyModificationController(
             )
         )
         val result = clientFacade.sendCommand(command)
-        val success = deserializeRaftResult(result).status
-        return mapOf(
-            "result" to success.name,
-            "key" to data.key.toString(),
-        )
+        return when (result) {
+            is RaftOperationResult.Success -> {
+                val success = deserializeRaftResult(result.data).status
+                mapOf(
+                    "result" to success.name,
+                    "key" to data.key.toString(),
+                )
+            }
+
+            is RaftOperationResult.Error -> {
+                throw ResponseStatusException(
+                    HttpStatus.INTERNAL_SERVER_ERROR,
+                    "Failed to execute command: ${result.message}"
+                )
+            }
+        }
     }
 
     @DeleteMapping("/delete")
@@ -55,9 +67,20 @@ class PropertyModificationController(
             )
         )
         val result = clientFacade.sendCommand(command)
-        return mapOf(
-            "result" to deserializeRaftResult(result)
-        )
+        return when (result) {
+            is RaftOperationResult.Success -> {
+                mapOf(
+                    "result" to deserializeRaftResult(result.data)
+                )
+            }
+
+            is RaftOperationResult.Error -> {
+                throw ResponseStatusException(
+                    HttpStatus.INTERNAL_SERVER_ERROR,
+                    "Failed to execute command: ${result.message}"
+                )
+            }
+        }
     }
 }
 

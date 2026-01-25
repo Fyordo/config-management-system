@@ -92,7 +92,16 @@ class PropertyInMemoryStorage(
         lock.writeLock().lock()
         try {
             return storage.remove(key).also {
-                partsHolder.removeProperty(key)
+                val hasOtherWithNamespace = storage.keys.any { it.namespace == key.namespace }
+                val hasOtherWithService = storage.keys.any { it.service == key.service }
+                val hasOtherWithAppId = storage.keys.any { it.appId == key.appId }
+
+                partsHolder.removeProperty(
+                    key,
+                    hasOtherWithNamespace,
+                    hasOtherWithService,
+                    hasOtherWithAppId
+                )
                 logger.debug { "Removed key $key" }
             }
         } catch (e: Exception) {

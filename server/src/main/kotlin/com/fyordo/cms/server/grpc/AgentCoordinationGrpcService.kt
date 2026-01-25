@@ -2,6 +2,7 @@ package com.fyordo.cms.server.grpc
 
 import com.fyordo.cms.AgentCoordinationServiceGrpc
 import com.fyordo.cms.AgentCoordinationServiceOuterClass
+import com.fyordo.cms.server.config.props.GrpcServerConfiguration
 import com.fyordo.cms.server.service.storage.PropertyPartsHolder
 import io.grpc.stub.StreamObserver
 import mu.KotlinLogging
@@ -12,6 +13,7 @@ private val logger = KotlinLogging.logger {}
 @GrpcService
 class AgentCoordinationGrpcService(
     private val propertyPartsHolder: PropertyPartsHolder,
+    private val grpcServerConfig: GrpcServerConfiguration,
 ) : AgentCoordinationServiceGrpc.AgentCoordinationServiceImplBase() {
     override fun selectNode(
         request: AgentCoordinationServiceOuterClass.SelectNodeReq,
@@ -26,7 +28,7 @@ class AgentCoordinationGrpcService(
         propertyPartsHolder.addAppId(request.appId)
 
         val response = AgentCoordinationServiceOuterClass.SelectNodeResp.newBuilder()
-            .setNodeUrl("grpc://localhost:9090")
+            .setNodeUrl(grpcServerConfig.getServerUrl())
             .build()
 
         responseObserver.onNext(response)

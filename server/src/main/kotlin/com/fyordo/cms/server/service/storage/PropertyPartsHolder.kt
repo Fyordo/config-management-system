@@ -49,8 +49,25 @@ class PropertyPartsHolder {
         keys.add(key.key)
     }
 
-    fun removeProperty(key: PropertyKey) = modifyUnderLock {
+    fun removeProperty(
+        key: PropertyKey,
+        hasOtherWithNamespace: Boolean,
+        hasOtherWithService: Boolean,
+        hasOtherWithAppId: Boolean
+    ) = modifyUnderLock {
         keys.remove(key.key)
+
+        if (!hasOtherWithNamespace) {
+            namespaces.remove(key.namespace)
+        }
+
+        if (!hasOtherWithService) {
+            services.remove(key.service)
+        }
+
+        if (!hasOtherWithAppId) {
+            appIds.remove(key.appId)
+        }
     }
 
     private inline fun getUnderLock(supplier: () -> Set<String>): Set<String> {

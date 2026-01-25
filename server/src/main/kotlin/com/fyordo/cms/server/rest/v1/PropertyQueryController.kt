@@ -7,6 +7,7 @@ import com.fyordo.cms.server.dto.property.PropertyValueDto
 import com.fyordo.cms.server.dto.query.PropertyQueryFilter
 import com.fyordo.cms.server.dto.raft.RaftCommand
 import com.fyordo.cms.server.dto.raft.RaftOp
+import com.fyordo.cms.server.dto.raft.RaftOperationResult
 import com.fyordo.cms.server.dto.raft.RaftResultStatus
 import com.fyordo.cms.server.serialization.deserializeList
 import com.fyordo.cms.server.serialization.property.deserializePropertyInternalDto
@@ -35,17 +36,26 @@ class PropertyQueryController(
             value = EMPTY_BYTES
         )
         val result = clientFacade.sendQuery(query)
-        val deserializedResult = deserializeRaftResult(result)
-        return when (deserializedResult.status) {
-            RaftResultStatus.OK -> PropertyDto(
-                key = PropertyKeyDto(deserializedKey),
-                value = PropertyValueDto(
-                    deserializePropertyValue(deserializedResult.result)
-                ),
-            )
-
-            RaftResultStatus.ERROR -> throw ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR)
-            RaftResultStatus.NOT_FOUND -> throw ResponseStatusException(HttpStatus.NOT_FOUND)
+        return when (result) {
+            is RaftOperationResult.Success -> {
+                val deserializedResult = deserializeRaftResult(result.data)
+                when (deserializedResult.status) {
+                    RaftResultStatus.OK -> PropertyDto(
+                        key = PropertyKeyDto(deserializedKey),
+                        value = PropertyValueDto(
+                            deserializePropertyValue(deserializedResult.result)
+                        ),
+                    )
+                    RaftResultStatus.ERROR -> throw ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR)
+                    RaftResultStatus.NOT_FOUND -> throw ResponseStatusException(HttpStatus.NOT_FOUND)
+                }
+            }
+            is RaftOperationResult.Error -> {
+                throw ResponseStatusException(
+                    HttpStatus.INTERNAL_SERVER_ERROR,
+                    "Failed to execute query: ${result.message}"
+                )
+            }
         }
     }
 
@@ -68,10 +78,20 @@ class PropertyQueryController(
             value = filterBytes
         )
         val result = clientFacade.sendQuery(query)
-        val deserializedResult = deserializeRaftResult(result)
-        return deserializeList(
-            deserializedResult.result,
-            ::deserializePropertyInternalDto
-        ).map { PropertyDto(it) }
+        return when (result) {
+            is RaftOperationResult.Success -> {
+                val deserializedResult = deserializeRaftResult(result.data)
+                deserializeList(
+                    deserializedResult.result,
+                    ::deserializePropertyInternalDto
+                ).map { PropertyDto(it) }
+            }
+            is RaftOperationResult.Error -> {
+                throw ResponseStatusException(
+                    HttpStatus.INTERNAL_SERVER_ERROR,
+                    "Failed to execute query: ${result.message}"
+                )
+            }
+        }
     }
 }

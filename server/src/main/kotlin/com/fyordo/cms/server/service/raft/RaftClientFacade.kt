@@ -2,6 +2,7 @@ package com.fyordo.cms.server.service.raft
 
 import com.fyordo.cms.server.config.props.RaftConfiguration
 import com.fyordo.cms.server.dto.raft.RaftCommand
+import com.fyordo.cms.server.dto.raft.RaftOperationResult
 import com.fyordo.cms.server.serialization.raft.serializeRaftCommand
 import com.fyordo.cms.server.utils.raft.parsePeers
 import jakarta.annotation.PostConstruct
@@ -88,29 +89,31 @@ class RaftClientFacade(
         }
     }
 
-    suspend fun sendCommand(command: RaftCommand): String {
+    suspend fun sendCommand(command: RaftCommand): RaftOperationResult {
         return try {
             val serialized = serializeRaftCommand(command)
-            withContext(Dispatchers.IO) {
+            val response = withContext(Dispatchers.IO) {
                 val reply = raftClient.io().send(Message.valueOf(serialized))
                 reply.message.content.toStringUtf8()
             }
+            RaftOperationResult.Success(response)
         } catch (e: Exception) {
             logger.error(e) { "Error sending command: $command" }
-            "ERROR: ${e.message}"
+            RaftOperationResult.Error("Failed to send command: ${e.message}", e)
         }
     }
 
-    suspend fun sendQuery(command: RaftCommand): String {
+    suspend fun sendQuery(command: RaftCommand): RaftOperationResult {
         return try {
             val serialized = serializeRaftCommand(command)
-            withContext(Dispatchers.IO) {
+            val response = withContext(Dispatchers.IO) {
                 val reply = raftClient.io().sendReadOnly(Message.valueOf(serialized))
                 reply.message.content.toStringUtf8()
             }
+            RaftOperationResult.Success(response)
         } catch (e: Exception) {
             logger.error(e) { "Error sending query: $command" }
-            "ERROR: ${e.message}"
+            RaftOperationResult.Error("Failed to send query: ${e.message}", e)
         }
     }
 }

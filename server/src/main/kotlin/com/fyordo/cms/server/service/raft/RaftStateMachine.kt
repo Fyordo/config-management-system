@@ -122,7 +122,7 @@ class RaftStateMachine(
             }
 
             RaftOp.GET -> {
-                requireNotNull(command.key) { "Command PUT should contain a key" }
+                requireNotNull(command.key) { "Command GET should contain a key" }
                 store[command.key]?.let {
                     RaftResult(
                         result = serializePropertyValue(it),
@@ -135,7 +135,7 @@ class RaftStateMachine(
             }
 
             RaftOp.DELETE -> {
-                requireNotNull(command.key) { "Command PUT should contain a key" }
+                requireNotNull(command.key) { "Command DELETE should contain a key" }
                 store.remove(command.key)?.let {
                     publishUpdateFailSafe(command.key, null)
                     RaftResult(
