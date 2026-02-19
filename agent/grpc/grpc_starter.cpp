@@ -26,7 +26,7 @@ void SetupSignalHandlers() {
     std::signal(SIGTERM, SignalHandler);
 }
 
-void RunServer(int argc, char** argv) {
+void RunServer(int /* argc */, char** /* argv */) {
     AgentConfig config = GetAndValidateConfigFromEnv();
     
     std::cout << "Agent configuration:" << std::endl;

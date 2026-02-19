@@ -8,6 +8,15 @@
 
 #include "grpc_starter.h"
 
+// Forward declarations
+namespace com {
+namespace fyordo {
+namespace cms {
+class ServerStreamEvent;
+}  // namespace cms
+}  // namespace fyordo
+}  // namespace com
+
 class AgentChannelClient {
 public:
     AgentChannelClient(const AgentConfig& config, const std::string& server_address);
@@ -26,13 +35,11 @@ private:
     // Configuration constants
     static constexpr std::chrono::seconds RECONNECT_DELAY{5};
     static constexpr std::chrono::seconds CONNECTION_TIMEOUT{5};
-    static constexpr std::chrono::seconds HEARTBEAT_INTERVAL{30};
-    static constexpr std::chrono::milliseconds HEARTBEAT_CHECK_INTERVAL{100};
     
     void Run();
-    void RunReadLoop(grpc::ClientReaderWriter<com::fyordo::cms::AgentStreamEvent, 
-                                               com::fyordo::cms::ServerStreamEvent>& stream,
-                     std::atomic<bool>& reading);
+    // Use void* to avoid forward declaration issues with template aliases
+    // Implementation will cast to proper type in .cpp file
+    void RunReadLoop(void* stream, std::atomic<bool>& reading);
     bool ConnectToServer(std::shared_ptr<grpc::Channel>& channel);
 
     AgentConfig config_;

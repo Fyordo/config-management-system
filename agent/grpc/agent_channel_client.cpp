@@ -8,12 +8,10 @@
 #include "AgentChannelService.pb.h"
 
 using grpc::ClientContext;
-using grpc::ClientReaderWriter;
+using grpc::ClientReader;
 using com::fyordo::cms::AgentChannelService;
-using com::fyordo::cms::AgentStreamEvent;
 using com::fyordo::cms::ServerStreamEvent;
-using com::fyordo::cms::AgentConnectEvent;
-using com::fyordo::cms::AgentHeartbeatEvent;
+using com::fyordo::cms::AgentConnectRequest;
 
 AgentChannelClient::AgentChannelClient(const AgentConfig& config, const std::string& server_address)
     : config_(config)
@@ -60,54 +58,37 @@ void AgentChannelClient::Run() {
             }
 
             ClientContext context;
-            std::shared_ptr<ClientReaderWriter<AgentStreamEvent, ServerStreamEvent>> stream(
-                stub->WatchProperties(&context)
+            
+            // Create connect request
+            AgentConnectRequest connect_request;
+            connect_request.set_namespace_(config_.namespace_);
+            connect_request.set_service(config_.service);
+            connect_request.set_appid(config_.appId);
+            
+            std::cout << "AgentChannelClient: Connecting to server - "
+                      << "namespace: " << config_.namespace_ << ", "
+                      << "service: " << config_.service << ", "
+                      << "appId: " << config_.appId << std::endl;
+            
+            // Create stream reader
+            std::unique_ptr<ClientReader<ServerStreamEvent>> reader(
+                stub->WatchProperties(&context, connect_request)
             );
             
-            AgentStreamEvent connect_event;
-            AgentConnectEvent* connect = connect_event.mutable_connect();
-            connect->set_namespace_(config_.namespace_);
-            connect->set_service(config_.service);
-            connect->set_appid(config_.appId);
-            
-            if (!stream->Write(connect_event)) {
-                std::cerr << "AgentChannelClient: Failed to send connect event" << std::endl;
-                context.TryCancel();
-                grpc::Status status = stream->Finish();
-                std::cerr << "AgentChannelClient: Stream finished with status: " 
-                          << status.error_code() << " - " << status.error_message() << std::endl;
+            if (!reader) {
+                std::cerr << "AgentChannelClient: Failed to create stream" << std::endl;
                 std::this_thread::sleep_for(RECONNECT_DELAY);
                 continue;
             }
             
-            std::cout << "AgentChannelClient: Sent connect event - "
-                      << "namespace: " << config_.namespace_ << ", "
-                      << "service: " << config_.service << ", "
-                      << "appId: " << config_.appId << std::endl;
+            std::cout << "AgentChannelClient: Stream created successfully" << std::endl;
 
             std::atomic<bool> reading(true);
-            std::thread read_thread(&AgentChannelClient::RunReadLoop, this, std::ref(*stream), std::ref(reading));
+            std::thread read_thread(&AgentChannelClient::RunReadLoop, this, reader.get(), std::ref(reading));
             
-            auto last_heartbeat = std::chrono::steady_clock::now();
-            
+            // Wait for read thread to finish
             while (running_.load() && reading.load()) {
-                auto now = std::chrono::steady_clock::now();
-                if (now - last_heartbeat >= HEARTBEAT_INTERVAL) {
-                    AgentStreamEvent heartbeat_event;
-                    AgentHeartbeatEvent* heartbeat = heartbeat_event.mutable_heartbeat();
-                    heartbeat->set_timestampms(
-                        std::chrono::duration_cast<std::chrono::milliseconds>(
-                            std::chrono::system_clock::now().time_since_epoch()).count());
-                    
-                    if (!stream->Write(heartbeat_event)) {
-                        std::cerr << "AgentChannelClient: Failed to send heartbeat" << std::endl;
-                        break;
-                    }
-                    
-                    last_heartbeat = now;
-                }
-                
-                std::this_thread::sleep_for(HEARTBEAT_CHECK_INTERVAL);
+                std::this_thread::sleep_for(std::chrono::milliseconds(100));
             }
 
             reading.store(false);
@@ -117,7 +98,7 @@ void AgentChannelClient::Run() {
                 read_thread.join();
             }
 
-            grpc::Status status = stream->Finish();
+            grpc::Status status = reader->Finish();
             if (!status.ok()) {
                 std::cerr << "AgentChannelClient: Stream finished with error: " 
                           << status.error_code() << " - " << status.error_message() << std::endl;
@@ -138,12 +119,15 @@ void AgentChannelClient::Run() {
 }
 
 void AgentChannelClient::RunReadLoop(
-    grpc::ClientReaderWriter<com::fyordo::cms::AgentStreamEvent, 
-                             com::fyordo::cms::ServerStreamEvent>& stream,
+    void* stream_ptr,
     std::atomic<bool>& reading)
 {
+    // Cast to the actual type - we know it's ClientReader<ServerStreamEvent>*
+    // ClientReader inherits from ClientReaderInterface, so we can use the interface
+    auto* stream = static_cast<grpc::ClientReaderInterface<ServerStreamEvent>*>(stream_ptr);
+    
     ServerStreamEvent server_event;
-    while (reading.load() && stream.Read(&server_event)) {
+    while (reading.load() && stream->Read(&server_event)) {
         if (server_event.has_initevent()) {
             const auto& init = server_event.initevent();
             std::cout << "AgentChannelClient: Received ServerInitEvent - "
