@@ -4,6 +4,7 @@ import com.fyordo.cms.AgentChannelServiceOuterClass
 import com.fyordo.cms.server.dto.grpc.AgentId
 import com.fyordo.cms.server.service.PropertyUpdatePublisher
 import com.fyordo.cms.server.service.storage.PropertyInMemoryStorage
+import com.fyordo.cms.server.utils.EMPTY_BYTES
 import com.google.protobuf.ByteString
 import io.grpc.stub.ServerCallStreamObserver
 import io.grpc.stub.StreamObserver
@@ -21,7 +22,6 @@ import org.springframework.stereotype.Component
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
-import kotlin.math.max
 
 private val logger = KotlinLogging.logger {}
 
@@ -31,7 +31,7 @@ private data class Connection(
 )
 
 @Component
-class AgentConnectionFacade(
+class AgentConnectionManager(
     private val propertyInMemoryStorage: PropertyInMemoryStorage,
     private val broadcaster: PropertyUpdatePublisher
 ) {
@@ -52,7 +52,7 @@ class AgentConnectionFacade(
                     .setProperty(
                         AgentChannelServiceOuterClass.Property.newBuilder()
                             .setKey(event.key.key)
-                            .setValue(ByteString.copyFrom(event.value?.value ?: ByteArray(0)))
+                            .setValue(ByteString.copyFrom(event.value?.value ?: EMPTY_BYTES))
                     )
                     .setLastModifiedMs(event.value?.lastModifiedMs ?: 0)
                     .build()
@@ -84,8 +84,10 @@ class AgentConnectionFacade(
     }
 
     fun unregister(agentId: AgentId) {
-        connections.remove(agentId)
-        logger.info { "Unregistered agent: $agentId" }
+        connections.remove(agentId).also { connection ->
+            connection?.streamObserver?.onCompleted()
+            logger.info { "Unregistered agent: $agentId" }
+        }
     }
 
     fun sendToAgent(agentId: AgentId, result: AgentChannelServiceOuterClass.ServerStreamEvent) {

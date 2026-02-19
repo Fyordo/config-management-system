@@ -2,6 +2,7 @@
 
 #include <iostream>
 #include <chrono>
+#include <functional>
 #include <grpcpp/grpcpp.h>
 #include "AgentChannelService.grpc.pb.h"
 #include "AgentChannelService.pb.h"
@@ -36,11 +37,11 @@ void AgentChannelClient::Start() {
 }
 
 void AgentChannelClient::Stop() {
-    if (!running_.load()) {
+    bool expected = true;
+    if (!running_.compare_exchange_strong(expected, false)) {
         return;
     }
     
-    running_.store(false);
     if (client_thread_.joinable()) {
         client_thread_.join();
     }
@@ -84,12 +85,12 @@ void AgentChannelClient::Run() {
                       << "service: " << config_.service << ", "
                       << "appId: " << config_.appId << std::endl;
 
-            auto reading = std::make_shared<std::atomic<bool>>(true);
-            std::thread read_thread(&AgentChannelClient::RunReadLoop, this, stream, reading);
+            std::atomic<bool> reading(true);
+            std::thread read_thread(&AgentChannelClient::RunReadLoop, this, std::ref(*stream), std::ref(reading));
             
             auto last_heartbeat = std::chrono::steady_clock::now();
             
-            while (running_.load() && reading->load()) {
+            while (running_.load() && reading.load()) {
                 auto now = std::chrono::steady_clock::now();
                 if (now - last_heartbeat >= HEARTBEAT_INTERVAL) {
                     AgentStreamEvent heartbeat_event;
@@ -109,7 +110,7 @@ void AgentChannelClient::Run() {
                 std::this_thread::sleep_for(HEARTBEAT_CHECK_INTERVAL);
             }
 
-            reading->store(false);
+            reading.store(false);
             context.TryCancel();
 
             if (read_thread.joinable()) {
@@ -137,12 +138,12 @@ void AgentChannelClient::Run() {
 }
 
 void AgentChannelClient::RunReadLoop(
-    std::shared_ptr<grpc::ClientReaderWriter<com::fyordo::cms::AgentStreamEvent, 
-                                             com::fyordo::cms::ServerStreamEvent>> stream,
-    std::shared_ptr<std::atomic<bool>> reading)
+    grpc::ClientReaderWriter<com::fyordo::cms::AgentStreamEvent, 
+                             com::fyordo::cms::ServerStreamEvent>& stream,
+    std::atomic<bool>& reading)
 {
     ServerStreamEvent server_event;
-    while (reading->load() && stream->Read(&server_event)) {
+    while (reading.load() && stream.Read(&server_event)) {
         if (server_event.has_initevent()) {
             const auto& init = server_event.initevent();
             std::cout << "AgentChannelClient: Received ServerInitEvent - "
@@ -155,7 +156,7 @@ void AgentChannelClient::RunReadLoop(
                       << "lastModifiedMs: " << update.lastmodifiedms() << std::endl;
         }
     }
-    reading->store(false);
+    reading.store(false);
     std::cout << "AgentChannelClient: Read loop finished" << std::endl;
 }
 

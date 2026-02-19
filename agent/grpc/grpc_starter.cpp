@@ -61,19 +61,19 @@ AgentConfig GetAndValidateConfigFromEnv() {
     const char* cmsServerHost_env = std::getenv("CMS_SERVER_HOST");
     
     // Check for nullptr and empty strings
-    if (namespace_env != nullptr && *namespace_env != '\0') {
+    if (namespace_env != nullptr) {
         config.namespace_ = std::string(namespace_env);
     }
     
-    if (service_env != nullptr && *service_env != '\0') {
+    if (service_env != nullptr) {
         config.service = std::string(service_env);
     }
     
-    if (appid_env != nullptr && *appid_env != '\0') {
+    if (appid_env != nullptr) {
         config.appId = std::string(appid_env);
     }
     
-    if (cmsServerHost_env != nullptr && *cmsServerHost_env != '\0') {
+    if (cmsServerHost_env != nullptr) {
         config.cmsServerHost = std::string(cmsServerHost_env);
     }
     

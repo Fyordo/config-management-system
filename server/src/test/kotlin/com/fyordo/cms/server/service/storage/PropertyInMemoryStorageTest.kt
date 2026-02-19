@@ -3,6 +3,7 @@ package com.fyordo.cms.server.service.storage
 import com.fyordo.cms.server.dto.property.PropertyKey
 import com.fyordo.cms.server.dto.property.PropertyValue
 import com.fyordo.cms.server.dto.query.PropertyQueryFilter
+import com.fyordo.cms.server.utils.EMPTY_BYTES
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import kotlin.test.*
@@ -285,13 +286,13 @@ class PropertyInMemoryStorageTest {
     @Test
     fun `should handle empty byte array values`() {
         val key = PropertyKey(1, "ns", "svc", "app", "key")
-        val value = PropertyValue(1, ByteArray(0), 100L)
+        val value = PropertyValue(1, EMPTY_BYTES, 100L)
 
         storage[key] = value
         val retrieved = storage[key]
 
         assertNotNull(retrieved)
-        assertContentEquals(ByteArray(0), retrieved.value)
+        assertContentEquals(EMPTY_BYTES, retrieved.value)
     }
 
     @Test

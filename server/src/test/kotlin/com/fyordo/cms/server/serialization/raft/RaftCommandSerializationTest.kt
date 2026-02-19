@@ -3,6 +3,7 @@ package com.fyordo.cms.server.serialization.raft
 import com.fyordo.cms.server.dto.property.PropertyKey
 import com.fyordo.cms.server.dto.raft.RaftCommand
 import com.fyordo.cms.server.dto.raft.RaftOp
+import com.fyordo.cms.server.utils.EMPTY_BYTES
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
 import kotlin.test.assertContentEquals
@@ -23,7 +24,7 @@ class RaftCommandSerializationTest {
                 appId = "test-app",
                 key = "test-key"
             ),
-            value = ByteArray(0)
+            value = EMPTY_BYTES
         )
 
         val serialized = serializeRaftCommand(command)
@@ -68,7 +69,7 @@ class RaftCommandSerializationTest {
                 appId = "delete-app",
                 key = "delete-key"
             ),
-            value = ByteArray(0)
+            value = EMPTY_BYTES
         )
 
         val serialized = serializeRaftCommand(command)
@@ -125,7 +126,7 @@ class RaftCommandSerializationTest {
                 appId = "app",
                 key = "key"
             ),
-            value = ByteArray(0)
+            value = EMPTY_BYTES
         )
 
         val serialized = serializeRaftCommand(command)
@@ -247,7 +248,7 @@ class RaftCommandSerializationTest {
                 appId = "app",
                 key = "key"
             ),
-            value = ByteArray(0)
+            value = EMPTY_BYTES
         )
 
         val serialized = serializeRaftCommand(command)
@@ -270,7 +271,7 @@ class RaftCommandSerializationTest {
                 appId = "app",
                 key = "key"
             ),
-            value = ByteArray(0)
+            value = EMPTY_BYTES
         )
 
         assertThrows<NotImplementedError> {
@@ -290,7 +291,7 @@ class RaftCommandSerializationTest {
                 appId = "app",
                 key = "key"
             ),
-            value = ByteArray(0)
+            value = EMPTY_BYTES
         )
 
         assertThrows<IllegalStateException> {

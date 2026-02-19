@@ -30,9 +30,9 @@ private:
     static constexpr std::chrono::milliseconds HEARTBEAT_CHECK_INTERVAL{100};
     
     void Run();
-    void RunReadLoop(std::shared_ptr<grpc::ClientReaderWriter<com::fyordo::cms::AgentStreamEvent, 
-                                                              com::fyordo::cms::ServerStreamEvent>> stream,
-                     std::shared_ptr<std::atomic<bool>> reading);
+    void RunReadLoop(grpc::ClientReaderWriter<com::fyordo::cms::AgentStreamEvent, 
+                                               com::fyordo::cms::ServerStreamEvent>& stream,
+                     std::atomic<bool>& reading);
     bool ConnectToServer(std::shared_ptr<grpc::Channel>& channel);
 
     AgentConfig config_;
