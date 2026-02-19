@@ -3,6 +3,7 @@ package com.fyordo.cms.server.serialization.property
 import com.fyordo.cms.server.dto.property.PropertyInternalDto
 import com.fyordo.cms.server.dto.property.PropertyKey
 import com.fyordo.cms.server.dto.property.PropertyValue
+import com.fyordo.cms.server.utils.EMPTY_BYTES
 import org.junit.jupiter.api.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
@@ -47,7 +48,7 @@ class PropertyFullDtoSerializationTest {
             ),
             value = PropertyValue(
                 version = 1,
-                value = ByteArray(0),
+                value = EMPTY_BYTES,
                 lastModifiedMs = 0L
             )
         )

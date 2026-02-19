@@ -5,13 +5,13 @@ import java.io.ByteArrayOutputStream
 import java.io.DataInputStream
 import java.io.DataOutputStream
 
-fun <T> serializeList(list: List<T>, valueSerializer: (T) -> ByteArray): ByteArray {
+inline fun <T> serializeList(list: List<T>, valueSerializer: (T) -> ByteArray): ByteArray {
     val byteStream = ByteArrayOutputStream()
     val dataStream = DataOutputStream(byteStream)
 
     dataStream.writeInt(list.size)
     list.forEach {
-        val serializedValue = valueSerializer.invoke(it)
+        val serializedValue = valueSerializer(it)
         dataStream.writeInt(serializedValue.size)
         dataStream.write(serializedValue)
     }
@@ -20,13 +20,13 @@ fun <T> serializeList(list: List<T>, valueSerializer: (T) -> ByteArray): ByteArr
     return byteStream.toByteArray()
 }
 
-fun <T> deserializeList(value: ByteArray, valueDeserializer: (ByteArray) -> T): List<T> {
+inline fun <T> deserializeList(value: ByteArray, valueDeserializer: (ByteArray) -> T): List<T> {
     val byteStream = ByteArrayInputStream(value)
     val dataStream = DataInputStream(byteStream)
 
     val length = dataStream.readInt()
     return buildList {
-        repeat (length) {
+        repeat(length) {
             val size = dataStream.readInt()
             val elementBytes = ByteArray(size)
             dataStream.read(elementBytes)

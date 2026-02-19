@@ -1,6 +1,7 @@
 package com.fyordo.cms.server.serialization.property
 
 import com.fyordo.cms.server.dto.property.PropertyValue
+import com.fyordo.cms.server.utils.EMPTY_BYTES
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
 import kotlin.test.assertContentEquals
@@ -26,7 +27,7 @@ class PropertyValueSerializationTest {
     fun `should serialize and deserialize PropertyValue with empty byte array`() {
         val propertyValue = PropertyValue(
             version = 1,
-            value = ByteArray(0),
+            value = EMPTY_BYTES,
             lastModifiedMs = 0L
         )
 
@@ -187,7 +188,7 @@ class PropertyValueSerializationTest {
     fun `should handle zero-length value with non-zero timestamp`() {
         val propertyValue = PropertyValue(
             version = 1,
-            value = ByteArray(0),
+            value = EMPTY_BYTES,
             lastModifiedMs = 1234567890L
         )
 

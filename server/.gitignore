@@ -41,4 +41,4 @@ out/
 .kotlin
 /Makefile
 /src/main/resources/application.properties
-.data
+../.data

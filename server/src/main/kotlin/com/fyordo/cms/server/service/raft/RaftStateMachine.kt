@@ -1,9 +1,12 @@
 package com.fyordo.cms.server.service.raft
 
+import com.fyordo.cms.server.dto.property.PropertyKey
+import com.fyordo.cms.server.dto.property.PropertyValue
 import com.fyordo.cms.server.dto.raft.RaftCommand
 import com.fyordo.cms.server.dto.raft.RaftOp
 import com.fyordo.cms.server.dto.raft.RaftResult
 import com.fyordo.cms.server.dto.raft.RaftResultStatus
+import com.fyordo.cms.server.service.PropertyUpdatePublisher
 import com.fyordo.cms.server.serialization.property.deserializePropertyValue
 import com.fyordo.cms.server.serialization.property.serializePropertyInternalDto
 import com.fyordo.cms.server.serialization.property.serializePropertyValue
@@ -19,8 +22,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.future.future
-import kotlinx.coroutines.job
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.delay
 import mu.KotlinLogging
 import org.apache.ratis.protocol.Message
 import org.apache.ratis.protocol.RaftGroupId
@@ -35,7 +38,8 @@ private val logger = KotlinLogging.logger {}
 
 @Component
 class RaftStateMachine(
-    private val store: PropertyInMemoryStorage
+    private val store: PropertyInMemoryStorage,
+    private val propertyUpdatePublisher: PropertyUpdatePublisher
 ) : BaseStateMachine() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default + CoroutineName("RaftStateMachine"))
 
@@ -51,7 +55,11 @@ class RaftStateMachine(
     override fun close() {
         logger.info { "RaftStateMachine is closing" }
         try {
-            scope.cancel("Cancelling CoroutineScope")
+            runBlocking {
+                scope.cancel("Cancelling CoroutineScope")
+                // Wait a bit for active coroutines to finish
+                delay(5000) // 5 seconds
+            }
         } catch (e: Exception) {
             logger.warn(e) { "Error cancelling scope" }
         } finally {
@@ -63,17 +71,24 @@ class RaftStateMachine(
     override fun applyTransaction(trx: TransactionContext): CompletableFuture<Message> =
         scope.future {
             runCatching {
-                trx.logEntry
+                val logData = trx.logEntry
                     .stateMachineLogEntry
                     .logData
                     .toStringUtf8()
-                    .let(::deserializeRaftCommand)
-                    .also { logger.debug { "Applying: ${it.operation} ${it.key}" } }
-                    .let(::processCommand)
+                
+                val command = try {
+                    deserializeRaftCommand(logData)
+                } catch (e: Exception) {
+                    logger.error(e) { "Failed to deserialize Raft command. Log data length: ${logData.length}" }
+                    throw e
+                }
+                
+                logger.debug { "Applying: ${command.operation} ${command.key}" }
+                processCommand(command)
                     .let(::serializeRaftResult)
                     .let(Message::valueOf)
             }.getOrElse { e ->
-                logger.warn(e) { "Error applying transaction" }
+                logger.error(e) { "Error applying transaction: ${e.javaClass.simpleName}: ${e.message}" }
                 Message.valueOf(serializeRaftResult(
                     RaftResult(
                         result = EMPTY_BYTES,
@@ -86,15 +101,21 @@ class RaftStateMachine(
     override fun query(request: Message): CompletableFuture<Message> =
         scope.future {
             runCatching {
-                request.content
-                    .toStringUtf8()
-                    .let(::deserializeRaftCommand)
-                    .also { logger.debug { "Query: ${it.operation} ${it.key}" } }
-                    .let(::processCommand)
+                val requestContent = request.content.toStringUtf8()
+                
+                val command = try {
+                    deserializeRaftCommand(requestContent)
+                } catch (e: Exception) {
+                    logger.error(e) { "Failed to deserialize Raft query command. Content length: ${requestContent.length}" }
+                    throw e
+                }
+                
+                logger.debug { "Query: ${command.operation} ${command.key}" }
+                processCommand(command)
                     .let(::serializeRaftResult)
                     .let(Message::valueOf)
             }.getOrElse { e ->
-                logger.error(e) { "Error processing query" }
+                logger.error(e) { "Error processing query: ${e.javaClass.simpleName}: ${e.message}" }
                 Message.valueOf(serializeRaftResult(
                     RaftResult(
                         result = EMPTY_BYTES,
@@ -108,7 +129,11 @@ class RaftStateMachine(
         return when (command.operation) {
             RaftOp.PUT -> {
                 requireNotNull(command.key) { "Command PUT should contain a key" }
-                store[command.key] = deserializePropertyValue(command.value)
+                val propertyValue = deserializePropertyValue(command.value)
+                store[command.key] = propertyValue
+
+                publishUpdateFailSafe(command.key, propertyValue)
+                
                 RaftResult(
                     result = EMPTY_BYTES,
                     status = RaftResultStatus.OK
@@ -116,7 +141,7 @@ class RaftStateMachine(
             }
 
             RaftOp.GET -> {
-                requireNotNull(command.key) { "Command PUT should contain a key" }
+                requireNotNull(command.key) { "Command GET should contain a key" }
                 store[command.key]?.let {
                     RaftResult(
                         result = serializePropertyValue(it),
@@ -129,8 +154,9 @@ class RaftStateMachine(
             }
 
             RaftOp.DELETE -> {
-                requireNotNull(command.key) { "Command PUT should contain a key" }
+                requireNotNull(command.key) { "Command DELETE should contain a key" }
                 store.remove(command.key)?.let {
+                    publishUpdateFailSafe(command.key, null)
                     RaftResult(
                         result = EMPTY_BYTES,
                         status = RaftResultStatus.OK
@@ -150,6 +176,17 @@ class RaftStateMachine(
                     status = RaftResultStatus.OK
                 )
             }
+        }
+    }
+
+    private fun publishUpdateFailSafe(
+        key: PropertyKey,
+        propertyValue: PropertyValue?
+    ) {
+        try {
+            propertyUpdatePublisher.publishUpdate(key, propertyValue)
+        } catch (e: Exception) {
+            logger.warn(e) { "Failed to publish update event for key: $key" }
         }
     }
 }

@@ -7,6 +7,14 @@
 #include "grpc_starter.h"
 
 int main(int argc, char** argv) {
-    RunServer(argc, argv);
-    return 0;
+    try {
+        RunServer(argc, argv);
+        return 0;
+    } catch (const std::exception& e) {
+        std::cerr << "Fatal error: " << e.what() << std::endl;
+        return 1;
+    } catch (...) {
+        std::cerr << "Fatal error: Unknown exception" << std::endl;
+        return 2;
+    }
 }

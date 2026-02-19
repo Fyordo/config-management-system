@@ -14,7 +14,7 @@ class RaftController(
     fun getStatus(): Map<String, Any> {
         return mapOf(
             "isLeader" to server.isLeader(),
-            "leaderId" to (server.getLeaderId() ?: "unknown"),
+            "leaderId" to server.getLeaderId(),
             "groupId" to server.getGroupId().uuid.toString()
         )
     }

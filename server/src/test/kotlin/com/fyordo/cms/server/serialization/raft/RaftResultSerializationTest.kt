@@ -2,6 +2,7 @@ package com.fyordo.cms.server.serialization.raft
 
 import com.fyordo.cms.server.dto.raft.RaftResult
 import com.fyordo.cms.server.dto.raft.RaftResultStatus
+import com.fyordo.cms.server.utils.EMPTY_BYTES
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
 import kotlin.test.assertContentEquals
@@ -27,7 +28,7 @@ class RaftResultSerializationTest {
     fun `should serialize and deserialize RaftResult with NOT_FOUND status`() {
         val result = RaftResult(
             version = 1,
-            result = ByteArray(0),
+            result = EMPTY_BYTES,
             status = RaftResultStatus.NOT_FOUND
         )
 
@@ -57,7 +58,7 @@ class RaftResultSerializationTest {
     fun `should serialize and deserialize RaftResult with empty result`() {
         val result = RaftResult(
             version = 1,
-            result = ByteArray(0),
+            result = EMPTY_BYTES,
             status = RaftResultStatus.OK
         )
 

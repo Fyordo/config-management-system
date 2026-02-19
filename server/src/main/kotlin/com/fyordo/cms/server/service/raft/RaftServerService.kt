@@ -41,7 +41,12 @@ class RaftServerService(
 
             val ratisProperties = RaftProperties().apply {
                 val storageDir = File(raftProps.storageDir)
-                storageDir.mkdirs()
+                if (!storageDir.exists() && !storageDir.mkdirs()) {
+                    throw IllegalStateException("Failed to create storage directory: $storageDir")
+                }
+                if (!storageDir.canWrite()) {
+                    throw IllegalStateException("Storage directory is not writable: $storageDir")
+                }
                 RaftServerConfigKeys.setStorageDir(this, listOf(storageDir))
 
                 RaftServerConfigKeys.Rpc.setTimeoutMin(
@@ -84,6 +89,10 @@ class RaftServerService(
                     raftProps.host,
                     raftProps.port,
                 )?.let { allPeers.add(it) }
+            }
+
+            if (allPeers.size == 1) {
+                logger.warn { "RAFT cluster has only one node. This is not recommended for production." }
             }
 
             logger.info { "RAFT peers configured: ${allPeers.map { it.id }}" }
