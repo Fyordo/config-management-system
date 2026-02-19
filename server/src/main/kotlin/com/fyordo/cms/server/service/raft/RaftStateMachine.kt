@@ -22,6 +22,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.future.future
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.delay
 import mu.KotlinLogging
 import org.apache.ratis.protocol.Message
 import org.apache.ratis.protocol.RaftGroupId
@@ -53,7 +55,11 @@ class RaftStateMachine(
     override fun close() {
         logger.info { "RaftStateMachine is closing" }
         try {
-            scope.cancel("Cancelling CoroutineScope")
+            runBlocking {
+                scope.cancel("Cancelling CoroutineScope")
+                // Wait a bit for active coroutines to finish
+                delay(5000) // 5 seconds
+            }
         } catch (e: Exception) {
             logger.warn(e) { "Error cancelling scope" }
         } finally {
@@ -65,17 +71,24 @@ class RaftStateMachine(
     override fun applyTransaction(trx: TransactionContext): CompletableFuture<Message> =
         scope.future {
             runCatching {
-                trx.logEntry
+                val logData = trx.logEntry
                     .stateMachineLogEntry
                     .logData
                     .toStringUtf8()
-                    .let(::deserializeRaftCommand)
-                    .also { logger.debug { "Applying: ${it.operation} ${it.key}" } }
-                    .let(::processCommand)
+                
+                val command = try {
+                    deserializeRaftCommand(logData)
+                } catch (e: Exception) {
+                    logger.error(e) { "Failed to deserialize Raft command. Log data length: ${logData.length}" }
+                    throw e
+                }
+                
+                logger.debug { "Applying: ${command.operation} ${command.key}" }
+                processCommand(command)
                     .let(::serializeRaftResult)
                     .let(Message::valueOf)
             }.getOrElse { e ->
-                logger.warn(e) { "Error applying transaction" }
+                logger.error(e) { "Error applying transaction: ${e.javaClass.simpleName}: ${e.message}" }
                 Message.valueOf(serializeRaftResult(
                     RaftResult(
                         result = EMPTY_BYTES,
@@ -88,15 +101,21 @@ class RaftStateMachine(
     override fun query(request: Message): CompletableFuture<Message> =
         scope.future {
             runCatching {
-                request.content
-                    .toStringUtf8()
-                    .let(::deserializeRaftCommand)
-                    .also { logger.debug { "Query: ${it.operation} ${it.key}" } }
-                    .let(::processCommand)
+                val requestContent = request.content.toStringUtf8()
+                
+                val command = try {
+                    deserializeRaftCommand(requestContent)
+                } catch (e: Exception) {
+                    logger.error(e) { "Failed to deserialize Raft query command. Content length: ${requestContent.length}" }
+                    throw e
+                }
+                
+                logger.debug { "Query: ${command.operation} ${command.key}" }
+                processCommand(command)
                     .let(::serializeRaftResult)
                     .let(Message::valueOf)
             }.getOrElse { e ->
-                logger.error(e) { "Error processing query" }
+                logger.error(e) { "Error processing query: ${e.javaClass.simpleName}: ${e.message}" }
                 Message.valueOf(serializeRaftResult(
                     RaftResult(
                         result = EMPTY_BYTES,

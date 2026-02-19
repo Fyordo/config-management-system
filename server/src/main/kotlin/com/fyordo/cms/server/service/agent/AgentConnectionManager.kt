@@ -47,7 +47,7 @@ class AgentConnectionManager(
                     event.key.service,
                     event.key.appId
                 )
-                
+
                 val updateEvent = AgentChannelServiceOuterClass.ServerPropertyUpdateEvent.newBuilder()
                     .setProperty(
                         AgentChannelServiceOuterClass.Property.newBuilder()
@@ -91,19 +91,20 @@ class AgentConnectionManager(
     }
 
     fun sendToAgent(agentId: AgentId, result: AgentChannelServiceOuterClass.ServerStreamEvent) {
-        val connection = connections[agentId]
-        connection?.lock?.withLock {
-            try {
-                val streamObserver = connection.streamObserver
-                if (streamObserver is ServerCallStreamObserver && streamObserver.isCancelled) {
-                    logger.warn { "Stream is cancelled for agent: $agentId, removing connection" }
+        connections[agentId]?.let { connection ->
+            connection.lock.withLock {
+                try {
+                    val streamObserver = connection.streamObserver
+                    if (streamObserver is ServerCallStreamObserver && streamObserver.isCancelled) {
+                        logger.warn { "Stream is cancelled for agent: $agentId, removing connection" }
+                        unregister(agentId)
+                        return
+                    }
+                    streamObserver.onNext(result)
+                } catch (e: Exception) {
+                    logger.error(e) { "Error sending message to agent: $agentId, removing connection" }
                     unregister(agentId)
-                    return
                 }
-                streamObserver.onNext(result)
-            } catch (e: Exception) {
-                logger.error(e) { "Error sending message to agent: $agentId, removing connection" }
-                unregister(agentId)
             }
         }
     }

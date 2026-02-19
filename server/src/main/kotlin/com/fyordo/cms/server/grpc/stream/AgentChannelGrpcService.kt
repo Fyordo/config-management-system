@@ -29,6 +29,6 @@ class AgentChannelGrpcService(
         agentConnectionManager.register(agentId, responseObserver)
         agentConnectionManager.sendInitToAgent(agentId)
 
-        logger.info { "New watch session started: $sessionId" }
+        logger.info { "New watch session started: sessionId=$sessionId, agentId=$agentId" }
     }
 }

@@ -17,6 +17,8 @@ import com.fyordo.cms.server.serialization.raft.deserializeRaftResult
 import com.fyordo.cms.server.service.raft.RaftClientFacade
 import com.fyordo.cms.server.service.storage.PropertyPartsHolder
 import com.fyordo.cms.server.utils.EMPTY_BYTES
+import jakarta.validation.Valid
+import jakarta.validation.constraints.NotBlank
 import org.springframework.http.HttpStatus
 import org.springframework.web.bind.annotation.*
 import org.springframework.web.server.ResponseStatusException
@@ -28,7 +30,7 @@ class PropertyQueryController(
     private val propertyPartsHolder: PropertyPartsHolder
 ) {
     @GetMapping("/get")
-    suspend fun get(@RequestParam key: String): PropertyDto {
+    suspend fun get(@NotBlank @RequestParam key: String): PropertyDto {
         val deserializedKey = PropertyKey.fromString(key)
         val query = RaftCommand(
             operation = RaftOp.GET,
@@ -46,10 +48,12 @@ class PropertyQueryController(
                             deserializePropertyValue(deserializedResult.result)
                         ),
                     )
+
                     RaftResultStatus.ERROR -> throw ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR)
                     RaftResultStatus.NOT_FOUND -> throw ResponseStatusException(HttpStatus.NOT_FOUND)
                 }
             }
+
             is RaftOperationResult.Error -> {
                 throw ResponseStatusException(
                     HttpStatus.INTERNAL_SERVER_ERROR,
@@ -70,7 +74,7 @@ class PropertyQueryController(
     }
 
     @PostMapping("")
-    suspend fun query(@RequestBody filter: PropertyQueryFilter): List<PropertyDto> {
+    suspend fun query(@Valid @RequestBody filter: PropertyQueryFilter): List<PropertyDto> {
         val filterBytes = serializePropertyQueryFilter(filter)
         val query = RaftCommand(
             operation = RaftOp.QUERY,
@@ -86,6 +90,7 @@ class PropertyQueryController(
                     ::deserializePropertyInternalDto
                 ).map { PropertyDto(it) }
             }
+
             is RaftOperationResult.Error -> {
                 throw ResponseStatusException(
                     HttpStatus.INTERNAL_SERVER_ERROR,

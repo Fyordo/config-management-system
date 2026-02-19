@@ -15,9 +15,9 @@ data class RaftConfiguration(
 
     val groupId: String = "cms-raft-group",
 
-    val electionTimeoutMs: Long = 3000,
+    val electionTimeoutMs: Long = 3_000,
 
-    val heartbeatIntervalMs: Long = 1000,
+    val heartbeatIntervalMs: Long = 1_000,
 
     val peers: List<String> = emptyList(),
 
@@ -25,5 +25,7 @@ data class RaftConfiguration(
 
     val preAllocatedSize: String = "4MB",
 
-    val autoTriggerThreshold: Long = 10000,
+    val autoTriggerThreshold: Long = 10_000,
+
+    val clusterMessageTimeoutMs: Long = 30_000,
 )

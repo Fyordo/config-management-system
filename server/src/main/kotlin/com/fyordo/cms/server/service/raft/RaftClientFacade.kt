@@ -8,7 +8,9 @@ import com.fyordo.cms.server.utils.raft.parsePeers
 import jakarta.annotation.PostConstruct
 import jakarta.annotation.PreDestroy
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
 import mu.KotlinLogging
 import org.apache.ratis.client.RaftClient
 import org.apache.ratis.conf.RaftProperties
@@ -31,10 +33,16 @@ class RaftClientFacade(
         logger.info { "Initializing RAFT client..." }
 
         try {
+            // Validate peer configuration
+            validatePeerConfiguration()
+
             val groupId = RaftGroupId.valueOf(UUID.nameUUIDFromBytes(raftProps.groupId.toByteArray()))
 
             val raftGroup = buildPeersList()
                 .let { peers ->
+                    if (peers.isEmpty()) {
+                        throw IllegalStateException("No valid RAFT peers configured")
+                    }
                     RaftGroup.valueOf(groupId, peers)
                 }
 
@@ -42,6 +50,25 @@ class RaftClientFacade(
         } catch (e: Exception) {
             logger.error(e) { "Failed to initialize RAFT client" }
             throw e
+        }
+    }
+
+    private fun validatePeerConfiguration() {
+        raftProps.peers.forEach { peerConfig ->
+            if (peerConfig.isNotBlank()) {
+                val parts = peerConfig.split(PEERS_PARTS_DELIMITER)
+                if (parts.size != 3) {
+                    throw IllegalArgumentException(
+                        "Invalid peer configuration format: '$peerConfig'. Expected format: 'nodeId:host:port'"
+                    )
+                }
+                val port = parts[2].toIntOrNull()
+                if (port == null || port <= 0 || port > 65535) {
+                    throw IllegalArgumentException(
+                        "Invalid peer port in configuration: '$peerConfig'. Port must be between 1 and 65535"
+                    )
+                }
+            }
         }
     }
 
@@ -92,25 +119,36 @@ class RaftClientFacade(
     suspend fun sendCommand(command: RaftCommand): RaftOperationResult {
         return try {
             val serialized = serializeRaftCommand(command)
-            val response = withContext(Dispatchers.IO) {
-                val reply = raftClient.io().send(Message.valueOf(serialized))
-                reply.message.content.toStringUtf8()
+            val response = withTimeout(raftProps.clusterMessageTimeoutMs) {
+                withContext(Dispatchers.IO) {
+                    val reply = raftClient.io().send(Message.valueOf(serialized))
+                    reply.message.content.toStringUtf8()
+                }
             }
             RaftOperationResult.Success(response)
+        } catch (e: TimeoutCancellationException) {
+            logger.error(e) { "Timeout sending command: $command (timeout: ${raftProps.clusterMessageTimeoutMs}ms)" }
+            RaftOperationResult.Error("Command timeout after ${raftProps.clusterMessageTimeoutMs}ms", e)
         } catch (e: Exception) {
             logger.error(e) { "Error sending command: $command" }
             RaftOperationResult.Error("Failed to send command: ${e.message}", e)
         }
     }
 
+
     suspend fun sendQuery(command: RaftCommand): RaftOperationResult {
         return try {
             val serialized = serializeRaftCommand(command)
-            val response = withContext(Dispatchers.IO) {
-                val reply = raftClient.io().sendReadOnly(Message.valueOf(serialized))
-                reply.message.content.toStringUtf8()
+            val response = withTimeout(raftProps.clusterMessageTimeoutMs) {
+                withContext(Dispatchers.IO) {
+                    val reply = raftClient.io().sendReadOnly(Message.valueOf(serialized))
+                    reply.message.content.toStringUtf8()
+                }
             }
             RaftOperationResult.Success(response)
+        } catch (e: TimeoutCancellationException) {
+            logger.error(e) { "Timeout sending query: $command (timeout: ${raftProps.clusterMessageTimeoutMs}ms)" }
+            RaftOperationResult.Error("Query timeout after ${raftProps.clusterMessageTimeoutMs}ms", e)
         } catch (e: Exception) {
             logger.error(e) { "Error sending query: $command" }
             RaftOperationResult.Error("Failed to send query: ${e.message}", e)
