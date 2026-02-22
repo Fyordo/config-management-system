@@ -5,6 +5,7 @@
 #include <thread>
 #include <atomic>
 
+#include <grpcpp/grpcpp.h>
 #include "grpc_starter.h"
 #include "AgentChannelService.pb.h"
 
@@ -30,6 +31,7 @@ private:
     void HandleInitEvent(const com::fyordo::cms::ServerInitEvent& init_event);
     void HandlePropertyUpdate(const com::fyordo::cms::ServerPropertyUpdateEvent& update_event);
     bool WritePropertiesToFile(const com::fyordo::cms::ServerInitEvent& init_event);
+    bool ApplyPropertyUpdateToFile(const std::string& key, const std::string& value);
     bool WaitForConnected(grpc::Channel* channel);
 
     AgentConfig config_;

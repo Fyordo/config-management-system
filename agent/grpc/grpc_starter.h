@@ -3,6 +3,10 @@
 #include <string>
 #include <atomic>
 
+enum class AgentState { CONNECT, LISTENING, WRITING };
+
+extern std::atomic<AgentState> AGENT_STATE;
+
 struct AgentConfig {
     std::string namespace_;
     std::string service;

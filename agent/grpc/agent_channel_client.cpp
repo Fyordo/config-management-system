@@ -9,6 +9,7 @@
 #include <nlohmann/json.hpp>
 
 #include "AgentChannelService.grpc.pb.h"
+#include "grpc_starter.h"
 
 using grpc::ClientContext;
 using grpc::ClientReader;
@@ -53,6 +54,7 @@ void AgentChannelClient::Run()
 {
     while (running_.load()) {
         try {
+            AGENT_STATE.store(AgentState::CONNECT);
             auto channel = grpc::CreateChannel(server_address_, grpc::InsecureChannelCredentials());
             auto stub = AgentChannelService::NewStub(channel);
 
@@ -145,10 +147,51 @@ void AgentChannelClient::HandlePropertyUpdate(const com::fyordo::cms::ServerProp
     std::cout << "AgentChannelClient: Received ServerPropertyUpdateEvent - "
               << "key: " << update_event.property().key() << ", "
               << "lastModifiedMs: " << update_event.lastmodifiedms() << std::endl;
+
+    if (config_.propertiesJsonPath.empty()) {
+        std::cerr << "AgentChannelClient: Skipping property update (CMS_PROPERTIES_FILE not set)" << std::endl;
+        return;
+    }
+    ApplyPropertyUpdateToFile(update_event.property().key(), update_event.property().value());
+}
+
+bool AgentChannelClient::ApplyPropertyUpdateToFile(const std::string& key, const std::string& value)
+{
+    AGENT_STATE.store(AgentState::WRITING);
+
+    nlohmann::json properties_json;
+    {
+        std::ifstream in(config_.propertiesJsonPath);
+        if (in.good()) {
+            try {
+                in >> properties_json;
+            } catch (const nlohmann::json::exception&) {
+                properties_json = nlohmann::json::object();
+            }
+        }
+    }
+
+    properties_json[key] = value;
+
+    std::ofstream file(config_.propertiesJsonPath);
+    if (!file) {
+        const char* error_message = (errno != 0) ? std::strerror(errno) : "unknown error";
+        std::cerr << "AgentChannelClient: Failed to open " << config_.propertiesJsonPath
+                  << " for writing: " << error_message << std::endl;
+        AGENT_STATE.store(AgentState::LISTENING);
+        return false;
+    }
+    file << properties_json.dump();
+    file.flush();
+    std::cout << "AgentChannelClient: Updated key " << key << " in " << config_.propertiesJsonPath << std::endl;
+    AGENT_STATE.store(AgentState::LISTENING);
+    return true;
 }
 
 bool AgentChannelClient::WritePropertiesToFile(const com::fyordo::cms::ServerInitEvent& init_event)
 {
+    AGENT_STATE.store(AgentState::WRITING);
+
     nlohmann::json properties_json;
     for (const auto& prop : init_event.properties()) {
         properties_json[prop.key()] = prop.value();
@@ -161,11 +204,13 @@ bool AgentChannelClient::WritePropertiesToFile(const com::fyordo::cms::ServerIni
                   << " for writing: " << error_message
                   << " (use a path writable by the process, e.g. /app/application.json)"
                   << std::endl;
+        AGENT_STATE.store(AgentState::LISTENING);
         return false;
     }
     file << properties_json.dump();
     std::cout << "AgentChannelClient: Wrote " << init_event.properties_size()
               << " properties to " << config_.propertiesJsonPath << std::endl;
+    AGENT_STATE.store(AgentState::LISTENING);
     return true;
 }
 
@@ -173,6 +218,7 @@ bool AgentChannelClient::WaitForConnected(grpc::Channel* channel)
 {
     auto deadline = std::chrono::system_clock::now() + CONNECTION_TIMEOUT;
     if (channel->WaitForConnected(deadline)) {
+        AGENT_STATE.store(AgentState::LISTENING);
         std::cout << "AgentChannelClient: Connected to server at " << server_address_ << std::endl;
         return true;
     }

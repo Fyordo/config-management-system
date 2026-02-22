@@ -10,6 +10,7 @@
 #include "grpc_starter.h"
 
 std::atomic<bool> g_shutdown_requested{false};
+std::atomic<AgentState> AGENT_STATE{AgentState::CONNECT};
 
 namespace {
 
@@ -57,6 +58,7 @@ void SetupSignalHandlers()
 
 void RunServer(int, char**)
 {
+    AGENT_STATE.store(AgentState::CONNECT);
     AgentConfig config = GetAndValidateConfigFromEnv();
     PrintAgentConfig(config);
     SetupSignalHandlers();
