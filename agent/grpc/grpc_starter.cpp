@@ -14,7 +14,9 @@ std::atomic<AgentState> AGENT_STATE{AgentState::CONNECT};
 
 namespace {
 
-    std::string GetEnvOrDefault(const char* name, std::string default_value)
+    constexpr std::chrono::milliseconds MAIN_LOOP_POLL_MS{100};
+
+    std::string GetEnvOrDefault(const char* name, const std::string& default_value)
     {
         const char* value = std::getenv(name);
         return (value != nullptr && value[0] != '\0') ? std::string(value) : default_value;
@@ -56,8 +58,10 @@ void SetupSignalHandlers()
     std::signal(SIGTERM, SignalHandler);
 }
 
-void RunServer(int, char**)
+void RunServer(int argc, char** argv)
 {
+    (void)argc;
+    (void)argv;
     AGENT_STATE.store(AgentState::CONNECT);
     AgentConfig config = GetAndValidateConfigFromEnv();
     PrintAgentConfig(config);
@@ -69,7 +73,7 @@ void RunServer(int, char**)
     std::cout << "Agent running, press Ctrl+C to stop..." << std::endl;
 
     while (!g_shutdown_requested.load()) {
-        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        std::this_thread::sleep_for(MAIN_LOOP_POLL_MS);
     }
 
     std::cout << "Shutting down agent..." << std::endl;

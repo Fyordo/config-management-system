@@ -1,8 +1,7 @@
 #include "agent_channel_client.h"
 
-#include <cerrno>
-#include <cstring>
 #include <chrono>
+#include <cstdio>
 #include <fstream>
 #include <iostream>
 #include <grpcpp/grpcpp.h>
@@ -13,6 +12,7 @@
 
 using grpc::ClientContext;
 using grpc::ClientReader;
+using grpc::ClientReaderInterface;
 using com::fyordo::cms::AgentChannelService;
 using com::fyordo::cms::ServerStreamEvent;
 using com::fyordo::cms::AgentConnectRequest;
@@ -88,7 +88,7 @@ void AgentChannelClient::Run()
             std::thread read_thread(&AgentChannelClient::RunStreamSession, this, reader.get(), std::ref(is_reading));
 
             while (running_.load() && is_reading.load()) {
-                std::this_thread::sleep_for(std::chrono::milliseconds(100));
+                std::this_thread::sleep_for(POLL_INTERVAL_MS);
             }
             is_reading.store(false);
             context.TryCancel();
@@ -117,7 +117,7 @@ void AgentChannelClient::Run()
 
 void AgentChannelClient::RunStreamSession(void* stream_ptr, std::atomic<bool>& is_reading)
 {
-    auto* stream = static_cast<grpc::ClientReaderInterface<ServerStreamEvent>*>(stream_ptr);
+    auto* stream = static_cast<ClientReaderInterface<ServerStreamEvent>*>(stream_ptr);
     ServerStreamEvent event;
 
     while (is_reading.load() && stream->Read(&event)) {
@@ -137,8 +137,8 @@ void AgentChannelClient::HandleInitEvent(const com::fyordo::cms::ServerInitEvent
               << "lastModifiedMs: " << init_event.lastmodifiedms() << ", "
               << "properties count: " << init_event.properties_size() << std::endl;
 
-    if (!config_.propertiesJsonPath.empty()) {
-        WritePropertiesToFile(init_event);
+    if (!config_.propertiesJsonPath.empty() && !WritePropertiesToFile(init_event)) {
+        std::cerr << "AgentChannelClient: Failed to write initial properties to file" << std::endl;
     }
 }
 
@@ -152,13 +152,14 @@ void AgentChannelClient::HandlePropertyUpdate(const com::fyordo::cms::ServerProp
         std::cerr << "AgentChannelClient: Skipping property update (CMS_PROPERTIES_FILE not set)" << std::endl;
         return;
     }
-    ApplyPropertyUpdateToFile(update_event.property().key(), update_event.property().value());
+    if (!ApplyPropertyUpdateToFile(update_event.property().key(), update_event.property().value())) {
+        std::cerr << "AgentChannelClient: Failed to apply property update for key "
+                  << update_event.property().key() << std::endl;
+    }
 }
 
 bool AgentChannelClient::ApplyPropertyUpdateToFile(const std::string& key, const std::string& value)
 {
-    AGENT_STATE.store(AgentState::WRITING);
-
     nlohmann::json properties_json;
     {
         std::ifstream in(config_.propertiesJsonPath);
@@ -170,46 +171,61 @@ bool AgentChannelClient::ApplyPropertyUpdateToFile(const std::string& key, const
             }
         }
     }
-
+    // Property.value is bytes in proto; we store as string. For valid UTF-8 the JSON is correct.
     properties_json[key] = value;
 
-    std::ofstream file(config_.propertiesJsonPath);
-    if (!file) {
-        const char* error_message = (errno != 0) ? std::strerror(errno) : "unknown error";
-        std::cerr << "AgentChannelClient: Failed to open " << config_.propertiesJsonPath
-                  << " for writing: " << error_message << std::endl;
-        AGENT_STATE.store(AgentState::LISTENING);
+    if (!WriteJsonToPath(properties_json)) {
         return false;
     }
-    file << properties_json.dump();
-    file.flush();
     std::cout << "AgentChannelClient: Updated key " << key << " in " << config_.propertiesJsonPath << std::endl;
-    AGENT_STATE.store(AgentState::LISTENING);
     return true;
 }
 
 bool AgentChannelClient::WritePropertiesToFile(const com::fyordo::cms::ServerInitEvent& init_event)
 {
-    AGENT_STATE.store(AgentState::WRITING);
-
     nlohmann::json properties_json;
     for (const auto& prop : init_event.properties()) {
         properties_json[prop.key()] = prop.value();
     }
-
-    std::ofstream file(config_.propertiesJsonPath);
-    if (!file) {
-        const char* error_message = (errno != 0) ? std::strerror(errno) : "unknown error";
-        std::cerr << "AgentChannelClient: Failed to open " << config_.propertiesJsonPath
-                  << " for writing: " << error_message
-                  << " (use a path writable by the process, e.g. /app/application.json)"
+    if (!WriteJsonToPath(properties_json)) {
+        std::cerr << "AgentChannelClient: Failed to write properties (use a path writable by the process, e.g. /app/application.json)"
                   << std::endl;
+        return false;
+    }
+    std::cout << "AgentChannelClient: Wrote " << init_event.properties_size()
+              << " properties to " << config_.propertiesJsonPath << std::endl;
+    return true;
+}
+
+bool AgentChannelClient::WriteJsonToPath(const nlohmann::json& j)
+{
+    std::lock_guard<std::mutex> lock(file_write_mutex_);
+    AGENT_STATE.store(AgentState::WRITING);
+
+    const std::string tmp_path = config_.propertiesJsonPath + ".tmp";
+    {
+        std::ofstream file(tmp_path);
+        if (!file) {
+            std::cerr << "AgentChannelClient: Failed to open file for writing: " << config_.propertiesJsonPath
+                      << std::endl;
+            AGENT_STATE.store(AgentState::LISTENING);
+            return false;
+        }
+        file << j.dump();
+        file.flush();
+        if (!file.good()) {
+            std::cerr << "AgentChannelClient: Write or flush failed: " << tmp_path << std::endl;
+            AGENT_STATE.store(AgentState::LISTENING);
+            return false;
+        }
+    }
+    if (std::rename(tmp_path.c_str(), config_.propertiesJsonPath.c_str()) != 0) {
+        std::cerr << "AgentChannelClient: Failed to rename temp file to " << config_.propertiesJsonPath
+                  << std::endl;
+        std::remove(tmp_path.c_str());
         AGENT_STATE.store(AgentState::LISTENING);
         return false;
     }
-    file << properties_json.dump();
-    std::cout << "AgentChannelClient: Wrote " << init_event.properties_size()
-              << " properties to " << config_.propertiesJsonPath << std::endl;
     AGENT_STATE.store(AgentState::LISTENING);
     return true;
 }

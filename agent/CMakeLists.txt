@@ -29,8 +29,8 @@ find_library(GRPC_GRPCPP_LIBRARY NAMES grpc++)
 find_library(GRPC_GRPC_LIBRARY NAMES grpc)
 find_path(GRPC_INCLUDE_DIR grpcpp/grpcpp.h)
 
-if(NOT GRPC_GRPCPP_LIBRARY OR NOT GRPC_INCLUDE_DIR)
-    message(FATAL_ERROR "gRPC not found. Install libgrpc++-dev.")
+if(NOT GRPC_GRPCPP_LIBRARY OR NOT GRPC_GRPC_LIBRARY OR NOT GRPC_INCLUDE_DIR)
+    message(FATAL_ERROR "gRPC not found. Install libgrpc++-dev and libgrpc-dev.")
 endif()
 
 find_program(GRPC_CPP_PLUGIN grpc_cpp_plugin)

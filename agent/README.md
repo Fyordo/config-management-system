@@ -15,6 +15,4 @@ export CMS_PROPERTIES_FILE=/path/to/properties.json
 ```
 
 ## Run
-`./cmsagent` - runs agent on 50051 port
-
-`./cmsagent 8080` - runs agent on 8080 port
+`./cmsagent` — agent start. Agent connects to CMS-Server Node by `CMS_SERVER_HOST` and writes properties into `CMS_PROPERTIES_FILE`.
