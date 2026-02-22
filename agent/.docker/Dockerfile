@@ -15,6 +15,7 @@ RUN apt-get update && \
         libgrpc++-dev \
         libgrpc-dev \
         grpc-proto \
+        nlohmann-json3-dev \
         ca-certificates && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 

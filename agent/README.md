@@ -3,7 +3,7 @@
 ## Compile
 1. Run dev-container from `.devcontainer`
 2. `mkdir build && cd build`
-3. `cmake .. && make`
+3. `cmake .. && cmake --build .`
 
 ## Preparation
 ```bash

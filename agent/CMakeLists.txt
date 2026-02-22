@@ -23,6 +23,7 @@ if(CMAKE_BUILD_TYPE MATCHES "Debug")
 endif()
 
 find_package(Protobuf REQUIRED)
+find_package(nlohmann_json 3 REQUIRED)
 
 find_library(GRPC_GRPCPP_LIBRARY NAMES grpc++)
 find_library(GRPC_GRPC_LIBRARY NAMES grpc)
@@ -95,4 +96,5 @@ target_link_libraries(cmsagent
         ${Protobuf_LIBRARIES}
         ${GRPC_GRPCPP_LIBRARY}
         ${GRPC_GRPC_LIBRARY}
+        nlohmann_json::nlohmann_json
 )
