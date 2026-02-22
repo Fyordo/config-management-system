@@ -12,10 +12,8 @@
 #include "agent_channel_client.h"
 #include "grpc_starter.h"
 
-// Global shutdown flag
 std::atomic<bool> g_shutdown_requested{false};
 
-// Signal handler
 void SignalHandler(int signal) {
     std::cout << "\nReceived signal " << signal << ", initiating shutdown..." << std::endl;
     g_shutdown_requested.store(true);
@@ -26,7 +24,7 @@ void SetupSignalHandlers() {
     std::signal(SIGTERM, SignalHandler);
 }
 
-void RunServer(int /* argc */, char** /* argv */) {
+void RunServer(int, char**) {
     AgentConfig config = GetAndValidateConfigFromEnv();
     
     std::cout << "Agent configuration:" << std::endl;
@@ -34,6 +32,9 @@ void RunServer(int /* argc */, char** /* argv */) {
     std::cout << "  CMS_SERVICE: " << config.service << std::endl;
     std::cout << "  CMS_APPID: " << config.appId << std::endl;
     std::cout << "  CMS_SERVER_HOST: " << config.cmsServerHost << std::endl;
+    if (!config.propertiesJsonPath.empty()) {
+        std::cout << "  CMS_PROPERTIES_FILE: " << config.propertiesJsonPath << std::endl;
+    }
     
     SetupSignalHandlers();
     
@@ -53,14 +54,13 @@ void RunServer(int /* argc */, char** /* argv */) {
 
 AgentConfig GetAndValidateConfigFromEnv() {
     AgentConfig config;
-    
-    // Read environment variables before any threads are created (thread-safe)
+
     const char* namespace_env = std::getenv("CMS_NAMESPACE");
     const char* service_env = std::getenv("CMS_SERVICE");
     const char* appid_env = std::getenv("CMS_APPID");
     const char* cmsServerHost_env = std::getenv("CMS_SERVER_HOST");
-    
-    // Check for nullptr and empty strings
+    const char* propertiesFile_env = std::getenv("CMS_PROPERTIES_FILE");
+
     if (namespace_env != nullptr) {
         config.namespace_ = std::string(namespace_env);
     }
@@ -76,7 +76,11 @@ AgentConfig GetAndValidateConfigFromEnv() {
     if (cmsServerHost_env != nullptr) {
         config.cmsServerHost = std::string(cmsServerHost_env);
     }
-    
+
+    if (propertiesFile_env != nullptr) {
+        config.propertiesJsonPath = std::string(propertiesFile_env);
+    }
+
     if (!config.IsValid()) {
         std::cerr << "Error: Required environment variables are not set:" << std::endl;
         if (config.namespace_.empty()) std::cerr << "  - CMS_NAMESPACE" << std::endl;

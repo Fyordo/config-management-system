@@ -1,9 +1,13 @@
 #include "agent_channel_client.h"
 
+#include <cerrno>
+#include <cstring>
 #include <iostream>
+#include <fstream>
 #include <chrono>
 #include <functional>
 #include <grpcpp/grpcpp.h>
+#include <nlohmann/json.hpp>
 #include "AgentChannelService.grpc.pb.h"
 #include "AgentChannelService.pb.h"
 
@@ -58,8 +62,7 @@ void AgentChannelClient::Run() {
             }
 
             ClientContext context;
-            
-            // Create connect request
+
             AgentConnectRequest connect_request;
             connect_request.set_namespace_(config_.namespace_);
             connect_request.set_service(config_.service);
@@ -69,8 +72,7 @@ void AgentChannelClient::Run() {
                       << "namespace: " << config_.namespace_ << ", "
                       << "service: " << config_.service << ", "
                       << "appId: " << config_.appId << std::endl;
-            
-            // Create stream reader
+
             std::unique_ptr<ClientReader<ServerStreamEvent>> reader(
                 stub->WatchProperties(&context, connect_request)
             );
@@ -85,8 +87,7 @@ void AgentChannelClient::Run() {
 
             std::atomic<bool> reading(true);
             std::thread read_thread(&AgentChannelClient::RunReadLoop, this, reader.get(), std::ref(reading));
-            
-            // Wait for read thread to finish
+
             while (running_.load() && reading.load()) {
                 std::this_thread::sleep_for(std::chrono::milliseconds(100));
             }
@@ -122,8 +123,6 @@ void AgentChannelClient::RunReadLoop(
     void* stream_ptr,
     std::atomic<bool>& reading)
 {
-    // Cast to the actual type - we know it's ClientReader<ServerStreamEvent>*
-    // ClientReader inherits from ClientReaderInterface, so we can use the interface
     auto* stream = static_cast<grpc::ClientReaderInterface<ServerStreamEvent>*>(stream_ptr);
     
     ServerStreamEvent server_event;
@@ -133,6 +132,25 @@ void AgentChannelClient::RunReadLoop(
             std::cout << "AgentChannelClient: Received ServerInitEvent - "
                       << "lastModifiedMs: " << init.lastmodifiedms() << ", "
                       << "properties count: " << init.properties_size() << std::endl;
+
+            if (!config_.propertiesJsonPath.empty()) {
+                nlohmann::json j;
+                for (const auto& p : init.properties()) {
+                    j[p.key()] = p.value();
+                }
+                std::ofstream f(config_.propertiesJsonPath);
+                if (f) {
+                    f << j.dump();
+                    std::cout << "AgentChannelClient: Wrote " << init.properties_size()
+                              << " properties to " << config_.propertiesJsonPath << std::endl;
+                } else {
+                    const char* err = (errno != 0) ? std::strerror(errno) : "unknown error";
+                    std::cerr << "AgentChannelClient: Failed to open " << config_.propertiesJsonPath
+                              << " for writing: " << err
+                              << " (use a path writable by the process, e.g. /app/application.json)"
+                              << std::endl;
+                }
+            }
         } else if (server_event.has_updateevent()) {
             const auto& update = server_event.updateevent();
             std::cout << "AgentChannelClient: Received ServerPropertyUpdateEvent - "

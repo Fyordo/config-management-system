@@ -11,6 +11,7 @@ export CMS_NAMESPACE=my-namespace
 export CMS_SERVICE=my-service
 export CMS_APPID=my-app-id
 export CMS_SERVER_HOST=localhost:9090
+export CMS_PROPERTIES_FILE=/path/to/properties.json
 ```
 
 ## Run

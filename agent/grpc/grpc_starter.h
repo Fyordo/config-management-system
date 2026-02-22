@@ -8,7 +8,8 @@ struct AgentConfig {
     std::string service;
     std::string appId;
     std::string cmsServerHost;
-    
+    std::string propertiesJsonPath;
+
     bool IsValid() const {
         return !namespace_.empty() && !service.empty() && !appId.empty() && !cmsServerHost.empty();
     }
