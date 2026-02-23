@@ -89,6 +89,7 @@ AgentConfig GetAndValidateConfigFromEnv()
     config.appId = GetEnvOrDefault("CMS_APPID", "");
     config.cmsServerHost = GetEnvOrDefault("CMS_SERVER_HOST", "");
     config.propertiesJsonPath = GetEnvOrDefault("CMS_PROPERTIES_FILE", "");
+    config.unixSocketPath = GetEnvOrDefault("CMS_UNIX_SOCKET_PATH", "");
 
     if (!config.IsValid()) {
         PrintMissingEnvErrors(config);
