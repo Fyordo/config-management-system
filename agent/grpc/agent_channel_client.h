@@ -31,14 +31,13 @@ private:
     static constexpr std::chrono::milliseconds POLL_INTERVAL_MS{100};
 
     void Run();
-    /** @param stream ClientReaderInterface<ServerStreamEvent>* (passed as void* for gRPC ABI compatibility) */
     void RunStreamSession(void* stream, std::atomic<bool>& is_reading);
     void HandleInitEvent(const com::fyordo::cms::ServerInitEvent& init_event);
     void HandlePropertyUpdate(const com::fyordo::cms::ServerPropertyUpdateEvent& update_event);
     bool WritePropertiesToFile(const com::fyordo::cms::ServerInitEvent& init_event);
     bool ApplyPropertyUpdateToFile(const std::string& key, const std::string& value);
+    void SendUpdateToUnixSocket(const std::string& key, const std::string& value);
     bool WaitForConnected(grpc::Channel* channel);
-    /** Thread-safe write of JSON to config_.propertiesJsonPath (temp file + rename). */
     bool WriteJsonToPath(const nlohmann::json& j);
 
     AgentConfig config_;

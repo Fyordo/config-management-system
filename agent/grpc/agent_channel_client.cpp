@@ -7,6 +7,12 @@
 #include <grpcpp/grpcpp.h>
 #include <nlohmann/json.hpp>
 
+#include <sys/socket.h>
+#include <sys/un.h>
+#include <unistd.h>
+#include <arpa/inet.h>
+#include <cstring>
+
 #include "AgentChannelService.grpc.pb.h"
 #include "grpc_starter.h"
 
@@ -155,7 +161,10 @@ void AgentChannelClient::HandlePropertyUpdate(const com::fyordo::cms::ServerProp
     if (!ApplyPropertyUpdateToFile(update_event.property().key(), update_event.property().value())) {
         std::cerr << "AgentChannelClient: Failed to apply property update for key "
                   << update_event.property().key() << std::endl;
+        return;
     }
+
+    SendUpdateToUnixSocket(update_event.property().key(), update_event.property().value());
 }
 
 bool AgentChannelClient::ApplyPropertyUpdateToFile(const std::string& key, const std::string& value)
@@ -228,6 +237,64 @@ bool AgentChannelClient::WriteJsonToPath(const nlohmann::json& j)
     }
     AGENT_STATE.store(AgentState::LISTENING);
     return true;
+}
+
+void AgentChannelClient::SendUpdateToUnixSocket(const std::string& key, const std::string& value)
+{
+    if (config_.unixSocketPath.empty()) {
+        return;
+    }
+
+    int sock_fd = ::socket(AF_UNIX, SOCK_STREAM, 0);
+    if (sock_fd == -1) {
+        std::cerr << "AgentChannelClient: Failed to create UNIX socket" << std::endl;
+        return;
+    }
+
+    sockaddr_un addr{};
+    addr.sun_family = AF_UNIX;
+    if (config_.unixSocketPath.size() >= sizeof(addr.sun_path)) {
+        std::cerr << "AgentChannelClient: UNIX socket path is too long: " << config_.unixSocketPath << std::endl;
+        ::close(sock_fd);
+        return;
+    }
+    std::strncpy(addr.sun_path, config_.unixSocketPath.c_str(), sizeof(addr.sun_path) - 1);
+
+    if (::connect(sock_fd, reinterpret_cast<sockaddr*>(&addr), sizeof(addr)) == -1) {
+        std::cerr << "AgentChannelClient: Failed to connect to UNIX socket at "
+                  << config_.unixSocketPath << std::endl;
+        ::close(sock_fd);
+        return;
+    }
+
+    const uint32_t key_len = static_cast<uint32_t>(key.size());
+    const uint32_t value_len = static_cast<uint32_t>(value.size());
+
+    uint32_t key_len_be = htonl(key_len);
+    uint32_t value_len_be = htonl(value_len);
+
+    auto send_all = [sock_fd](const void* buf, size_t len) -> bool {
+        const char* ptr = static_cast<const char*>(buf);
+        size_t total_sent = 0;
+        while (total_sent < len) {
+            ssize_t sent = ::send(sock_fd, ptr + total_sent, len - total_sent, 0);
+            if (sent <= 0) {
+                return false;
+            }
+            total_sent += static_cast<size_t>(sent);
+        }
+        return true;
+    };
+
+    if (!send_all(&key_len_be, sizeof(key_len_be)) ||
+        !send_all(key.data(), key.size()) ||
+        !send_all(&value_len_be, sizeof(value_len_be)) ||
+        !send_all(value.data(), value.size())) {
+        std::cerr << "AgentChannelClient: Failed to send update to UNIX socket at "
+                  << config_.unixSocketPath << std::endl;
+    }
+
+    ::close(sock_fd);
 }
 
 bool AgentChannelClient::WaitForConnected(grpc::Channel* channel)

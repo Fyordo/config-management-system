@@ -13,6 +13,7 @@ struct AgentConfig {
     std::string appId;
     std::string cmsServerHost;
     std::string propertiesJsonPath;
+    std::string unixSocketPath;
 
     bool IsValid() const
     {
