@@ -23,13 +23,14 @@ if(CMAKE_BUILD_TYPE MATCHES "Debug")
 endif()
 
 find_package(Protobuf REQUIRED)
+find_package(nlohmann_json 3 REQUIRED)
 
 find_library(GRPC_GRPCPP_LIBRARY NAMES grpc++)
 find_library(GRPC_GRPC_LIBRARY NAMES grpc)
 find_path(GRPC_INCLUDE_DIR grpcpp/grpcpp.h)
 
-if(NOT GRPC_GRPCPP_LIBRARY OR NOT GRPC_INCLUDE_DIR)
-    message(FATAL_ERROR "gRPC not found. Install libgrpc++-dev.")
+if(NOT GRPC_GRPCPP_LIBRARY OR NOT GRPC_GRPC_LIBRARY OR NOT GRPC_INCLUDE_DIR)
+    message(FATAL_ERROR "gRPC not found. Install libgrpc++-dev and libgrpc-dev.")
 endif()
 
 find_program(GRPC_CPP_PLUGIN grpc_cpp_plugin)
@@ -95,4 +96,5 @@ target_link_libraries(cmsagent
         ${Protobuf_LIBRARIES}
         ${GRPC_GRPCPP_LIBRARY}
         ${GRPC_GRPC_LIBRARY}
+        nlohmann_json::nlohmann_json
 )

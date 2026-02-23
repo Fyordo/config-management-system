@@ -19,6 +19,7 @@ RUN apt-get update && \
         libprotoc-dev \
         libgrpc++-dev \
         libgrpc-dev \
-        grpc-proto && \
+        grpc-proto \
+        nlohmann-json3-dev && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
