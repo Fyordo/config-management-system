@@ -67,7 +67,7 @@ jobs:
         with:
           script: |
             const fs = require('fs');
-            const testResultsPath = 'server/build/test-results/test';
+            const testResultsPath = 'java-sdk/build/test-results/test';
             
             let comment = '## 🧪 Java SDK Test Results\n\n';
             
