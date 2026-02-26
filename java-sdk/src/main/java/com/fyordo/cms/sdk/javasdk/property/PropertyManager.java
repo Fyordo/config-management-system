@@ -70,14 +70,10 @@ public class PropertyManager {
         return (T) repository.getByKey(key);
     }
 
-    private void store(@NotNull String key,
+    public void store(@NotNull String key,
                        @Nullable Object newValue) {
         Object oldValue = repository.store(key, newValue);
         callbacks.getOrDefault(key, defaultCallback)
                 .apply(key, oldValue, newValue);
-    }
-
-    private boolean tryingToInsertNullPrimitive(@Nullable Object newValue, @Nullable Object oldValue) {
-        return oldValue != null && oldValue.getClass().isPrimitive() && newValue == null;
     }
 }
