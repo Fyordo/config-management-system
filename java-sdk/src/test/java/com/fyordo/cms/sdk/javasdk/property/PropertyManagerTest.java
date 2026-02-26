@@ -21,7 +21,8 @@ public class PropertyManagerTest {
         PropertyRepository repository = new PropertyRepositoryImpl();
         PropertyManager propertyManager = new PropertyManager(
                 repository,
-                getFilePath("empty.json")
+                getFilePath("empty.json"),
+                getSocketPath("pm-test.sock")
         );
         assertThrows(IllegalArgumentException.class, propertyManager::readFromFile);
     }
@@ -31,7 +32,8 @@ public class PropertyManagerTest {
         PropertyRepository repository = new PropertyRepositoryImpl();
         PropertyManager propertyManager = new PropertyManager(
                 repository,
-                getFilePath("application.json")
+                getFilePath("application.json"),
+                getSocketPath("pm-test.sock")
         );
         propertyManager.readFromFile();
         Integer intVal = propertyManager.get("app.int.val");
@@ -64,6 +66,11 @@ public class PropertyManagerTest {
         return Paths.get(
                 Objects.requireNonNull(getClass().getClassLoader().getResource(fileName)).toURI()
         ).toString();
+    }
+
+    @NotNull
+    private String getSocketPath(@NotNull String name) {
+        return Paths.get(System.getProperty("java.io.tmpdir"), name).toString();
     }
 
 }

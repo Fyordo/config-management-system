@@ -12,6 +12,7 @@
 #include <unistd.h>
 #include <arpa/inet.h>
 #include <cstring>
+#include <cerrno>
 
 #include "AgentChannelService.grpc.pb.h"
 #include "grpc_starter.h"
@@ -247,7 +248,8 @@ void AgentChannelClient::SendUpdateToUnixSocket(const std::string& key, const st
 
     int sock_fd = ::socket(AF_UNIX, SOCK_STREAM, 0);
     if (sock_fd == -1) {
-        std::cerr << "AgentChannelClient: Failed to create UNIX socket" << std::endl;
+        std::cerr << "AgentChannelClient: Failed to create UNIX socket: "
+                  << std::strerror(errno) << " (errno=" << errno << ")" << std::endl;
         return;
     }
 
@@ -262,10 +264,15 @@ void AgentChannelClient::SendUpdateToUnixSocket(const std::string& key, const st
 
     if (::connect(sock_fd, reinterpret_cast<sockaddr*>(&addr), sizeof(addr)) == -1) {
         std::cerr << "AgentChannelClient: Failed to connect to UNIX socket at "
-                  << config_.unixSocketPath << std::endl;
+                  << config_.unixSocketPath << ": "
+                  << std::strerror(errno) << " (errno=" << errno << ")" << std::endl;
         ::close(sock_fd);
         return;
     }
+
+    std::cout << "AgentChannelClient: Connected to UNIX socket at "
+              << config_.unixSocketPath << " for key '" << key
+              << "' (value_len=" << value.size() << ")" << std::endl;
 
     const uint32_t key_len = static_cast<uint32_t>(key.size());
     const uint32_t value_len = static_cast<uint32_t>(value.size());
@@ -291,7 +298,8 @@ void AgentChannelClient::SendUpdateToUnixSocket(const std::string& key, const st
         !send_all(&value_len_be, sizeof(value_len_be)) ||
         !send_all(value.data(), value.size())) {
         std::cerr << "AgentChannelClient: Failed to send update to UNIX socket at "
-                  << config_.unixSocketPath << std::endl;
+                  << config_.unixSocketPath << ": "
+                  << std::strerror(errno) << " (errno=" << errno << ")" << std::endl;
     }
 
     ::close(sock_fd);

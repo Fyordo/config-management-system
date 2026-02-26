@@ -2,6 +2,13 @@ import java.util.Properties
 
 plugins {
     id("java")
+    id("maven-publish")
+}
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
 }
 
 fun getVersionFromBuildNumber(): String {
@@ -39,4 +46,29 @@ dependencies {
 
 tasks.test {
     useJUnitPlatform()
+}
+
+java {
+    withSourcesJar()
+    withJavadocJar()
+}
+
+publishing {
+    publications {
+        create<MavenPublication>("mavenJava") {
+            from(components["java"])
+
+            groupId = project.group.toString()
+            artifactId = "java-sdk"
+            version = project.version.toString()
+
+            pom {
+                name.set("CMS Java SDK")
+                description.set(project.description)
+            }
+        }
+    }
+    repositories {
+        mavenLocal()
+    }
 }
