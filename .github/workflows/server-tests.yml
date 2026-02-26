@@ -6,13 +6,11 @@ on:
       - master
     paths:
       - 'server/**'
-      - '.github/workflows/server-tests.yml'
   pull_request:
     branches:
       - "*"
     paths:
       - 'server/**'
-      - '.github/workflows/server-tests.yml'
 
 permissions:
   contents: read
