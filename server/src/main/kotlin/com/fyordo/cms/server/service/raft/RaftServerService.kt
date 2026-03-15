@@ -158,5 +158,11 @@ class RaftServerService(
             UNKNOWN
         }.getOrDefault(UNKNOWN)
     }
+
+    fun getLocalNodeStatus(): Map<String, Any> = mapOf(
+        "nodeId" to raftProps.nodeId,
+        "isLeader" to isLeader(),
+        "groupId" to getGroupId().uuid.toString(),
+    )
 }
 

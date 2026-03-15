@@ -28,4 +28,7 @@ data class RaftConfiguration(
     val autoTriggerThreshold: Long = 10_000,
 
     val clusterMessageTimeoutMs: Long = 30_000,
+
+    /** HTTP port of peer REST APIs (for cluster status aggregation). */
+    val peerHttpPort: Int = 8080,
 )
