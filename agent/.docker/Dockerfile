@@ -26,7 +26,6 @@ RUN mkdir -p build && \
     cmake --build . && \
     strip --strip-all cmsagent
 
-# Collect exactly the runtime .so files the binary needs (via ldd), with symlinks
 RUN mkdir /runtime-libs && \
     ldd /build/build/cmsagent | awk '/=>/{print $3}' | \
     grep -Ev '(libstdc\+\+|libgcc_s|libc\.musl|ld-musl)' | \

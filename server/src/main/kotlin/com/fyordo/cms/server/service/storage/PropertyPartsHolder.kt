@@ -63,4 +63,11 @@ class PropertyPartsHolder {
             appIds.remove(key.appId)
         }
     }
+
+    fun clear() = lock.write {
+        namespaces.clear()
+        services.clear()
+        appIds.clear()
+        keys.clear()
+    }
 }

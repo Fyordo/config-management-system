@@ -5,5 +5,6 @@ import com.fyordo.cms.server.dto.property.PropertyValue
 
 data class PropertyUpdateEvent(
     val key: PropertyKey,
-    val value: PropertyValue? = null
+    val value: PropertyValue? = null,
+    val revision: Long = 0L
 )

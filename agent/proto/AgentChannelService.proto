@@ -27,9 +27,11 @@ message Property {
 message ServerInitEvent {
   int64 lastModifiedMs = 1;
   repeated Property properties = 2;
+  int64 revision = 3;
 }
 
 message ServerPropertyUpdateEvent {
   Property property = 1;
   int64 lastModifiedMs = 2;
+  int64 revision = 3;
 }
