@@ -1,24 +1,14 @@
 # ── Build stage ─────────────────────────────────────────────────────────────
-FROM ubuntu:22.04 AS builder
+FROM alpine:3.21 AS builder
 
-ENV DEBIAN_FRONTEND=noninteractive
-
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
-        build-essential \
+RUN apk add --no-cache \
+        build-base \
         cmake \
-        ninja-build \
-        pkg-config \
-        protobuf-compiler \
-        protobuf-compiler-grpc \
-        libprotobuf-dev \
-        libprotoc-dev \
-        libgrpc++-dev \
-        libgrpc-dev \
-        grpc-proto \
-        nlohmann-json3-dev \
-        ca-certificates && \
-    apt-get clean && rm -rf /var/lib/apt/lists/*
+        ninja \
+        pkgconf \
+        grpc-dev \
+        protobuf-dev \
+        nlohmann-json
 
 WORKDIR /build
 
@@ -36,18 +26,26 @@ RUN mkdir -p build && \
     cmake --build . && \
     strip --strip-all cmsagent
 
+# Collect exactly the runtime .so files the binary needs (via ldd), with symlinks
+RUN mkdir /runtime-libs && \
+    ldd /build/build/cmsagent | awk '/=>/{print $3}' | \
+    grep -Ev '(libstdc\+\+|libgcc_s|libc\.musl|ld-musl)' | \
+    while read -r lib; do \
+        [ -f "$lib" ] || continue; \
+        real=$(readlink -f "$lib"); \
+        rname=$(basename "$real"); \
+        lname=$(basename "$lib"); \
+        cp "$real" "/runtime-libs/$rname"; \
+        [ "$lname" != "$rname" ] && ln -sf "$rname" "/runtime-libs/$lname" || true; \
+    done
+
 # ── Runtime stage ────────────────────────────────────────────────────────────
 FROM alpine:3.21
 
-RUN apk add --no-cache \
-        libstdc++ \
-        grpc \
-        libprotobuf \
-        ca-certificates && \
+RUN apk add --no-cache libstdc++ ca-certificates && \
     adduser -D -u 1000 cmsagent
 
-WORKDIR /app
-
+COPY --from=builder /runtime-libs/ /usr/lib/
 COPY --from=builder /build/build/cmsagent /app/cmsagent
 
 RUN chown cmsagent:cmsagent /app/cmsagent
