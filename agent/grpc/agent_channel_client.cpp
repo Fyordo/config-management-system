@@ -198,6 +198,7 @@ bool AgentChannelClient::WritePropertiesToFile(const com::fyordo::cms::ServerIni
     nlohmann::json properties_json;
     for (const auto& prop : init_event.properties()) {
         properties_json[prop.key()] = prop.value();
+        SendUpdateToUnixSocket(prop.key(), prop.value());
     }
     if (!WriteJsonToPath(properties_json)) {
         std::cerr << "AgentChannelClient: Failed to write properties (use a path writable by the process, e.g. /app/application.json)"
