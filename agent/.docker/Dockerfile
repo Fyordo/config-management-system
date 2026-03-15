@@ -1,3 +1,4 @@
+# ── Build stage ─────────────────────────────────────────────────────────────
 FROM ubuntu:22.04 AS builder
 
 ENV DEBIAN_FRONTEND=noninteractive
@@ -28,30 +29,28 @@ COPY proto/ ./proto/
 
 RUN mkdir -p build && \
     cd build && \
-    cmake .. -G Ninja -DCMAKE_BUILD_TYPE=Release && \
-    cmake --build . --config Release
+    cmake .. -G Ninja \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_CXX_FLAGS_RELEASE="-Os -DNDEBUG -ffunction-sections -fdata-sections -fvisibility=hidden" \
+        -DCMAKE_EXE_LINKER_FLAGS="-Wl,--gc-sections -Wl,--as-needed" && \
+    cmake --build . && \
+    strip --strip-all cmsagent
 
-FROM ubuntu:22.04
+# ── Runtime stage ────────────────────────────────────────────────────────────
+FROM alpine:3.21
 
-ENV DEBIAN_FRONTEND=noninteractive
-
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
-        libgrpc++1 \
-        libgrpc10 \
-        libprotobuf23 \
-        libstdc++6 \
-        libgcc-s1 \
+RUN apk add --no-cache \
+        libstdc++ \
+        grpc \
+        libprotobuf \
         ca-certificates && \
-    apt-get clean && rm -rf /var/lib/apt/lists/*
-
-RUN useradd -m -u 1000 cmsagent && \
-    mkdir -p /app && \
-    chown -R cmsagent:cmsagent /app
+    adduser -D -u 1000 cmsagent
 
 WORKDIR /app
 
 COPY --from=builder /build/build/cmsagent /app/cmsagent
+
+RUN chown cmsagent:cmsagent /app/cmsagent
 
 USER cmsagent
 
