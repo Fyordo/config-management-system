@@ -23,14 +23,14 @@ class PropertyUpdatePublisher {
 
     val updateFlow: SharedFlow<PropertyUpdateEvent> = _updateFlow.asSharedFlow()
 
-    fun publishUpdate(key: PropertyKey, value: PropertyValue?) {
-        val event = PropertyUpdateEvent(key, value)
+    fun publishUpdate(key: PropertyKey, value: PropertyValue?, revision: Long) {
+        val event = PropertyUpdateEvent(key, value, revision)
         val emitted = _updateFlow.tryEmit(event)
 
         if (emitted) {
-            logger.debug { "Published update for key: $key" }
+            logger.debug { "Published update for key: $key revision: $revision" }
         } else {
-            logger.warn { "Failed to publish update for key: $key (buffer full)" }
+            logger.warn { "Failed to publish update for key: $key revision: $revision (buffer full)" }
         }
     }
 }

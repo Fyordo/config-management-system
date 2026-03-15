@@ -2,6 +2,7 @@ package com.fyordo.cms.server.service.storage
 
 import com.fyordo.cms.server.dto.property.PropertyKey
 import org.junit.jupiter.api.BeforeEach
+import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -426,6 +427,47 @@ class PropertyPathHolderTest {
         assertTrue(pathHolder.getServices().contains("svc2"))
         assertTrue(pathHolder.getAppIds().contains("app2"))
         assertTrue(pathHolder.getKeys().contains("key2"))
+    }
+
+    // ── clear ─────────────────────────────────────────────────────────────────
+
+    @Nested
+    inner class Clear {
+
+        @Test
+        fun `should empty all collections`() {
+            pathHolder.addProperty(PropertyKey(1, "ns1", "svc1", "app1", "key1"))
+            pathHolder.addProperty(PropertyKey(1, "ns2", "svc2", "app2", "key2"))
+
+            pathHolder.clear()
+
+            assertTrue(pathHolder.getNamespaces().isEmpty())
+            assertTrue(pathHolder.getServices().isEmpty())
+            assertTrue(pathHolder.getAppIds().isEmpty())
+            assertTrue(pathHolder.getKeys().isEmpty())
+        }
+
+        @Test
+        fun `should be idempotent on an already empty holder`() {
+            pathHolder.clear()
+            pathHolder.clear()
+
+            assertTrue(pathHolder.getNamespaces().isEmpty())
+            assertTrue(pathHolder.getKeys().isEmpty())
+        }
+
+        @Test
+        fun `should allow re-adding properties after clear`() {
+            pathHolder.addProperty(PropertyKey(1, "ns", "svc", "app", "key"))
+            pathHolder.clear()
+
+            val newKey = PropertyKey(1, "new-ns", "new-svc", "new-app", "new-key")
+            pathHolder.addProperty(newKey)
+
+            assertEquals(1, pathHolder.getNamespaces().size)
+            assertTrue(pathHolder.getNamespaces().contains("new-ns"))
+            assertFalse(pathHolder.getNamespaces().contains("ns"))
+        }
     }
 
     @Test

@@ -55,6 +55,7 @@ class AgentConnectionManager(
                             .setValue(ByteString.copyFrom(event.value?.value ?: EMPTY_BYTES))
                     )
                     .setLastModifiedMs(event.value?.lastModifiedMs ?: 0)
+                    .setRevision(event.revision)
                     .build()
 
                 sendToAgent(
@@ -137,7 +138,12 @@ class AgentConnectionManager(
                         maxOf(maxTime, property.value.lastModifiedMs)
                     }
 
-                    result.setInitEvent(properties.setLastModifiedMs(lastModifiedMs).build())
+                    result.setInitEvent(
+                        properties
+                            .setLastModifiedMs(lastModifiedMs)
+                            .setRevision(propertyInMemoryStorage.currentRevision.get())
+                            .build()
+                    )
 
                     streamObserver.onNext(result.build())
                     logger.info { "Sent init config to agent: [$agentId] with lastModifiedMs = [$lastModifiedMs]" }

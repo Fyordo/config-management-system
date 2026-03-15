@@ -142,6 +142,7 @@ void AgentChannelClient::HandleInitEvent(const com::fyordo::cms::ServerInitEvent
 {
     std::cout << "AgentChannelClient: Received ServerInitEvent - "
               << "lastModifiedMs: " << init_event.lastmodifiedms() << ", "
+              << "revision: " << init_event.revision() << ", "
               << "properties count: " << init_event.properties_size() << std::endl;
 
     if (!config_.propertiesJsonPath.empty() && !WritePropertiesToFile(init_event)) {
@@ -153,7 +154,8 @@ void AgentChannelClient::HandlePropertyUpdate(const com::fyordo::cms::ServerProp
 {
     std::cout << "AgentChannelClient: Received ServerPropertyUpdateEvent - "
               << "key: " << update_event.property().key() << ", "
-              << "lastModifiedMs: " << update_event.lastmodifiedms() << std::endl;
+              << "lastModifiedMs: " << update_event.lastmodifiedms() << ", "
+              << "revision: " << update_event.revision() << std::endl;
 
     if (config_.propertiesJsonPath.empty()) {
         std::cerr << "AgentChannelClient: Skipping property update (CMS_PROPERTIES_FILE not set)" << std::endl;
