@@ -1,10 +1,12 @@
 package com.fyordo.cms.server.service.storage
 
+import com.fyordo.cms.server.dto.property.PropertyInternalDto
 import com.fyordo.cms.server.dto.property.PropertyKey
 import com.fyordo.cms.server.dto.property.PropertyValue
 import com.fyordo.cms.server.dto.query.PropertyQueryFilter
 import com.fyordo.cms.server.utils.EMPTY_BYTES
 import org.junit.jupiter.api.BeforeEach
+import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import kotlin.test.*
 
@@ -436,5 +438,259 @@ class PropertyInMemoryStorageTest {
         val results = storage.getByFilter(filter).toList()
 
         assertEquals(0, results.size)
+    }
+
+    // ── setWithRevision ───────────────────────────────────────────────────────
+
+    @Nested
+    inner class SetWithRevision {
+
+        @Test
+        fun `currentRevision starts at zero`() {
+            assertEquals(0L, storage.currentRevision.get())
+        }
+
+        @Test
+        fun `should store value and update revision atomically`() {
+            val key = PropertyKey(1, "ns", "svc", "app", "key")
+            val value = PropertyValue(1, "val".toByteArray(), 100L)
+
+            storage.setWithRevision(key, value, revision = 42L)
+
+            assertEquals(value, storage[key])
+            assertEquals(42L, storage.currentRevision.get())
+        }
+
+        @Test
+        fun `should update revision to the latest call`() {
+            val key1 = PropertyKey(1, "ns", "svc", "app", "key1")
+            val key2 = PropertyKey(1, "ns", "svc", "app", "key2")
+
+            storage.setWithRevision(key1, PropertyValue(1, "v1".toByteArray(), 100L), revision = 10L)
+            storage.setWithRevision(key2, PropertyValue(1, "v2".toByteArray(), 200L), revision = 11L)
+
+            assertEquals(11L, storage.currentRevision.get())
+        }
+
+        @Test
+        fun `should populate partsHolder indices`() {
+            val key = PropertyKey(1, "ns", "svc", "app", "key")
+            storage.setWithRevision(key, PropertyValue(1, "v".toByteArray(), 1L), revision = 1L)
+
+            assertTrue(pathHolder.getNamespaces().contains("ns"))
+            assertTrue(pathHolder.getServices().contains("svc"))
+            assertTrue(pathHolder.getAppIds().contains("app"))
+            assertTrue(pathHolder.getKeys().contains("key"))
+        }
+
+        @Test
+        fun `set operator should NOT change currentRevision`() {
+            val key = PropertyKey(1, "ns", "svc", "app", "key")
+            storage[key] = PropertyValue(1, "v".toByteArray(), 1L)
+
+            assertEquals(0L, storage.currentRevision.get())
+        }
+    }
+
+    // ── removeWithRevision ────────────────────────────────────────────────────
+
+    @Nested
+    inner class RemoveWithRevision {
+
+        @Test
+        fun `should remove value and update revision`() {
+            val key = PropertyKey(1, "ns", "svc", "app", "key")
+            val value = PropertyValue(1, "val".toByteArray(), 100L)
+            storage.setWithRevision(key, value, revision = 1L)
+
+            val removed = storage.removeWithRevision(key, revision = 2L)
+
+            assertEquals(value, removed)
+            assertNull(storage[key])
+            assertEquals(2L, storage.currentRevision.get())
+        }
+
+        @Test
+        fun `should return null and NOT update revision when key does not exist`() {
+            val key = PropertyKey(1, "ns", "svc", "app", "missing")
+            storage.setWithRevision(
+                PropertyKey(1, "ns", "svc", "app", "other"),
+                PropertyValue(1, "v".toByteArray(), 1L),
+                revision = 5L
+            )
+
+            val removed = storage.removeWithRevision(key, revision = 99L)
+
+            assertNull(removed)
+            assertEquals(5L, storage.currentRevision.get())
+        }
+
+        @Test
+        fun `should clean up partsHolder when last key for namespace is removed`() {
+            val key = PropertyKey(1, "ns", "svc", "app", "key")
+            storage.setWithRevision(key, PropertyValue(1, "v".toByteArray(), 1L), revision = 1L)
+
+            storage.removeWithRevision(key, revision = 2L)
+
+            assertFalse(pathHolder.getNamespaces().contains("ns"))
+            assertFalse(pathHolder.getServices().contains("svc"))
+            assertFalse(pathHolder.getAppIds().contains("app"))
+            assertFalse(pathHolder.getKeys().contains("key"))
+        }
+
+        @Test
+        fun `should keep partsHolder entries when other keys share metadata`() {
+            val key1 = PropertyKey(1, "ns", "svc", "app", "key1")
+            val key2 = PropertyKey(1, "ns", "svc", "app", "key2")
+            storage.setWithRevision(key1, PropertyValue(1, "v1".toByteArray(), 1L), revision = 1L)
+            storage.setWithRevision(key2, PropertyValue(1, "v2".toByteArray(), 2L), revision = 2L)
+
+            storage.removeWithRevision(key1, revision = 3L)
+
+            assertTrue(pathHolder.getNamespaces().contains("ns"))
+            assertTrue(pathHolder.getKeys().contains("key2"))
+            assertFalse(pathHolder.getKeys().contains("key1"))
+        }
+    }
+
+    // ── getSnapshotData ───────────────────────────────────────────────────────
+
+    @Nested
+    inner class GetSnapshotData {
+
+        @Test
+        fun `should return zero revision and empty list for empty storage`() {
+            val (revision, entries) = storage.getSnapshotData()
+
+            assertEquals(0L, revision)
+            assertTrue(entries.isEmpty())
+        }
+
+        @Test
+        fun `should return all entries with current revision`() {
+            val key1 = PropertyKey(1, "ns", "svc", "app", "key1")
+            val key2 = PropertyKey(1, "ns", "svc", "app", "key2")
+            val value1 = PropertyValue(1, "v1".toByteArray(), 100L)
+            val value2 = PropertyValue(1, "v2".toByteArray(), 200L)
+
+            storage.setWithRevision(key1, value1, revision = 10L)
+            storage.setWithRevision(key2, value2, revision = 11L)
+
+            val (revision, entries) = storage.getSnapshotData()
+
+            assertEquals(11L, revision)
+            assertEquals(2, entries.size)
+            assertTrue(entries.any { it.key == key1 && it.value == value1 })
+            assertTrue(entries.any { it.key == key2 && it.value == value2 })
+        }
+
+        @Test
+        fun `snapshot revision should match last setWithRevision call`() {
+            storage.setWithRevision(PropertyKey(1, "ns", "svc", "app", "k1"), PropertyValue(1, "v".toByteArray(), 1L), revision = 7L)
+            storage.setWithRevision(PropertyKey(1, "ns", "svc", "app", "k2"), PropertyValue(1, "v".toByteArray(), 2L), revision = 8L)
+            storage.removeWithRevision(PropertyKey(1, "ns", "svc", "app", "k1"), revision = 9L)
+
+            val (revision, entries) = storage.getSnapshotData()
+
+            assertEquals(9L, revision)
+            assertEquals(1, entries.size)
+        }
+    }
+
+    // ── restoreFromSnapshot ───────────────────────────────────────────────────
+
+    @Nested
+    inner class RestoreFromSnapshot {
+
+        @Test
+        fun `should restore entries and revision from snapshot`() {
+            val entries = listOf(
+                PropertyInternalDto(PropertyKey(1, "ns", "svc", "app", "key1"), PropertyValue(1, "v1".toByteArray(), 100L)),
+                PropertyInternalDto(PropertyKey(1, "ns", "svc", "app", "key2"), PropertyValue(1, "v2".toByteArray(), 200L))
+            )
+
+            storage.restoreFromSnapshot(entries, revision = 42L)
+
+            assertEquals(42L, storage.currentRevision.get())
+            assertEquals(entries[0].value, storage[entries[0].key])
+            assertEquals(entries[1].value, storage[entries[1].key])
+        }
+
+        @Test
+        fun `should clear existing state before restoring`() {
+            storage.setWithRevision(PropertyKey(1, "old-ns", "old-svc", "old-app", "old-key"), PropertyValue(1, "old".toByteArray(), 1L), revision = 1L)
+
+            val newEntry = PropertyInternalDto(
+                PropertyKey(1, "new-ns", "new-svc", "new-app", "new-key"),
+                PropertyValue(1, "new".toByteArray(), 2L)
+            )
+            storage.restoreFromSnapshot(listOf(newEntry), revision = 10L)
+
+            assertNull(storage[PropertyKey(1, "old-ns", "old-svc", "old-app", "old-key")])
+            assertEquals(newEntry.value, storage[newEntry.key])
+            assertEquals(10L, storage.currentRevision.get())
+        }
+
+        @Test
+        fun `should restore partsHolder indices from snapshot`() {
+            val entries = listOf(
+                PropertyInternalDto(PropertyKey(1, "ns1", "svc1", "app1", "key1"), PropertyValue(1, "v1".toByteArray(), 100L)),
+                PropertyInternalDto(PropertyKey(1, "ns2", "svc2", "app2", "key2"), PropertyValue(1, "v2".toByteArray(), 200L))
+            )
+
+            storage.restoreFromSnapshot(entries, revision = 5L)
+
+            assertTrue(pathHolder.getNamespaces().containsAll(setOf("ns1", "ns2")))
+            assertTrue(pathHolder.getServices().containsAll(setOf("svc1", "svc2")))
+            assertTrue(pathHolder.getAppIds().containsAll(setOf("app1", "app2")))
+            assertTrue(pathHolder.getKeys().containsAll(setOf("key1", "key2")))
+        }
+
+        @Test
+        fun `should clear partsHolder indices of old entries after restore`() {
+            storage.setWithRevision(PropertyKey(1, "old-ns", "old-svc", "old-app", "old-key"), PropertyValue(1, "v".toByteArray(), 1L), revision = 1L)
+
+            storage.restoreFromSnapshot(emptyList(), revision = 2L)
+
+            assertTrue(pathHolder.getNamespaces().isEmpty())
+            assertTrue(pathHolder.getServices().isEmpty())
+            assertTrue(pathHolder.getAppIds().isEmpty())
+            assertTrue(pathHolder.getKeys().isEmpty())
+        }
+
+        @Test
+        fun `restoring empty snapshot should reset revision to given value`() {
+            storage.setWithRevision(PropertyKey(1, "ns", "svc", "app", "key"), PropertyValue(1, "v".toByteArray(), 1L), revision = 99L)
+
+            storage.restoreFromSnapshot(emptyList(), revision = 0L)
+
+            assertEquals(0L, storage.currentRevision.get())
+            assertNull(storage[PropertyKey(1, "ns", "svc", "app", "key")])
+        }
+
+        @Test
+        fun `roundtrip getSnapshotData then restoreFromSnapshot should produce identical state`() {
+            val key1 = PropertyKey(1, "ns1", "svc1", "app1", "key1")
+            val key2 = PropertyKey(1, "ns2", "svc2", "app2", "key2")
+            val value1 = PropertyValue(1, "v1".toByteArray(), 100L)
+            val value2 = PropertyValue(1, "v2".toByteArray(), 200L)
+            storage.setWithRevision(key1, value1, revision = 10L)
+            storage.setWithRevision(key2, value2, revision = 11L)
+
+            val (snapshotRevision, snapshotEntries) = storage.getSnapshotData()
+
+            val freshStorage = PropertyInMemoryStorage(PropertyPartsHolder())
+            freshStorage.restoreFromSnapshot(snapshotEntries, snapshotRevision)
+
+            val (restoredRevision, restoredEntries) = freshStorage.getSnapshotData()
+            assertEquals(snapshotRevision, restoredRevision)
+            assertEquals(snapshotEntries.size, restoredEntries.size)
+            snapshotEntries.forEach { original ->
+                val restored = restoredEntries.find { it.key == original.key }
+                assertNotNull(restored)
+                assertContentEquals(original.value.value, restored.value.value)
+                assertEquals(original.value.lastModifiedMs, restored.value.lastModifiedMs)
+            }
+        }
     }
 }

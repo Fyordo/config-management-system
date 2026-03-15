@@ -4,11 +4,6 @@ data class PropertyDto(
     val key: PropertyKeyDto,
     val value: PropertyValueDto,
 ) {
-    constructor(propertyKey: PropertyKey, propertyValue: PropertyValue) : this(
-        key = PropertyKeyDto(propertyKey),
-        value = PropertyValueDto(propertyValue)
-    )
-
     constructor(internalDto: PropertyInternalDto) : this(
         key = PropertyKeyDto(internalDto.key),
         value = PropertyValueDto(internalDto.value)

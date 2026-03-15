@@ -24,18 +24,6 @@ class PropertyPartsHolder {
 
     fun getKeys(): Set<String> = lock.read { keys.toSet() }
 
-    fun addNamespace(namespace: String) = lock.write {
-        namespaces.add(namespace)
-    }
-
-    fun addService(service: String) = lock.write {
-        services.add(service)
-    }
-
-    fun addAppId(appId: String) = lock.write {
-        appIds.add(appId)
-    }
-
     fun addProperty(key: PropertyKey) = lock.write {
         namespaces.add(key.namespace)
         services.add(key.service)
