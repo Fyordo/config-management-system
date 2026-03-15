@@ -24,18 +24,14 @@ endif()
 
 find_package(Protobuf REQUIRED)
 find_package(nlohmann_json 3 REQUIRED)
+find_package(PkgConfig REQUIRED)
 
-find_library(GRPC_GRPCPP_LIBRARY NAMES grpc++)
-find_library(GRPC_GRPC_LIBRARY NAMES grpc)
-find_path(GRPC_INCLUDE_DIR grpcpp/grpcpp.h)
-
-if(NOT GRPC_GRPCPP_LIBRARY OR NOT GRPC_GRPC_LIBRARY OR NOT GRPC_INCLUDE_DIR)
-    message(FATAL_ERROR "gRPC not found. Install libgrpc++-dev and libgrpc-dev.")
-endif()
+# pkg_check_modules with IMPORTED_TARGET pulls all transitive deps (abseil, etc.)
+pkg_check_modules(GRPCPP REQUIRED IMPORTED_TARGET grpc++)
 
 find_program(GRPC_CPP_PLUGIN grpc_cpp_plugin)
 if(NOT GRPC_CPP_PLUGIN)
-    message(FATAL_ERROR "grpc_cpp_plugin not found. Install grpc-proto package.")
+    message(FATAL_ERROR "grpc_cpp_plugin not found. Install grpc-dev (Alpine) or grpc-proto (Ubuntu).")
 endif()
 
 set(PROTO_DIR "${CMAKE_CURRENT_SOURCE_DIR}/proto")
@@ -86,7 +82,6 @@ add_dependencies(cmsagent generate_proto)
 target_include_directories(cmsagent
     PRIVATE
         ${Protobuf_INCLUDE_DIRS}
-        ${GRPC_INCLUDE_DIR}
         ${GENERATED_PROTO_DIR}
         ${CMAKE_CURRENT_SOURCE_DIR}/grpc
 )
@@ -94,7 +89,6 @@ target_include_directories(cmsagent
 target_link_libraries(cmsagent
     PRIVATE
         ${Protobuf_LIBRARIES}
-        ${GRPC_GRPCPP_LIBRARY}
-        ${GRPC_GRPC_LIBRARY}
+        PkgConfig::GRPCPP
         nlohmann_json::nlohmann_json
 )

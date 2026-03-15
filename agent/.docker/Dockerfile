@@ -1,23 +1,14 @@
-FROM ubuntu:22.04 AS builder
+# ── Build stage ─────────────────────────────────────────────────────────────
+FROM alpine:3.21 AS builder
 
-ENV DEBIAN_FRONTEND=noninteractive
-
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
-        build-essential \
+RUN apk add --no-cache \
+        build-base \
         cmake \
-        ninja-build \
-        pkg-config \
-        protobuf-compiler \
-        protobuf-compiler-grpc \
-        libprotobuf-dev \
-        libprotoc-dev \
-        libgrpc++-dev \
-        libgrpc-dev \
-        grpc-proto \
-        nlohmann-json3-dev \
-        ca-certificates && \
-    apt-get clean && rm -rf /var/lib/apt/lists/*
+        ninja \
+        pkgconf \
+        grpc-dev \
+        protobuf-dev \
+        nlohmann-json
 
 WORKDIR /build
 
@@ -28,30 +19,36 @@ COPY proto/ ./proto/
 
 RUN mkdir -p build && \
     cd build && \
-    cmake .. -G Ninja -DCMAKE_BUILD_TYPE=Release && \
-    cmake --build . --config Release
+    cmake .. -G Ninja \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_CXX_FLAGS_RELEASE="-Os -DNDEBUG -ffunction-sections -fdata-sections -fvisibility=hidden" \
+        -DCMAKE_EXE_LINKER_FLAGS="-Wl,--gc-sections -Wl,--as-needed" && \
+    cmake --build . && \
+    strip --strip-all cmsagent
 
-FROM ubuntu:22.04
+# Collect exactly the runtime .so files the binary needs (via ldd), with symlinks
+RUN mkdir /runtime-libs && \
+    ldd /build/build/cmsagent | awk '/=>/{print $3}' | \
+    grep -Ev '(libstdc\+\+|libgcc_s|libc\.musl|ld-musl)' | \
+    while read -r lib; do \
+        [ -f "$lib" ] || continue; \
+        real=$(readlink -f "$lib"); \
+        rname=$(basename "$real"); \
+        lname=$(basename "$lib"); \
+        cp "$real" "/runtime-libs/$rname"; \
+        [ "$lname" != "$rname" ] && ln -sf "$rname" "/runtime-libs/$lname" || true; \
+    done
 
-ENV DEBIAN_FRONTEND=noninteractive
+# ── Runtime stage ────────────────────────────────────────────────────────────
+FROM alpine:3.21
 
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
-        libgrpc++1 \
-        libgrpc10 \
-        libprotobuf23 \
-        libstdc++6 \
-        libgcc-s1 \
-        ca-certificates && \
-    apt-get clean && rm -rf /var/lib/apt/lists/*
+RUN apk add --no-cache libstdc++ ca-certificates && \
+    adduser -D -u 1000 cmsagent
 
-RUN useradd -m -u 1000 cmsagent && \
-    mkdir -p /app && \
-    chown -R cmsagent:cmsagent /app
-
-WORKDIR /app
-
+COPY --from=builder /runtime-libs/ /usr/lib/
 COPY --from=builder /build/build/cmsagent /app/cmsagent
+
+RUN chown cmsagent:cmsagent /app/cmsagent
 
 USER cmsagent
 
