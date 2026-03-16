@@ -35,9 +35,12 @@ class PropertyPartsHolder {
         key: PropertyKey,
         hasOtherWithNamespace: Boolean,
         hasOtherWithService: Boolean,
-        hasOtherWithAppId: Boolean
+        hasOtherWithAppId: Boolean,
+        hasOtherWithKey: Boolean
     ) = lock.write {
-        keys.remove(key.key)
+        if (!hasOtherWithKey) {
+            keys.remove(key.key)
+        }
 
         if (!hasOtherWithNamespace) {
             namespaces.remove(key.namespace)

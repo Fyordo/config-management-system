@@ -132,7 +132,7 @@ export function DashboardPage() {
                 <div>
                   <p className="text-xs text-muted-foreground uppercase tracking-wider mb-2">Nodes</p>
                   <div className="flex flex-wrap gap-2">
-                    {raft.nodes.map((node) => (
+                    {raft.nodes.sort((a, b) => a.nodeId.localeCompare(b.nodeId)).map((node) => (
                       <div
                         key={node.nodeId}
                         className="flex items-center gap-2 rounded-lg border bg-muted/30 px-3 py-2"
@@ -170,7 +170,7 @@ export function DashboardPage() {
         <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-3">
           Storage Stats
         </h2>
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <StatCard
             label="Namespaces"
             value={constants?.namespaces.length ?? 0}
@@ -181,6 +181,12 @@ export function DashboardPage() {
             label="Services"
             value={constants?.services.length ?? 0}
             icon={Server}
+            loading={constantsLoading}
+          />
+          <StatCard
+            label="App IDs"
+            value={constants?.appIds.length ?? 0}
+            icon={Tag}
             loading={constantsLoading}
           />
           <StatCard

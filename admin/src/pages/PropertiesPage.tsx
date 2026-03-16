@@ -14,6 +14,7 @@ import {
   ChevronDown,
   ChevronUp,
   ChevronsUpDown,
+  Copy,
   Edit2,
   Filter,
   Loader2,
@@ -76,6 +77,7 @@ export function PropertiesPage() {
   const [sorting, setSorting] = useState<SortingState>([]);
   const [createOpen, setCreateOpen] = useState(false);
   const [editProperty, setEditProperty] = useState<PropertyDto | null>(null);
+  const [copyProperty, setCopyProperty] = useState<PropertyDto | null>(null);
   const [deleteProperty, setDeleteProperty] = useState<PropertyDto | null>(null);
 
   const deferredSearch = useDeferredValue(globalSearch);
@@ -156,6 +158,16 @@ export function PropertiesPage() {
             variant="ghost"
             size="icon"
             className="h-7 w-7"
+            title="Copy property"
+            onClick={() => setCopyProperty(row.original)}
+          >
+            <Copy className="h-3.5 w-3.5" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7"
+            title="Edit property"
             onClick={() => setEditProperty(row.original)}
           >
             <Edit2 className="h-3.5 w-3.5" />
@@ -164,6 +176,7 @@ export function PropertiesPage() {
             variant="ghost"
             size="icon"
             className="h-7 w-7 text-destructive hover:text-destructive"
+            title="Delete property"
             onClick={() => setDeleteProperty(row.original)}
           >
             <Trash2 className="h-3.5 w-3.5" />
@@ -383,6 +396,11 @@ export function PropertiesPage() {
         open={createOpen}
         onOpenChange={setCreateOpen}
         editProperty={null}
+      />
+      <PropertyDialog
+        open={!!copyProperty}
+        onOpenChange={(v) => !v && setCopyProperty(null)}
+        copyProperty={copyProperty}
       />
       <PropertyDialog
         open={!!editProperty}

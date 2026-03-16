@@ -8,7 +8,7 @@ import type {
 } from "@/types/api";
 
 export function propertyKeyToString(key: PropertyKey): string {
-  return `${key.version}/${key.namespace}/${key.service}/${key.appId}/${key.key}`;
+  return `${key.version ?? 1}/${key.namespace}/${key.service}/${key.appId}/${key.key}`;
 }
 
 export const propertiesApi = {

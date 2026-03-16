@@ -20,6 +20,7 @@ interface PropertyDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   editProperty?: PropertyDto | null;
+  copyProperty?: PropertyDto | null;
 }
 
 interface FormState {
@@ -42,6 +43,7 @@ export function PropertyDialog({
   open,
   onOpenChange,
   editProperty,
+  copyProperty,
 }: PropertyDialogProps) {
   const [form, setForm] = useState<FormState>(emptyForm);
   const queryClient = useQueryClient();
@@ -56,10 +58,18 @@ export function PropertyDialog({
         key: editProperty.key.key,
         value: editProperty.value.value,
       });
+    } else if (copyProperty) {
+      setForm({
+        namespace: copyProperty.key.namespace,
+        service: copyProperty.key.service,
+        appId: "",
+        key: copyProperty.key.key,
+        value: copyProperty.value.value,
+      });
     } else {
       setForm(emptyForm);
     }
-  }, [editProperty, open]);
+  }, [editProperty, copyProperty, open]);
 
   const mutation = useMutation({
     mutationFn: propertiesApi.put,
@@ -111,10 +121,14 @@ export function PropertyDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>{isEdit ? "Edit Property" : "New Property"}</DialogTitle>
+          <DialogTitle>
+            {isEdit ? "Edit Property" : copyProperty ? "Copy Property" : "New Property"}
+          </DialogTitle>
           <DialogDescription>
             {isEdit
               ? "Update the value of an existing property."
+              : copyProperty
+              ? "Copied from an existing property. Fill in the App ID to create a new entry."
               : "Create a new config property in the system."}
           </DialogDescription>
         </DialogHeader>

@@ -74,12 +74,14 @@ class PropertyInMemoryStorage(
             val hasOtherWithNamespace = storage.keys.any { it.namespace == key.namespace }
             val hasOtherWithService = storage.keys.any { it.service == key.service }
             val hasOtherWithAppId = storage.keys.any { it.appId == key.appId }
+            val hasOtherWithKey = storage.keys.any { it.key == key.key }
 
             partsHolder.removeProperty(
                 key,
                 hasOtherWithNamespace,
                 hasOtherWithService,
-                hasOtherWithAppId
+                hasOtherWithAppId,
+                hasOtherWithKey
             )
             logger.debug { "Removed key $key" }
         }
@@ -101,12 +103,14 @@ class PropertyInMemoryStorage(
             val hasOtherWithNamespace = storage.keys.any { it.namespace == key.namespace }
             val hasOtherWithService = storage.keys.any { it.service == key.service }
             val hasOtherWithAppId = storage.keys.any { it.appId == key.appId }
+            val hasOtherWithKey = storage.keys.any { it.key == key.key }
 
             partsHolder.removeProperty(
                 key,
                 hasOtherWithNamespace,
                 hasOtherWithService,
-                hasOtherWithAppId
+                hasOtherWithAppId,
+                hasOtherWithKey
             )
             currentRevision.set(revision)
             logger.debug { "Removed key $key revision=$revision" }
