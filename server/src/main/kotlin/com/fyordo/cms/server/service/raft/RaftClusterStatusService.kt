@@ -3,6 +3,9 @@ package com.fyordo.cms.server.service.raft
 import tools.jackson.core.type.TypeReference
 import tools.jackson.databind.ObjectMapper
 import com.fyordo.cms.server.config.props.RaftConfiguration
+import com.fyordo.cms.server.dto.raft.ClusterStatus
+import com.fyordo.cms.server.dto.raft.NodeFullStatus
+import com.fyordo.cms.server.dto.raft.NodeStatus
 import com.fyordo.cms.server.utils.raft.parsePeerHosts
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
@@ -29,9 +32,9 @@ class RaftClusterStatusService(
         .connectTimeout(Duration.ofSeconds(2))
         .build()
 
-    suspend fun getClusterStatus(): Map<String, Any?> {
+    suspend fun getClusterStatus(): ClusterStatus {
         val localStatus = raftServer.getLocalNodeStatus()
-        val groupId = localStatus["groupId"] as String
+        val groupId = localStatus.groupId
 
         val peerHosts = parsePeerHosts(
             peers = raftProps.peers,
@@ -43,7 +46,13 @@ class RaftClusterStatusService(
             peerHosts.map { (nodeId, host) ->
                 async {
                     if (nodeId == raftProps.nodeId) {
-                        localStatus + ("reachable" to true)
+                        NodeFullStatus(
+                            localStatus.nodeId,
+                            localStatus.isLeader,
+                            localStatus.groupId,
+                            true,
+                            null
+                        )
                     } else {
                         fetchPeerStatus(nodeId, host)
                     }
@@ -51,13 +60,13 @@ class RaftClusterStatusService(
             }.awaitAll()
         }
 
-        return mapOf(
-            "groupId" to groupId,
-            "nodes" to nodes,
+        return ClusterStatus(
+            groupId,
+            nodes,
         )
     }
 
-    private suspend fun fetchPeerStatus(nodeId: String, host: String): Map<String, Any?> {
+    private suspend fun fetchPeerStatus(nodeId: String, host: String): NodeFullStatus {
         val url = "http://$host:${raftProps.peerHttpPort}/raft/status/local"
         return try {
             val request = HttpRequest.newBuilder()
@@ -71,9 +80,15 @@ class RaftClusterStatusService(
             }
 
             if (response.statusCode() == 200) {
-                val type = object : TypeReference<Map<String, Any?>>() {}
-                val body: Map<String, Any?> = objectMapper.readValue(response.body(), type)
-                body + ("reachable" to true)
+                val type = object : TypeReference<NodeStatus>() {}
+                val localStatus: NodeStatus = objectMapper.readValue(response.body(), type)
+                NodeFullStatus(
+                    localStatus.nodeId,
+                    localStatus.isLeader,
+                    localStatus.groupId,
+                    true,
+                    null
+                )
             } else {
                 logger.warn { "Peer $nodeId at $url returned HTTP ${response.statusCode()}" }
                 errorStatus(nodeId, "HTTP ${response.statusCode()}")
@@ -84,11 +99,11 @@ class RaftClusterStatusService(
         }
     }
 
-    private fun errorStatus(nodeId: String, error: String): Map<String, Any?> = mapOf(
-        "nodeId" to nodeId,
-        "isLeader" to null,
-        "groupId" to null,
-        "reachable" to false,
-        "error" to error,
+    private fun errorStatus(nodeId: String, error: String): NodeFullStatus = NodeFullStatus(
+        nodeId,
+        false,
+        null,
+        false,
+        error,
     )
 }
