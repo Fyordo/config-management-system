@@ -1,6 +1,8 @@
 package com.fyordo.cms.server.service.storage
 
 import com.fyordo.cms.server.dto.property.PropertyKey
+import com.fyordo.cms.server.dto.query.ConstantsDto
+import com.fyordo.cms.server.dto.query.ConstantsQueryFilter
 import com.fyordo.cms.server.utils.read
 import com.fyordo.cms.server.utils.write
 import org.springframework.stereotype.Component
@@ -23,6 +25,26 @@ class PropertyPartsHolder {
     fun getAppIds(): Set<String> = lock.read { appIds.toSet() }
 
     fun getKeys(): Set<String> = lock.read { keys.toSet() }
+
+    fun getConstantsByFilter(filter: ConstantsQueryFilter) : ConstantsDto {
+        lock.read {
+            val filteredNamespaces = namespaces.filter {
+                filter.namespaceRegex?.toRegex()?.matches(it) ?: true
+            }
+            val filteredServices = services.filter {
+                filter.serviceRegex?.toRegex()?.matches(it) ?: true
+            }
+            val filteredAppIds = appIds.filter {
+                filter.appIdRegex?.toRegex()?.matches(it) ?: true
+            }
+
+            return ConstantsDto(
+                namespaces.filter { filteredNamespaces.contains(it) }.toSet(),
+                services.filter { filteredServices.contains(it) }.toSet(),
+                appIds.filter { filteredAppIds.contains(it) }.toSet()
+            )
+        }
+    }
 
     fun addProperty(key: PropertyKey) = lock.write {
         namespaces.add(key.namespace)
