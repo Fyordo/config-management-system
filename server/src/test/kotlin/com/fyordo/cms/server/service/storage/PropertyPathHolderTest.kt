@@ -135,7 +135,8 @@ class PropertyPathHolderTest {
             key,
             hasOtherWithNamespace = false,
             hasOtherWithService = false,
-            hasOtherWithAppId = false
+            hasOtherWithAppId = false,
+            hasOtherWithKey = false
         )
         assertFalse(pathHolder.getKeys().contains("key"))
     }
@@ -165,7 +166,8 @@ class PropertyPathHolderTest {
             key1,
             hasOtherWithNamespace = true,
             hasOtherWithService = true,
-            hasOtherWithAppId = true
+            hasOtherWithAppId = true,
+            hasOtherWithKey = false
         )
 
         // key1 should be removed
@@ -193,7 +195,8 @@ class PropertyPathHolderTest {
             key,
             hasOtherWithNamespace = false,
             hasOtherWithService = false,
-            hasOtherWithAppId = false
+            hasOtherWithAppId = false,
+            hasOtherWithKey = false
         )
 
         assertTrue(pathHolder.getKeys().isEmpty())
@@ -353,13 +356,15 @@ class PropertyPathHolderTest {
             keys[0],
             hasOtherWithNamespace = true,
             hasOtherWithService = true,
-            hasOtherWithAppId = true
+            hasOtherWithAppId = true,
+            hasOtherWithKey = false
         )
         pathHolder.removeProperty(
             keys[1],
             hasOtherWithNamespace = true,
             hasOtherWithService = true,
-            hasOtherWithAppId = true
+            hasOtherWithAppId = true,
+            hasOtherWithKey = false
         )
         
         // Remove last key - no other properties left
@@ -367,7 +372,8 @@ class PropertyPathHolderTest {
             keys[2],
             hasOtherWithNamespace = false,
             hasOtherWithService = false,
-            hasOtherWithAppId = false
+            hasOtherWithAppId = false,
+            hasOtherWithKey = false
         )
         
         assertEquals(0, pathHolder.getKeys().size)
@@ -394,7 +400,8 @@ class PropertyPathHolderTest {
             key,
             hasOtherWithNamespace = false,
             hasOtherWithService = false,
-            hasOtherWithAppId = false
+            hasOtherWithAppId = false,
+            hasOtherWithKey = false
         )
 
         assertTrue(pathHolder.getKeys().isEmpty())
@@ -416,7 +423,8 @@ class PropertyPathHolderTest {
             key1,
             hasOtherWithNamespace = true,  // ns1 still used by key2
             hasOtherWithService = false,   // svc1 not used
-            hasOtherWithAppId = false      // app1 not used
+            hasOtherWithAppId = false,
+            hasOtherWithKey = false      // app1 not used
         )
 
         assertTrue(pathHolder.getNamespaces().contains("ns1"))
@@ -491,7 +499,8 @@ class PropertyPathHolderTest {
             key1,
             hasOtherWithNamespace = true,
             hasOtherWithService = true,
-            hasOtherWithAppId = true
+            hasOtherWithAppId = true,
+            hasOtherWithKey = false
         )
 
         assertEquals(2, pathHolder.getNamespaces().size) // ns1, ns2 still present
@@ -504,7 +513,8 @@ class PropertyPathHolderTest {
             key2,
             hasOtherWithNamespace = false, // ns1 not used anymore
             hasOtherWithService = true,    // svc still used by key3
-            hasOtherWithAppId = true       // app still used by key3
+            hasOtherWithAppId = true,
+            hasOtherWithKey = false       // app still used by key3
         )
 
         assertEquals(1, pathHolder.getNamespaces().size) // only ns2
@@ -518,7 +528,8 @@ class PropertyPathHolderTest {
             key3,
             hasOtherWithNamespace = false,
             hasOtherWithService = false,
-            hasOtherWithAppId = false
+            hasOtherWithAppId = false,
+            hasOtherWithKey = false
         )
 
         assertTrue(pathHolder.getNamespaces().isEmpty())
