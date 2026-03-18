@@ -4,8 +4,8 @@ import jakarta.persistence.*
 import java.util.UUID
 
 @Entity
-@Table(name = "unit")
-class Unit(
+@Table(name = "cluster")
+class Cluster(
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     @Column(updatable = false, nullable = false)
@@ -20,6 +20,6 @@ class Unit(
     @Column(name = "raft_address", nullable = false)
     var raftAddress: String,
 
-    @OneToMany(mappedBy = "unit", cascade = [CascadeType.ALL], orphanRemoval = true)
+    @OneToMany(mappedBy = "cluster", cascade = [CascadeType.ALL], orphanRemoval = true)
     val appGroups: MutableList<AppGroup> = mutableListOf(),
 )

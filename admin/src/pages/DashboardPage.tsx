@@ -4,52 +4,14 @@ import {
   Crown,
   Database,
   Fingerprint,
-  Hash,
-  Layers,
   RefreshCw,
   Server,
-  Tag,
 } from "lucide-react";
 import { raftApi } from "@/api/raft";
-import { propertiesApi } from "@/api/properties";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-
-function StatCard({
-  label,
-  value,
-  icon: Icon,
-  loading,
-}: {
-  label: string;
-  value: string | number;
-  icon: React.ElementType;
-  loading?: boolean;
-}) {
-  return (
-    <Card>
-      <CardHeader className="pb-2">
-        <div className="flex items-center justify-between">
-          <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-            {label}
-          </CardTitle>
-          <div className="flex h-8 w-8 items-center justify-center rounded-md bg-primary/10">
-            <Icon className="h-4 w-4 text-primary" />
-          </div>
-        </div>
-      </CardHeader>
-      <CardContent>
-        {loading ? (
-          <Skeleton className="h-8 w-16" />
-        ) : (
-          <p className="text-3xl font-bold font-mono">{value}</p>
-        )}
-      </CardContent>
-    </Card>
-  );
-}
 
 export function DashboardPage() {
   const {
@@ -61,12 +23,6 @@ export function DashboardPage() {
     queryKey: ["raft-status"],
     queryFn: raftApi.status,
     refetchInterval: 5000,
-  });
-
-  const { data: constants, isLoading: constantsLoading } = useQuery({
-    queryKey: ["constants"],
-    queryFn: propertiesApi.constants,
-    refetchInterval: 10000,
   });
 
   return (
@@ -108,10 +64,20 @@ export function DashboardPage() {
         ) : raft ? (
           <div className="grid gap-4 sm:grid-cols-2">
             {Object.entries(raft).sort(([a], [b]) => a.localeCompare(b)).map(([groupName, group]) => (
-              <Card key={groupName}>
+              <Card key={groupName} className="overflow-hidden">
+                {group.color && (
+                  <div className="h-1 w-full" style={{ backgroundColor: group.color }} />
+                )}
                 <CardHeader className="pb-3">
                   <CardTitle className="text-sm flex items-center gap-2">
-                    <Database className="h-4 w-4 text-primary" />
+                    {group.color ? (
+                      <span
+                        className="h-4 w-4 rounded-sm flex-shrink-0"
+                        style={{ backgroundColor: group.color }}
+                      />
+                    ) : (
+                      <Database className="h-4 w-4 text-primary" />
+                    )}
                     <span className="font-mono">{groupName}</span>
                     {group.error && (
                       <Badge variant="destructive" className="ml-auto text-xs">Error</Badge>
@@ -136,7 +102,7 @@ export function DashboardPage() {
                     </div>
                     <div>
                       <p className="text-xs text-muted-foreground">Group ID</p>
-                      <p className="text-sm font-mono mt-0.5 text-foreground truncate max-w-[220px]" title={group.groupId}>
+                      <p className="text-sm font-mono mt-0.5 text-foreground max-w-[350px]" title={group.groupId}>
                         {group.groupId}
                       </p>
                     </div>
@@ -156,7 +122,11 @@ export function DashboardPage() {
                             <span className="font-mono text-sm font-medium">{node.nodeId}</span>
                             {node.reachable ? (
                               node.isLeader ? (
-                                <Badge variant="default" className="gap-1">
+                                <Badge
+                                  variant="default"
+                                  className="gap-1 border-0"
+                                  style={group.color ? { backgroundColor: group.color, color: "#fff" } : undefined}
+                                >
                                   <Crown className="h-3 w-3" />
                                   Leader
                                 </Badge>
@@ -184,88 +154,6 @@ export function DashboardPage() {
           </Card>
         )}
       </section>
-
-      {/* Stats */}
-      <section>
-        <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-3">
-          Storage Stats
-        </h2>
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <StatCard
-            label="Namespaces"
-            value={constants?.namespaces.length ?? 0}
-            icon={Layers}
-            loading={constantsLoading}
-          />
-          <StatCard
-            label="Services"
-            value={constants?.services.length ?? 0}
-            icon={Server}
-            loading={constantsLoading}
-          />
-          <StatCard
-            label="App IDs"
-            value={constants?.appIds.length ?? 0}
-            icon={Tag}
-            loading={constantsLoading}
-          />
-          <StatCard
-            label="Unique Keys"
-            value={constants?.keys.length ?? 0}
-            icon={Tag}
-            loading={constantsLoading}
-          />
-        </div>
-      </section>
-
-      {/* Breakdown */}
-      {constants && (
-        <section className="grid gap-6 sm:grid-cols-2">
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm flex items-center gap-2">
-                <Layers className="h-4 w-4 text-primary" />
-                Namespaces
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="flex flex-wrap gap-2">
-                {constants.namespaces.length === 0 ? (
-                  <p className="text-xs text-muted-foreground">No namespaces yet</p>
-                ) : (
-                  constants.namespaces.map((ns) => (
-                    <Badge key={ns} variant="outline" className="font-mono text-xs">
-                      {ns}
-                    </Badge>
-                  ))
-                )}
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm flex items-center gap-2">
-                <Hash className="h-4 w-4 text-primary" />
-                App IDs
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="flex flex-wrap gap-2">
-                {constants.appIds.length === 0 ? (
-                  <p className="text-xs text-muted-foreground">No app IDs yet</p>
-                ) : (
-                  constants.appIds.map((id) => (
-                    <Badge key={id} variant="outline" className="font-mono text-xs">
-                      {id}
-                    </Badge>
-                  ))
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        </section>
-      )}
     </div>
   );
 }

@@ -1,5 +1,7 @@
-import { useState, useDeferredValue, useMemo } from "react";
+import React, { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useCluster } from "@/context/ClusterContext";
+import { ClusterSelectDialog } from "@/components/cluster/ClusterSelectDialog";
 import {
   useReactTable,
   getCoreRowModel,
@@ -23,7 +25,7 @@ import {
   Trash2,
   X,
 } from "lucide-react";
-import { propertiesApi } from "@/api/properties";
+import { usePropertiesApi } from "@/api/properties";
 import type { PropertyDto, PropertyQueryFilter } from "@/types/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -71,8 +73,12 @@ function ValueCell({ value }: { value: string }) {
 }
 
 export function PropertiesPage() {
+  const { currentCluster } = useCluster();
+  const propertiesApi = usePropertiesApi();
+  const [filterDraft, setFilterDraft] = useState<PropertyQueryFilter>(EMPTY_FILTER);
   const [filter, setFilter] = useState<PropertyQueryFilter>(EMPTY_FILTER);
   const [showFilters, setShowFilters] = useState(false);
+  const [globalSearchDraft, setGlobalSearchDraft] = useState("");
   const [globalSearch, setGlobalSearch] = useState("");
   const [sorting, setSorting] = useState<SortingState>([]);
   const [createOpen, setCreateOpen] = useState(false);
@@ -80,21 +86,37 @@ export function PropertiesPage() {
   const [copyProperty, setCopyProperty] = useState<PropertyDto | null>(null);
   const [deleteProperty, setDeleteProperty] = useState<PropertyDto | null>(null);
 
-  const deferredSearch = useDeferredValue(globalSearch);
-  const deferredFilter = useDeferredValue(filter);
-
   const activeFilter: PropertyQueryFilter = {
-    namespaceRegex: deferredFilter.namespaceRegex || undefined,
-    serviceRegex: deferredFilter.serviceRegex || undefined,
-    appIdRegex: deferredFilter.appIdRegex || undefined,
-    keyRegex: deferredFilter.keyRegex || undefined,
-    limit: deferredFilter.limit,
+    namespaceRegex: filter.namespaceRegex || undefined,
+    serviceRegex: filter.serviceRegex || undefined,
+    appIdRegex: filter.appIdRegex || undefined,
+    keyRegex: filter.keyRegex || undefined,
+    limit: filter.limit,
   };
 
+  function commitSearch() {
+    setGlobalSearch(globalSearchDraft);
+  }
+
+  function clearSearch() {
+    setGlobalSearchDraft("");
+    setGlobalSearch("");
+  }
+
+  function commitFilter(field: keyof PropertyQueryFilter, value: string) {
+    setFilter((prev) => ({ ...prev, [field]: value }));
+  }
+
+  function clearFilterField(field: keyof PropertyQueryFilter) {
+    setFilterDraft((prev) => ({ ...prev, [field]: "" }));
+    setFilter((prev) => ({ ...prev, [field]: "" }));
+  }
+
   const { data, isLoading, isFetching } = useQuery({
-    queryKey: ["properties", activeFilter],
+    queryKey: ["properties", currentCluster?.id, activeFilter],
     queryFn: () => propertiesApi.query(activeFilter),
     placeholderData: (prev) => prev,
+    enabled: !!currentCluster,
   });
 
   const columns = useMemo(() => [
@@ -188,8 +210,8 @@ export function PropertiesPage() {
   ], []);
 
   const filteredData = useMemo(() => {
-    if (!deferredSearch) return data ?? [];
-    const q = deferredSearch.toLowerCase();
+    if (!globalSearch) return data ?? [];
+    const q = globalSearch.toLowerCase();
     return (data ?? []).filter(
       (row) =>
         row.key.namespace.toLowerCase().includes(q) ||
@@ -198,7 +220,7 @@ export function PropertiesPage() {
         row.key.key.toLowerCase().includes(q) ||
         row.value.value.toLowerCase().includes(q),
     );
-  }, [data, deferredSearch]);
+  }, [data, globalSearch]);
 
   const table = useReactTable({
     data: filteredData,
@@ -210,12 +232,16 @@ export function PropertiesPage() {
     getFilteredRowModel: getFilteredRowModel(),
   });
 
-  const activeFilterCount = Object.entries(filter)
+  const activeFilterCount = Object.entries(filterDraft)
     .filter(([k, v]) => k !== "limit" && !!v)
     .length;
 
   return (
-    <div className="flex flex-col h-full">
+    <div
+      className="flex flex-col h-full"
+      style={currentCluster ? ({ "--primary": currentCluster.color, "--ring": currentCluster.color } as React.CSSProperties) : undefined}
+    >
+      <ClusterSelectDialog open={!currentCluster} />
       {/* Header */}
       <div className="flex items-center justify-between px-8 py-5 border-b border-border">
         <div>
@@ -261,14 +287,15 @@ export function PropertiesPage() {
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
           <Input
-            placeholder="Search across all fields…"
-            value={globalSearch}
-            onChange={(e) => setGlobalSearch(e.target.value)}
+            placeholder="Search across all fields… (Enter to apply)"
+            value={globalSearchDraft}
+            onChange={(e) => setGlobalSearchDraft(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && commitSearch()}
             className="pl-9 pr-8"
           />
-          {globalSearch && (
+          {globalSearchDraft && (
             <button
-              onClick={() => setGlobalSearch("")}
+              onClick={clearSearch}
               className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
             >
               <X className="h-3.5 w-3.5" />
@@ -290,17 +317,16 @@ export function PropertiesPage() {
               <div key={field} className="relative">
                 <Input
                   placeholder={placeholder}
-                  value={filter[field] ?? ""}
+                  value={filterDraft[field] ?? ""}
                   onChange={(e) =>
-                    setFilter((prev) => ({ ...prev, [field]: e.target.value }))
+                    setFilterDraft((prev) => ({ ...prev, [field]: e.target.value }))
                   }
+                  onKeyDown={(e) => e.key === "Enter" && commitFilter(field, (e.target as HTMLInputElement).value)}
                   className="font-mono text-xs pr-7"
                 />
-                {filter[field] && (
+                {filterDraft[field] && (
                   <button
-                    onClick={() =>
-                      setFilter((prev) => ({ ...prev, [field]: "" }))
-                    }
+                    onClick={() => clearFilterField(field)}
                     className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                   >
                     <X className="h-3 w-3" />

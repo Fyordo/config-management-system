@@ -1,7 +1,10 @@
 package com.fyordo.cms.adminapi.service
 
-import com.fyordo.cms.adminapi.config.ClusterProperties
+import com.fyordo.cms.adminapi.dto.ClusterFullStatus
 import com.fyordo.cms.adminapi.dto.ClusterStatus
+import com.fyordo.cms.adminapi.dto.cluster.ClusterDto
+import com.fyordo.cms.adminapi.entity.Cluster
+import com.fyordo.cms.adminapi.repository.UnitRepository
 import kotlinx.coroutines.*
 import mu.KotlinLogging
 import org.springframework.stereotype.Service
@@ -17,28 +20,39 @@ private val logger = KotlinLogging.logger {}
 
 @Service
 class RaftClusterService(
-    private val clusterProperties: ClusterProperties,
-    private val objectMapper: ObjectMapper
+    private val objectMapper: ObjectMapper,
+    private val unitDao: UnitRepository
 ) {
     private val httpClient: HttpClient = HttpClient.newBuilder()
         .connectTimeout(Duration.ofSeconds(2))
         .build()
 
-    suspend fun getClustersStatuses(): Map<String, ClusterStatus> {
+    fun getClusterNames(): List<ClusterDto> {
+        return unitDao.findAll().map { e ->
+            ClusterDto(
+                e.id,
+                e.title,
+                e.color,
+                e.raftAddress,
+            )
+        }
+    }
+
+    suspend fun getClustersStatuses(): Map<String, ClusterFullStatus> {
         return coroutineScope {
             buildMap {
-                clusterProperties.urls.map { (cluster, endpoint) ->
+                unitDao.findAll().map { unit ->
                     async {
-                        val clusterStatus = fetchClusterStatus(cluster, endpoint)
-                        put(cluster, clusterStatus)
+                        val clusterStatus = fetchClusterStatus(unit)
+                        put(unit.title, clusterStatus)
                     }
                 }.awaitAll()
             }
         }
     }
 
-    private suspend fun fetchClusterStatus(cluster: String, host: String): ClusterStatus {
-        val url = "$host/raft/status"
+    private suspend fun fetchClusterStatus(cluster: Cluster): ClusterFullStatus {
+        val url = "${cluster.raftAddress}/raft/status"
         return try {
             val request = HttpRequest.newBuilder()
                 .uri(URI.create(url))
@@ -52,20 +66,27 @@ class RaftClusterService(
 
             if (response.statusCode() == 200) {
                 val type = object : TypeReference<ClusterStatus>() {}
-                objectMapper.readValue(response.body(), type)
+                val clusterStatus = objectMapper.readValue(response.body(), type)
+                ClusterFullStatus(
+                    clusterStatus.groupId,
+                    clusterStatus.nodes,
+                    clusterStatus.error,
+                    cluster.color
+                )
             } else {
-                logger.warn { "Cluster $cluster at $url returned HTTP ${response.statusCode()}" }
-                errorStatus(cluster, "HTTP ${response.statusCode()}")
+                logger.warn { "Cluster ${cluster.title} at $url returned HTTP ${response.statusCode()}" }
+                errorStatus(cluster.title, "HTTP ${response.statusCode()}", cluster.color)
             }
         } catch (e: Exception) {
-            logger.warn(e) { "Failed to fetch status from cluster $cluster at $url" }
-            errorStatus(cluster, e.message ?: "Unknown error")
+            logger.warn(e) { "Failed to fetch status from cluster ${cluster.title} at $url" }
+            errorStatus(cluster.title, e.message ?: "Unknown error", cluster.color)
         }
     }
 
-    private fun errorStatus(cluster: String, error: String): ClusterStatus = ClusterStatus(
+    private fun errorStatus(cluster: String, error: String, color: String): ClusterFullStatus = ClusterFullStatus(
         cluster,
         emptyList(),
-        error
+        error,
+        color
     )
 }

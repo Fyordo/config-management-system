@@ -32,6 +32,13 @@ export interface PropertyConstants {
   keys: string[];
 }
 
+export interface ClusterInfo {
+  id: string;
+  title: string;
+  color: string;
+  raftAddress: string;
+}
+
 export interface PutPropertyRequest {
   key: PropertyKey;
   value: string;
@@ -49,6 +56,7 @@ export interface RaftGroupStatus {
   groupId: string;
   nodes: RaftNodeStatus[];
   error: string | null;
+  color: string | null;
 }
 
 export type RaftClusterStatus = Record<string, RaftGroupStatus>;

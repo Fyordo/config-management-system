@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { propertiesApi, propertyKeyToString } from "@/api/properties";
+import { usePropertiesApi, propertyKeyToString } from "@/api/properties";
 import type { PropertyDto } from "@/types/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -47,6 +47,7 @@ export function PropertyDialog({
 }: PropertyDialogProps) {
   const [form, setForm] = useState<FormState>(emptyForm);
   const queryClient = useQueryClient();
+  const propertiesApi = usePropertiesApi();
   const isEdit = !!editProperty;
 
   useEffect(() => {

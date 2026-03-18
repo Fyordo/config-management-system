@@ -7,6 +7,4 @@ import java.util.UUID
 
 @Repository
 interface AppGroupRepository : JpaRepository<AppGroup, Long> {
-
-    fun findAllByUnitId(unitId: UUID): List<AppGroup>
 }

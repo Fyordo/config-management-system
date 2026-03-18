@@ -1,6 +1,6 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { propertiesApi, propertyKeyToString } from "@/api/properties";
+import { usePropertiesApi, propertyKeyToString } from "@/api/properties";
 import type { PropertyDto } from "@/types/api";
 import { Button } from "@/components/ui/button";
 import {
@@ -24,6 +24,7 @@ export function DeleteConfirmDialog({
   property,
 }: DeleteConfirmDialogProps) {
   const queryClient = useQueryClient();
+  const propertiesApi = usePropertiesApi();
 
   const mutation = useMutation({
     mutationFn: (key: string) => propertiesApi.delete(key),

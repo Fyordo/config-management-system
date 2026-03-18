@@ -11,8 +11,8 @@ class AppGroup(
     val id: Long = 0,
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "unit_id", nullable = false)
-    var unit: Unit,
+    @JoinColumn(name = "cluster_id", nullable = false)
+    var cluster: Cluster,
 
     @Column(nullable = false)
     var title: String,
