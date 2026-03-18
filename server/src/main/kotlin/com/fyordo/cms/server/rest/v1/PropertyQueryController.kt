@@ -4,6 +4,8 @@ import com.fyordo.cms.server.dto.property.PropertyDto
 import com.fyordo.cms.server.dto.property.PropertyKey
 import com.fyordo.cms.server.dto.property.PropertyKeyDto
 import com.fyordo.cms.server.dto.property.PropertyValueDto
+import com.fyordo.cms.server.dto.query.ConstantsDto
+import com.fyordo.cms.server.dto.query.ConstantsQueryFilter
 import com.fyordo.cms.server.dto.query.PropertyQueryFilter
 import com.fyordo.cms.server.dto.raft.RaftCommand
 import com.fyordo.cms.server.dto.raft.RaftOp
@@ -64,13 +66,8 @@ class PropertyQueryController(
     }
 
     @GetMapping("/constants")
-    suspend fun constants(): Map<String, Set<String>> {
-        return mapOf(
-            "namespaces" to propertyPartsHolder.getNamespaces(),
-            "services" to propertyPartsHolder.getServices(),
-            "keys" to propertyPartsHolder.getKeys(),
-            "appIds" to propertyPartsHolder.getAppIds(),
-        )
+    suspend fun constants(@Valid @RequestBody filter: ConstantsQueryFilter): ConstantsDto {
+        return propertyPartsHolder.getConstantsByFilter(filter)
     }
 
     @PostMapping("")

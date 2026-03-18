@@ -1,6 +1,7 @@
 package com.fyordo.cms.server.service.raft
 
 import com.fyordo.cms.server.config.props.RaftConfiguration
+import com.fyordo.cms.server.dto.raft.NodeStatus
 import com.fyordo.cms.server.utils.raft.parsePeers
 import jakarta.annotation.PostConstruct
 import jakarta.annotation.PreDestroy
@@ -158,5 +159,11 @@ class RaftServerService(
             UNKNOWN
         }.getOrDefault(UNKNOWN)
     }
+
+    fun getLocalNodeStatus(): NodeStatus = NodeStatus(
+        raftProps.nodeId,
+        isLeader(),
+        getGroupId().uuid.toString(),
+    )
 }
 
