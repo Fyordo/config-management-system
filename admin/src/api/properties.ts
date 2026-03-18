@@ -1,4 +1,4 @@
-import { api } from "./client";
+import { serverApi as api } from "./client";
 import type {
   PropertyConstants,
   PropertyDto,

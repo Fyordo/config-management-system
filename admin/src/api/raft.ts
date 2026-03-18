@@ -1,6 +1,6 @@
 import { api } from "./client";
-import type { RaftStatus } from "@/types/api";
+import type { RaftClusterStatus } from "@/types/api";
 
 export const raftApi = {
-  status: () => api.get<RaftStatus>("/raft/status"),
+  status: () => api.get<RaftClusterStatus>("/api/v1/cluster/status"),
 };

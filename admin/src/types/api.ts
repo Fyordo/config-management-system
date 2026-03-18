@@ -42,10 +42,13 @@ export interface RaftNodeStatus {
   isLeader: boolean | null;
   groupId: string | null;
   reachable: boolean;
-  error?: string;
+  error?: string | null;
 }
 
-export interface RaftStatus {
+export interface RaftGroupStatus {
   groupId: string;
   nodes: RaftNodeStatus[];
+  error: string | null;
 }
+
+export type RaftClusterStatus = Record<string, RaftGroupStatus>;

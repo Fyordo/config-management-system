@@ -1,6 +1,5 @@
-// В dev запросы идут на тот же origin и проксируются Vite → нет CORS.
-// В prod можно задать VITE_API_URL или оставить пустым (тот же origin, если nginx проксирует API).
-const BASE_URL = import.meta.env.DEV ? "" : (import.meta.env.VITE_API_URL ?? "");
+const ADMIN_API_URL = (import.meta.env.VITE_API_URL as string | undefined) ?? "";
+const SERVER_URL = (import.meta.env.VITE_SERVER_URL as string | undefined) ?? "";
 
 class ApiError extends Error {
   status: number;
@@ -12,10 +11,11 @@ class ApiError extends Error {
 }
 
 async function request<T>(
+  baseUrl: string,
   path: string,
   options: RequestInit = {}
 ): Promise<T> {
-  const res = await fetch(`${BASE_URL}${path}`, {
+  const res = await fetch(`${baseUrl}${path}`, {
     headers: { "Content-Type": "application/json", ...options.headers },
     ...options,
   });
@@ -30,10 +30,17 @@ async function request<T>(
 }
 
 export const api = {
-  get: <T>(path: string) => request<T>(path),
+  get: <T>(path: string) => request<T>(ADMIN_API_URL, path),
   post: <T>(path: string, body: unknown) =>
-    request<T>(path, { method: "POST", body: JSON.stringify(body) }),
-  delete: <T>(path: string) => request<T>(path, { method: "DELETE" }),
+    request<T>(ADMIN_API_URL, path, { method: "POST", body: JSON.stringify(body) }),
+  delete: <T>(path: string) => request<T>(ADMIN_API_URL, path, { method: "DELETE" }),
+};
+
+export const serverApi = {
+  get: <T>(path: string) => request<T>(SERVER_URL, path),
+  post: <T>(path: string, body: unknown) =>
+    request<T>(SERVER_URL, path, { method: "POST", body: JSON.stringify(body) }),
+  delete: <T>(path: string) => request<T>(SERVER_URL, path, { method: "DELETE" }),
 };
 
 export { ApiError };
