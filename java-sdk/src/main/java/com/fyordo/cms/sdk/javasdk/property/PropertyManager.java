@@ -52,8 +52,28 @@ public class PropertyManager {
     }
 
     public void init() {
+        waitForConfigFile();
         readFromFile();
         listenSocket();
+    }
+
+    private void waitForConfigFile() {
+        int maxAttempts = 60;
+        for (int attempt = 1; attempt <= maxAttempts; attempt++) {
+            if (Files.exists(configFilePath)) {
+                return;
+            }
+            System.out.printf("[PropertyManager] Config file not found, waiting... (%d/%d): %s%n",
+                    attempt, maxAttempts, configFilePath);
+            try {
+                Thread.sleep(1_000);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new IllegalStateException("Interrupted while waiting for config file: " + configFilePath, e);
+            }
+        }
+        throw new IllegalArgumentException(
+                "Config file did not appear within " + maxAttempts + " seconds: " + configFilePath);
     }
 
     public void readFromFile() {
@@ -93,7 +113,7 @@ public class PropertyManager {
     }
 
     public void store(@NotNull String key,
-                       @Nullable Object newValue) {
+                      @Nullable Object newValue) {
         Object oldValue = repository.store(key, newValue);
         callbacks.getOrDefault(key, defaultCallback)
                 .apply(key, oldValue, newValue);
