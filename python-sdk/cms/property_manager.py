@@ -80,8 +80,8 @@ class PropertyManager:
             ValueError: If the config file is empty or cannot be parsed.
             OSError: If the config file cannot be opened.
         """
-        self._read_from_file()
         self._start_listener()
+        self._read_from_file()
 
     def get(self, key: str) -> Optional[Any]:
         """Return the current value for *key*, or ``None`` if not present."""
