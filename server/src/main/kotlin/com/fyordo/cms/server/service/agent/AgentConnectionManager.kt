@@ -14,14 +14,17 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.launch
 import mu.KotlinLogging
 import org.springframework.stereotype.Component
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
+import kotlin.time.Duration.Companion.minutes
 
 private val logger = KotlinLogging.logger {}
 
@@ -37,6 +40,7 @@ class AgentConnectionManager(
 ) {
     private val connections: MutableMap<AgentId, Connection> = ConcurrentHashMap()
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val healthcheckScope = CoroutineScope(Dispatchers.IO)
 
     @PostConstruct
     fun init() {
@@ -70,25 +74,45 @@ class AgentConnectionManager(
             }
             .launchIn(scope)
 
+        healthcheckScope.launch {
+            while (true) {
+                logger.debug { "AGENT_HEALTHCHECK: Starting..." }
+                val ids = mutableSetOf<AgentId>()
+                connections.forEach { (agentId, connection) ->
+                    connection.lock.withLock {
+                        val streamObserver = connection.streamObserver
+                        if (streamObserver is ServerCallStreamObserver && streamObserver.isCancelled) {
+                            ids.add(agentId)
+                        }
+                    }
+
+                    ids.forEach {
+                        logger.warn { "HEALTHCHECK: Stream is cancelled for agent: $agentId, removing connection" }
+                        closeStream(it)
+                    }
+                }
+                logger.debug { "AGENT_HEALTHCHECK: Finished. Rescheduled for 1 minute" }
+                delay(1.minutes)
+            }
+        }
+
         logger.info { "AgentConnectionFacade initialized and subscribed to broadcaster" }
     }
 
     @PreDestroy
     fun destroy() {
         scope.cancel()
+        healthcheckScope.cancel()
         logger.info { "AgentConnectionFacade destroyed" }
+    }
+
+    fun getConnectedAgents(): Set<AgentId> {
+        return connections.keys
     }
 
     fun register(agentId: AgentId, streamObserver: StreamObserver<AgentChannelServiceOuterClass.ServerStreamEvent>) {
         logger.info { "Registering stream event: $agentId" }
         connections[agentId] = Connection(streamObserver)
-    }
-
-    fun unregister(agentId: AgentId) {
-        connections.remove(agentId).also { connection ->
-            connection?.streamObserver?.onCompleted()
-            logger.info { "Unregistered agent: $agentId" }
-        }
     }
 
     fun sendToAgent(agentId: AgentId, result: AgentChannelServiceOuterClass.ServerStreamEvent) {
@@ -98,13 +122,13 @@ class AgentConnectionManager(
                     val streamObserver = connection.streamObserver
                     if (streamObserver is ServerCallStreamObserver && streamObserver.isCancelled) {
                         logger.warn { "Stream is cancelled for agent: $agentId, removing connection" }
-                        unregister(agentId)
+                        closeStream(agentId)
                         return
                     }
                     streamObserver.onNext(result)
                 } catch (e: Exception) {
                     logger.error(e) { "Error sending message to agent: $agentId, removing connection" }
-                    unregister(agentId)
+                    closeStream(agentId)
                 }
             }
         }
@@ -117,7 +141,7 @@ class AgentConnectionManager(
                     val streamObserver = connection.streamObserver
                     if (streamObserver is ServerCallStreamObserver && streamObserver.isCancelled) {
                         logger.warn { "Stream is cancelled for agent: $agentId, removing connection" }
-                        unregister(agentId)
+                        closeStream(agentId)
                         return
                     }
 
@@ -149,7 +173,7 @@ class AgentConnectionManager(
                     logger.info { "Sent init config to agent: [$agentId] with lastModifiedMs = [$lastModifiedMs]" }
                 } catch (e: Exception) {
                     logger.error(e) { "Error sending init config to agent: [$agentId], removing connection" }
-                    unregister(agentId)
+                    closeStream(agentId)
                 }
             }
         } ?: run {
