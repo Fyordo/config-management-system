@@ -1,0 +1,94 @@
+name: Python SDK Tests
+
+on:
+  push:
+    branches:
+      - master
+    paths:
+      - 'python-sdk/**'
+  pull_request:
+    branches:
+      - "*"
+    paths:
+      - 'python-sdk/**'
+
+permissions:
+  contents: read
+  checks: write
+  pull-requests: write
+
+jobs:
+  test:
+    name: Run Python-SDK Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Install test dependencies
+        run: pip install pytest
+        working-directory: ./python-sdk
+
+      - name: Run tests
+        run: |
+          mkdir -p build/test-results
+          pytest tests/ -v --junit-xml=build/test-results/junit.xml
+        working-directory: ./python-sdk
+
+      - name: Publish test results
+        uses: EnricoMi/publish-unit-test-result-action@v2
+        if: always()
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          files: |
+            python-sdk/build/test-results/junit.xml
+          check_name: 'Python SDK Test Results'
+          comment_mode: 'off'
+
+      - name: Upload test reports
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-reports
+          path: |
+            python-sdk/build/test-results/
+          retention-days: 30
+
+      - name: Comment test results on PR
+        uses: actions/github-script@v7
+        if: always() && github.event_name == 'pull_request'
+        with:
+          script: |
+            const fs = require('fs');
+            const testResultsPath = 'python-sdk/build/test-results';
+
+            let comment = '## 🧪 Python SDK Test Results\n\n';
+
+            try {
+              const files = fs.readdirSync(testResultsPath);
+              const xmlFiles = files.filter(f => f.endsWith('.xml'));
+
+              if (xmlFiles.length > 0) {
+                comment += `✅ Tests completed successfully!\n\n`;
+                comment += `Found ${xmlFiles.length} test result file(s).`;
+              } else {
+                comment += '⚠️ No test results found.';
+              }
+            } catch (error) {
+              comment += `❌ Error reading test results: ${error.message}`;
+            }
+
+            comment += '\n\nCheck the [Actions tab](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}) for detailed results.';
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: comment
+            });
