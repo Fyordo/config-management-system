@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   Activity,
@@ -6,14 +7,134 @@ import {
   Fingerprint,
   RefreshCw,
   Server,
+  Users,
 } from "lucide-react";
 import { raftApi } from "@/api/raft";
+import type { ConnectedAgent, RaftNodeStatus } from "@/types/api";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+
+interface AgentsModalState {
+  nodeId: string;
+  agents: ConnectedAgent[];
+}
+
+function AgentsModal({
+  state,
+  onClose,
+}: {
+  state: AgentsModalState | null;
+  onClose: () => void;
+}) {
+  return (
+    <Dialog open={!!state} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle className="font-mono text-base">{state?.nodeId}</DialogTitle>
+        </DialogHeader>
+        {state && (
+          <div className="mt-1">
+            <p className="text-xs text-muted-foreground mb-3 uppercase tracking-wider">
+              Connected agents · {state.agents.length}
+            </p>
+            {state.agents.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No agents connected</p>
+            ) : (
+              <ul className="space-y-2">
+                {state.agents.map((agent) => (
+                  <li
+                    key={`${agent.namespace}/${agent.service}/${agent.appId}`}
+                    className="flex flex-col gap-0.5 rounded-lg border bg-muted/30 px-3 py-2"
+                  >
+                    <span className="font-mono text-sm font-medium">{agent.appId}</span>
+                    <span className="text-xs text-muted-foreground">
+                      {agent.namespace} / {agent.service}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function NodeBadge({
+  node,
+  color,
+  onOpenAgents,
+}: {
+  node: RaftNodeStatus;
+  color: string | null;
+  onOpenAgents: (node: RaftNodeStatus) => void;
+}) {
+  const agentCount = node.connectedAgents?.length ?? 0;
+
+  return (
+    <TooltipProvider delayDuration={200}>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <div
+            className="flex items-center gap-2 rounded-lg border bg-muted/30 px-3 py-2 cursor-pointer hover:bg-muted/60 transition-colors"
+            onClick={() => onOpenAgents(node)}
+          >
+            <Activity className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+            <span className="font-mono text-sm font-medium">{node.nodeId}</span>
+            {node.reachable ? (
+              node.isLeader ? (
+                <Badge
+                  variant="default"
+                  className="gap-1 border-0"
+                  style={color ? { backgroundColor: color, color: "#fff" } : undefined}
+                >
+                  <Crown className="h-3 w-3" />
+                  Leader
+                </Badge>
+              ) : (
+                <Badge variant="secondary">Follower</Badge>
+              )
+            ) : (
+              <Badge variant="destructive" title={node.error ?? undefined}>
+                Unreachable
+              </Badge>
+            )}
+            {agentCount > 0 && (
+              <span className="ml-auto flex items-center gap-1 text-xs text-muted-foreground">
+                <Users className="h-3.5 w-3.5" />
+                {agentCount}
+              </span>
+            )}
+          </div>
+        </TooltipTrigger>
+        <TooltipContent side="top">
+          {agentCount === 0
+            ? "No agents connected"
+            : `${agentCount} agent${agentCount === 1 ? "" : "s"} connected`}
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  );
+}
 
 export function DashboardPage() {
+  const [agentsModal, setAgentsModal] = useState<AgentsModalState | null>(null);
+
   const {
     data: raft,
     isLoading: raftLoading,
@@ -114,31 +235,14 @@ export function DashboardPage() {
                         .slice()
                         .sort((a, b) => a.nodeId.localeCompare(b.nodeId))
                         .map((node) => (
-                          <div
+                          <NodeBadge
                             key={node.nodeId}
-                            className="flex items-center gap-2 rounded-lg border bg-muted/30 px-3 py-2"
-                          >
-                            <Activity className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                            <span className="font-mono text-sm font-medium">{node.nodeId}</span>
-                            {node.reachable ? (
-                              node.isLeader ? (
-                                <Badge
-                                  variant="default"
-                                  className="gap-1 border-0"
-                                  style={group.color ? { backgroundColor: group.color, color: "#fff" } : undefined}
-                                >
-                                  <Crown className="h-3 w-3" />
-                                  Leader
-                                </Badge>
-                              ) : (
-                                <Badge variant="secondary">Follower</Badge>
-                              )
-                            ) : (
-                              <Badge variant="destructive" title={node.error ?? undefined}>
-                                Unreachable
-                              </Badge>
-                            )}
-                          </div>
+                            node={node}
+                            color={group.color}
+                            onOpenAgents={(n) =>
+                              setAgentsModal({ nodeId: n.nodeId, agents: n.connectedAgents ?? [] })
+                            }
+                          />
                         ))}
                     </div>
                   </div>
@@ -154,6 +258,8 @@ export function DashboardPage() {
           </Card>
         )}
       </section>
+
+      <AgentsModal state={agentsModal} onClose={() => setAgentsModal(null)} />
     </div>
   );
 }

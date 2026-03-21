@@ -1,4 +1,4 @@
-package com.fyordo.cms.server.dto.grpc
+package com.fyordo.cms.adminapi.dto
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties
 

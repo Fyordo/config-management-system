@@ -51,7 +51,8 @@ class RaftClusterStatusService(
                             localStatus.isLeader,
                             localStatus.groupId,
                             true,
-                            null
+                            null,
+                            localStatus.connectedAgents
                         )
                     } else {
                         fetchPeerStatus(nodeId, host)
@@ -87,7 +88,8 @@ class RaftClusterStatusService(
                     localStatus.isLeader,
                     localStatus.groupId,
                     true,
-                    null
+                    null,
+                    localStatus.connectedAgents
                 )
             } else {
                 logger.warn { "Peer $nodeId at $url returned HTTP ${response.statusCode()}" }

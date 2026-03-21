@@ -2,6 +2,7 @@ package com.fyordo.cms.server.service.raft
 
 import com.fyordo.cms.server.config.props.RaftConfiguration
 import com.fyordo.cms.server.dto.raft.NodeStatus
+import com.fyordo.cms.server.service.agent.AgentConnectionManager
 import com.fyordo.cms.server.utils.raft.parsePeers
 import jakarta.annotation.PostConstruct
 import jakarta.annotation.PreDestroy
@@ -28,7 +29,8 @@ private const val UNKNOWN = "<UNKNOWN>"
 @Service
 class RaftServerService(
     private val raftProps: RaftConfiguration,
-    private val raftStateMachine: RaftStateMachine
+    private val raftStateMachine: RaftStateMachine,
+    private val agentConnectionManager: AgentConnectionManager
 ) {
     private lateinit var raftServer: RaftServer
     private lateinit var raftGroupId: RaftGroupId
@@ -164,6 +166,7 @@ class RaftServerService(
         raftProps.nodeId,
         isLeader(),
         getGroupId().uuid.toString(),
+        agentConnectionManager.getConnectedAgents()
     )
 }
 
