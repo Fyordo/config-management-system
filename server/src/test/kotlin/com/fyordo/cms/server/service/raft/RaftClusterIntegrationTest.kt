@@ -1,7 +1,6 @@
 package com.fyordo.cms.server.service.raft
 
 import com.fyordo.cms.server.config.props.RaftConfiguration
-import com.fyordo.cms.server.config.props.AgentProperties
 import com.fyordo.cms.CmsProto
 import com.google.protobuf.ByteString
 import com.fyordo.cms.server.service.PropertyUpdatePublisher
