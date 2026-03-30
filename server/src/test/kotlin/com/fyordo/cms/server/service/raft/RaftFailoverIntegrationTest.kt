@@ -1,16 +1,14 @@
 package com.fyordo.cms.server.service.raft
 
 import com.fyordo.cms.server.config.props.RaftConfiguration
-import com.fyordo.cms.server.dto.property.PropertyKey
-import com.fyordo.cms.server.dto.property.PropertyValue
-import com.fyordo.cms.server.dto.raft.RaftCommand
-import com.fyordo.cms.server.dto.raft.RaftOp
-import com.fyordo.cms.server.dto.raft.RaftResultStatus
+import com.fyordo.cms.server.config.props.AgentProperties
+import com.fyordo.cms.CmsProto
+import com.google.protobuf.ByteString
 import com.fyordo.cms.server.service.PropertyUpdatePublisher
-import com.fyordo.cms.server.serialization.property.deserializePropertyValue
 import com.fyordo.cms.server.serialization.property.serializePropertyValue
+import com.fyordo.cms.server.serialization.property.deserializePropertyValue as deserializePropertyValueBytes
 import com.fyordo.cms.server.serialization.raft.deserializeRaftResult
-import com.fyordo.cms.server.serialization.raft.serializeRaftCommand
+import com.fyordo.cms.server.serialization.raft.serializeRaftCommand as serializeRaftCommandBytes
 import com.fyordo.cms.server.service.agent.AgentConnectionManager
 import com.fyordo.cms.server.service.storage.PropertyInMemoryStorage
 import com.fyordo.cms.server.service.storage.PropertyPartsHolder
@@ -20,6 +18,7 @@ import kotlinx.coroutines.runBlocking
 import org.apache.ratis.client.RaftClient
 import org.apache.ratis.conf.RaftProperties
 import org.apache.ratis.protocol.*
+import org.apache.ratis.thirdparty.com.google.protobuf.ByteString as RatisByteString
 import org.junit.jupiter.api.AfterAll
 import org.junit.jupiter.api.BeforeAll
 import org.junit.jupiter.api.Test
@@ -37,6 +36,61 @@ import kotlin.test.assertNotNull
  */
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class RaftFailoverIntegrationTest {
+
+    // ---- Compatibility layer for old test DTO style ----
+    private fun PropertyKey(
+        version: Int,
+        namespace: String,
+        service: String,
+        appId: String,
+        key: String
+    ): CmsProto.PropertyKey = CmsProto.PropertyKey.newBuilder()
+        .setVersion(version)
+        .setNamespace(namespace)
+        .setService(service)
+        .setAppId(appId)
+        .setKey(key)
+        .build()
+
+    private fun PropertyValue(
+        version: Int,
+        value: ByteArray,
+        lastModifiedMs: Long
+    ): CmsProto.PropertyValue = CmsProto.PropertyValue.newBuilder()
+        .setVersion(version)
+        .setValue(ByteString.copyFrom(value))
+        .setLastModifiedMs(lastModifiedMs)
+        .build()
+
+    private object RaftOp {
+        val GET: CmsProto.RaftOp = CmsProto.RaftOp.RAFT_OP_GET
+        val PUT: CmsProto.RaftOp = CmsProto.RaftOp.RAFT_OP_PUT
+        val DELETE: CmsProto.RaftOp = CmsProto.RaftOp.RAFT_OP_DELETE
+    }
+
+    private object RaftResultStatus {
+        val OK: CmsProto.RaftResultStatus = CmsProto.RaftResultStatus.RAFT_RESULT_STATUS_OK
+        val NOT_FOUND: CmsProto.RaftResultStatus = CmsProto.RaftResultStatus.RAFT_RESULT_STATUS_NOT_FOUND
+        val ERROR: CmsProto.RaftResultStatus = CmsProto.RaftResultStatus.RAFT_RESULT_STATUS_ERROR
+    }
+
+    private fun RaftCommand(
+        version: Int,
+        operation: CmsProto.RaftOp,
+        key: CmsProto.PropertyKey?,
+        value: ByteArray
+    ): CmsProto.RaftCommand = CmsProto.RaftCommand.newBuilder()
+        .setVersion(version)
+        .setOperation(operation)
+        .apply { if (key != null) setKey(key) }
+        .setValue(ByteString.copyFrom(value))
+        .build()
+
+    private fun serializeRaftCommand(command: CmsProto.RaftCommand): RatisByteString =
+        RatisByteString.copyFrom(serializeRaftCommandBytes(command))
+
+    private fun deserializePropertyValue(propertyValue: ByteString): CmsProto.PropertyValue =
+        deserializePropertyValueBytes(propertyValue.toByteArray())
 
     private val testGroupId = "failover-test-raft-group-${UUID.randomUUID()}"
     private val basePort = 18000 + (Math.random() * 1000).toInt()
@@ -115,7 +169,7 @@ class RaftFailoverIntegrationTest {
         val storage = PropertyInMemoryStorage(pathHolder)
         val broadcaster = PropertyUpdatePublisher()
         val stateMachine = RaftStateMachine(storage, broadcaster)
-        val agentConnectionManager = AgentConnectionManager(storage, broadcaster)
+        val agentConnectionManager = AgentConnectionManager(storage, broadcaster, AgentProperties())
         val server = RaftServerService(config, stateMachine, agentConnectionManager)
         server.init()
         return server
@@ -222,11 +276,11 @@ class RaftFailoverIntegrationTest {
         delay(500)
 
         val getReply = client.io().sendReadOnly(Message.valueOf(serializeRaftCommand(getCommand)))
-        val getResult = deserializeRaftResult(getReply.message.content.toStringUtf8())
+        val getResult = deserializeRaftResult(getReply.message.content.toByteArray())
 
         assertEquals(RaftResultStatus.OK, getResult.status)
         val retrievedValue = deserializePropertyValue(getResult.result)
-        assertEquals("failover-value", String(retrievedValue.value))
+        assertEquals("failover-value", String(retrievedValue.value.toByteArray()))
     }
 
     @Test
@@ -274,7 +328,7 @@ class RaftFailoverIntegrationTest {
             )
 
             val getReply = client.io().sendReadOnly(Message.valueOf(serializeRaftCommand(getCommand)))
-            val getResult = deserializeRaftResult(getReply.message.content.toStringUtf8())
+            val getResult = deserializeRaftResult(getReply.message.content.toByteArray())
 
             assertEquals(RaftResultStatus.OK, getResult.status, "Key $index should exist")
         }
@@ -310,11 +364,11 @@ class RaftFailoverIntegrationTest {
             )
 
             val getReply = client.io().sendReadOnly(Message.valueOf(serializeRaftCommand(getCommand)))
-            val getResult = deserializeRaftResult(getReply.message.content.toStringUtf8())
+            val getResult = deserializeRaftResult(getReply.message.content.toByteArray())
 
             assertEquals(RaftResultStatus.OK, getResult.status, "Key $index should exist")
             val retrievedValue = deserializePropertyValue(getResult.result)
-            assertEquals("value-$index", String(retrievedValue.value))
+            assertEquals("value-$index", String(retrievedValue.value.toByteArray()))
         }
     }
 
@@ -364,11 +418,11 @@ class RaftFailoverIntegrationTest {
             )
 
             val getReply = client.io().sendReadOnly(Message.valueOf(serializeRaftCommand(getCommand)))
-            val getResult = deserializeRaftResult(getReply.message.content.toStringUtf8())
+            val getResult = deserializeRaftResult(getReply.message.content.toByteArray())
 
             assertEquals(RaftResultStatus.OK, getResult.status)
             val retrievedValue = deserializePropertyValue(getResult.result)
-            assertEquals("consistent-value-$index", String(retrievedValue.value))
+            assertEquals("consistent-value-$index", String(retrievedValue.value.toByteArray()))
         }
 
         println("All data verified before failures - consistency maintained")

@@ -1,8 +1,7 @@
 package com.fyordo.cms.server.service.storage
 
-import com.fyordo.cms.server.dto.property.PropertyInternalDto
-import com.fyordo.cms.server.dto.property.PropertyKey
-import com.fyordo.cms.server.dto.property.PropertyValue
+import com.fyordo.cms.CmsProto
+import com.google.protobuf.ByteString
 import com.fyordo.cms.server.dto.query.PropertyQueryFilter
 import com.fyordo.cms.server.utils.EMPTY_BYTES
 import org.junit.jupiter.api.BeforeEach
@@ -11,6 +10,37 @@ import org.junit.jupiter.api.Test
 import kotlin.test.*
 
 class PropertyInMemoryStorageTest {
+    private fun PropertyKey(
+        version: Int,
+        namespace: String,
+        service: String,
+        appId: String,
+        key: String
+    ): CmsProto.PropertyKey = CmsProto.PropertyKey.newBuilder()
+        .setVersion(version)
+        .setNamespace(namespace)
+        .setService(service)
+        .setAppId(appId)
+        .setKey(key)
+        .build()
+
+    private fun PropertyValue(
+        version: Int,
+        value: ByteArray,
+        lastModifiedMs: Long
+    ): CmsProto.PropertyValue = CmsProto.PropertyValue.newBuilder()
+        .setVersion(version)
+        .setValue(ByteString.copyFrom(value))
+        .setLastModifiedMs(lastModifiedMs)
+        .build()
+
+    private fun PropertyInternalDto(
+        key: CmsProto.PropertyKey,
+        value: CmsProto.PropertyValue
+    ): CmsProto.PropertyInternalDto = CmsProto.PropertyInternalDto.newBuilder()
+        .setKey(key)
+        .setValue(value)
+        .build()
 
     private lateinit var storage: PropertyInMemoryStorage
     private lateinit var pathHolder: PropertyPartsHolder
@@ -82,7 +112,7 @@ class PropertyInMemoryStorageTest {
         val retrieved = storage[key]
 
         assertEquals(value2, retrieved)
-        assertEquals("value2", String(retrieved!!.value))
+        assertEquals("value2", String(retrieved!!.value.toByteArray()))
     }
 
     @Test
@@ -294,7 +324,7 @@ class PropertyInMemoryStorageTest {
         val retrieved = storage[key]
 
         assertNotNull(retrieved)
-        assertContentEquals(EMPTY_BYTES, retrieved.value)
+        assertContentEquals(EMPTY_BYTES, retrieved.value.toByteArray())
     }
 
     @Test
@@ -307,7 +337,7 @@ class PropertyInMemoryStorageTest {
         val retrieved = storage[key]
 
         assertNotNull(retrieved)
-        assertContentEquals(largeArray, retrieved.value)
+        assertContentEquals(largeArray, retrieved.value.toByteArray())
     }
 
     @Test
@@ -319,7 +349,7 @@ class PropertyInMemoryStorageTest {
         val retrieved = storage[key]
 
         assertNotNull(retrieved)
-        assertEquals("значение 🎉", String(retrieved.value, Charsets.UTF_8))
+        assertEquals("значение 🎉", String(retrieved.value.toByteArray(), Charsets.UTF_8))
     }
 
     @Test
@@ -688,7 +718,7 @@ class PropertyInMemoryStorageTest {
             snapshotEntries.forEach { original ->
                 val restored = restoredEntries.find { it.key == original.key }
                 assertNotNull(restored)
-                assertContentEquals(original.value.value, restored.value.value)
+                assertContentEquals(original.value.value.toByteArray(), restored.value.value.toByteArray())
                 assertEquals(original.value.lastModifiedMs, restored.value.lastModifiedMs)
             }
         }

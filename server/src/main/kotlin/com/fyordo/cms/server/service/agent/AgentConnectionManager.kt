@@ -1,6 +1,7 @@
 package com.fyordo.cms.server.service.agent
 
 import com.fyordo.cms.AgentChannelServiceOuterClass
+import com.fyordo.cms.server.config.props.AgentProperties
 import com.fyordo.cms.server.dto.grpc.AgentId
 import com.fyordo.cms.server.service.PropertyUpdatePublisher
 import com.fyordo.cms.server.service.storage.PropertyInMemoryStorage
@@ -19,6 +20,7 @@ import org.springframework.stereotype.Component
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
+import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.minutes
 
 private val logger = KotlinLogging.logger {}
@@ -31,7 +33,8 @@ private data class Connection(
 @Component
 class AgentConnectionManager(
     private val propertyInMemoryStorage: PropertyInMemoryStorage,
-    private val broadcaster: PropertyUpdatePublisher
+    private val broadcaster: PropertyUpdatePublisher,
+    private val agentProperties: AgentProperties
 ) {
     private val connections: MutableMap<AgentId, Connection> = ConcurrentHashMap()
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -69,6 +72,12 @@ class AgentConnectionManager(
             }
             .launchIn(scope)
 
+        launchAgentHealthcheck()
+
+        logger.info { "AgentConnectionFacade initialized and subscribed to broadcaster" }
+    }
+
+    private fun launchAgentHealthcheck() {
         healthcheckScope.launch {
             while (true) {
                 logger.debug { "AGENT_HEALTHCHECK: Starting..." }
@@ -87,11 +96,9 @@ class AgentConnectionManager(
                     }
                 }
                 logger.debug { "AGENT_HEALTHCHECK: Finished. Rescheduled for 1 minute" }
-                delay(1.minutes)
+                delay(agentProperties.agentHealthcheckPeriodMs.milliseconds)
             }
         }
-
-        logger.info { "AgentConnectionFacade initialized and subscribed to broadcaster" }
     }
 
     @PreDestroy
