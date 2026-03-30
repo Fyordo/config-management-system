@@ -36,7 +36,7 @@ private:
     void HandlePropertyUpdate(const com::fyordo::cms::ServerPropertyUpdateEvent& update_event);
     bool WritePropertiesToFile(const com::fyordo::cms::ServerInitEvent& init_event);
     bool ApplyPropertyUpdateToFile(const std::string& key, const std::string& value);
-    void SendUpdateToUnixSocket(const std::string& key, const std::string& value);
+    void SendUpdateToUnixSocket(const com::fyordo::cms::Property& property);
     bool WaitForConnected(grpc::Channel* channel);
     bool WriteJsonToPath(const nlohmann::json& j);
 

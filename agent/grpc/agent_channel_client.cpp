@@ -167,7 +167,7 @@ void AgentChannelClient::HandlePropertyUpdate(const com::fyordo::cms::ServerProp
         return;
     }
 
-    SendUpdateToUnixSocket(update_event.property().key(), update_event.property().value());
+    SendUpdateToUnixSocket(update_event.property());
 }
 
 bool AgentChannelClient::ApplyPropertyUpdateToFile(const std::string& key, const std::string& value)
@@ -196,7 +196,7 @@ bool AgentChannelClient::ApplyPropertyUpdateToFile(const std::string& key, const
 bool AgentChannelClient::WritePropertiesToFile(const com::fyordo::cms::ServerInitEvent& init_event)
 {
     nlohmann::json properties_json;
-    for (const Property& prop : init_event.properties()) {
+    for (const com::fyordo::cms::Property& prop : init_event.properties()) {
         properties_json[prop.key()] = prop.value();
         SendUpdateToUnixSocket(prop);
     }
@@ -243,7 +243,7 @@ bool AgentChannelClient::WriteJsonToPath(const nlohmann::json& j)
     return true;
 }
 
-void AgentChannelClient::SendUpdateToUnixSocket(const Property& property)
+void AgentChannelClient::SendUpdateToUnixSocket(const com::fyordo::cms::Property& property)
 {
     if (config_.unixSocketPath.empty()) {
         return;
@@ -274,8 +274,8 @@ void AgentChannelClient::SendUpdateToUnixSocket(const Property& property)
     }
 
     std::cout << "AgentChannelClient: Connected to UNIX socket at "
-              << config_.unixSocketPath << " for key '" << key
-              << "' (value_len=" << value.size() << ")" << std::endl;
+              << config_.unixSocketPath << " for key '" << property.key()
+              << "' (value_len=" << property.value().size() << ")" << std::endl;
 
     auto send_all = [sock_fd](const void* buf, size_t len) -> bool {
         const char* ptr = static_cast<const char*>(buf);
