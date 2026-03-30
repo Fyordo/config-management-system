@@ -8,29 +8,29 @@ fun serializePropertyInternalDto(entry: PropertyEntry): ByteArray {
 }
 
 fun deserializePropertyInternalDto(dtoBytes: ByteArray): PropertyEntry {
-    return fromPropertyInternalDtoProto(CmsProto.PropertyInternalDtoProto.parseFrom(dtoBytes))
+    return fromPropertyInternalDtoProto(CmsProto.PropertyInternalDto.parseFrom(dtoBytes))
 }
 
-fun toPropertyInternalDtoProto(entry: PropertyEntry): CmsProto.PropertyInternalDtoProto {
-    return CmsProto.PropertyInternalDtoProto.newBuilder()
+fun toPropertyInternalDtoProto(entry: PropertyEntry): CmsProto.PropertyInternalDto {
+    return CmsProto.PropertyInternalDto.newBuilder()
         .setKey(toPropertyKeyProto(entry.first))
         .setValue(toPropertyValueProto(entry.second))
         .build()
 }
 
-fun fromPropertyInternalDtoProto(dtoProto: CmsProto.PropertyInternalDtoProto): PropertyEntry {
+fun fromPropertyInternalDtoProto(dtoProto: CmsProto.PropertyInternalDto): PropertyEntry {
     return fromPropertyKeyProto(dtoProto.key) to fromPropertyValueProto(dtoProto.value)
 }
 
 fun serializePropertyInternalDtoList(entries: List<PropertyEntry>): ByteArray {
-    return CmsProto.PropertyInternalListProto.newBuilder()
+    return CmsProto.PropertyInternalList.newBuilder()
         .addAllItems(entries.map(::toPropertyInternalDtoProto))
         .build()
         .toByteArray()
 }
 
 fun deserializePropertyInternalDtoList(bytes: ByteArray): List<PropertyEntry> {
-    return CmsProto.PropertyInternalListProto.parseFrom(bytes)
+    return CmsProto.PropertyInternalList.parseFrom(bytes)
         .itemsList
         .map(::fromPropertyInternalDtoProto)
 }

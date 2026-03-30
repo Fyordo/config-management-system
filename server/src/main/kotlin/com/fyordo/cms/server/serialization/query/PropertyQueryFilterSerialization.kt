@@ -8,11 +8,11 @@ fun serializePropertyQueryFilter(filter: PropertyQueryFilter): ByteArray {
 }
 
 fun deserializePropertyQueryFilter(filter: ByteArray): PropertyQueryFilter {
-    return fromPropertyQueryFilterProto(CmsProto.PropertyQueryFilterProto.parseFrom(filter))
+    return fromPropertyQueryFilterProto(CmsProto.PropertyQueryFilter.parseFrom(filter))
 }
 
-fun toPropertyQueryFilterProto(filter: PropertyQueryFilter): CmsProto.PropertyQueryFilterProto {
-    val builder = CmsProto.PropertyQueryFilterProto.newBuilder()
+fun toPropertyQueryFilterProto(filter: PropertyQueryFilter): CmsProto.PropertyQueryFilter {
+    val builder = CmsProto.PropertyQueryFilter.newBuilder()
         .setLimit(filter.limit)
     filter.namespaceRegex?.let(builder::setNamespaceRegex)
     filter.serviceRegex?.let(builder::setServiceRegex)
@@ -22,7 +22,7 @@ fun toPropertyQueryFilterProto(filter: PropertyQueryFilter): CmsProto.PropertyQu
     return builder.build()
 }
 
-fun fromPropertyQueryFilterProto(proto: CmsProto.PropertyQueryFilterProto): PropertyQueryFilter {
+fun fromPropertyQueryFilterProto(proto: CmsProto.PropertyQueryFilter): PropertyQueryFilter {
     val namespace = if (proto.hasNamespaceRegex()) proto.namespaceRegex else null
     val service = if (proto.hasServiceRegex()) proto.serviceRegex else null
     val appId = if (proto.hasAppIdRegex()) proto.appIdRegex else null

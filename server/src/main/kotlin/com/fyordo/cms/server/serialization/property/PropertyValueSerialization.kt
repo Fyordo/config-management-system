@@ -9,7 +9,7 @@ fun serializePropertyValue(propertyValue: PropertyValue): ByteArray {
 }
 
 fun deserializePropertyValue(propertyValue: ByteArray): PropertyValue {
-    return fromPropertyValueProto(CmsProto.PropertyValueProto.parseFrom(propertyValue))
+    return fromPropertyValueProto(CmsProto.PropertyValue.parseFrom(propertyValue))
 }
 
 fun serializePropertyValueV1(propertyValue: PropertyValue): ByteArray {
@@ -21,24 +21,24 @@ fun serializePropertyValueV1(propertyValue: PropertyValue): ByteArray {
     return toPropertyValueProto(propertyValue).toByteArray()
 }
 
-fun deserializePropertyValueV1(valueProto: CmsProto.PropertyValueProto): PropertyValue {
+fun deserializePropertyValueV1(valueProto: CmsProto.PropertyValue): PropertyValue {
     return fromPropertyValueProto(valueProto)
 }
 
-fun toPropertyValueProto(propertyValue: PropertyValue): CmsProto.PropertyValueProto {
+fun toPropertyValueProto(propertyValue: PropertyValue): CmsProto.PropertyValue {
     val version = propertyValue.version.toInt()
     if (version != 1) {
         throw IllegalStateException("Only version 1 is supported")
     }
 
-    return CmsProto.PropertyValueProto.newBuilder()
+    return CmsProto.PropertyValue.newBuilder()
         .setVersion(version)
         .setLastModifiedMs(propertyValue.lastModifiedMs)
         .setValue(ByteString.copyFrom(propertyValue.value))
         .build()
 }
 
-fun fromPropertyValueProto(valueProto: CmsProto.PropertyValueProto): PropertyValue {
+fun fromPropertyValueProto(valueProto: CmsProto.PropertyValue): PropertyValue {
     val version = valueProto.version
     if (version != 1) {
         throw IllegalStateException("Only version 1 is supported")

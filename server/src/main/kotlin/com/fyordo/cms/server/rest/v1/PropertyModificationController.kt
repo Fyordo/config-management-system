@@ -64,7 +64,7 @@ class PropertyModificationController(
     }
 
     @DeleteMapping("/delete")
-    suspend fun delete(@NotBlank @RequestParam key: String): Map<String, CmsProto.RaftResultProto> {
+    suspend fun delete(@NotBlank @RequestParam key: String): Map<String, CmsProto.RaftResult> {
         val command = raftDeleteCommand(PropertyKey.fromString(key))
         val result = clientFacade.sendCommand(command)
         return when (result) {

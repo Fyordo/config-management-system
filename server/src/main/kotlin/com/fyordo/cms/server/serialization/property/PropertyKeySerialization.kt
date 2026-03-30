@@ -8,7 +8,7 @@ fun serializePropertyKey(propertyKey: PropertyKey): ByteArray {
 }
 
 fun deserializePropertyKey(propertyKey: ByteArray): PropertyKey {
-    return fromPropertyKeyProto(CmsProto.PropertyKeyProto.parseFrom(propertyKey))
+    return fromPropertyKeyProto(CmsProto.PropertyKey.parseFrom(propertyKey))
 }
 
 fun serializePropertyKeyV1(propertyKey: PropertyKey): ByteArray {
@@ -20,17 +20,17 @@ fun serializePropertyKeyV1(propertyKey: PropertyKey): ByteArray {
     return toPropertyKeyProto(propertyKey).toByteArray()
 }
 
-fun deserializePropertyKeyV1(keyProto: CmsProto.PropertyKeyProto): PropertyKey {
+fun deserializePropertyKeyV1(keyProto: CmsProto.PropertyKey): PropertyKey {
     return fromPropertyKeyProto(keyProto)
 }
 
-fun toPropertyKeyProto(propertyKey: PropertyKey): CmsProto.PropertyKeyProto {
+fun toPropertyKeyProto(propertyKey: PropertyKey): CmsProto.PropertyKey {
     val version = propertyKey.version.toInt()
     if (version != 1) {
         throw IllegalStateException("Only version 1 is supported")
     }
 
-    return CmsProto.PropertyKeyProto.newBuilder()
+    return CmsProto.PropertyKey.newBuilder()
         .setVersion(propertyKey.version.toInt())
         .setNamespace(propertyKey.namespace)
         .setService(propertyKey.service)
@@ -39,7 +39,7 @@ fun toPropertyKeyProto(propertyKey: PropertyKey): CmsProto.PropertyKeyProto {
         .build()
 }
 
-fun fromPropertyKeyProto(keyProto: CmsProto.PropertyKeyProto): PropertyKey {
+fun fromPropertyKeyProto(keyProto: CmsProto.PropertyKey): PropertyKey {
     val version = keyProto.version
     if (version != 1) {
         throw IllegalStateException("Only version 1 is supported")

@@ -227,12 +227,12 @@ class RaftStateMachine(
         }
 
     private fun processCommand(
-        command: CmsProto.RaftCommandProto,
+        command: CmsProto.RaftCommand,
         logIndex: Long = 0L
-    ): CmsProto.RaftResultProto {
+    ): CmsProto.RaftResult {
         val commandKey = raftCommandKey(command)
         return when (command.operation) {
-            CmsProto.RaftOpProto.RAFT_OP_PUT -> {
+            CmsProto.RaftOp.RAFT_OP_PUT -> {
                 val key = requireNotNull(commandKey) { "Command PUT should contain a key" }
                 val propertyValue = deserializePropertyValue(command.value.toByteArray())
                 store.setWithRevision(key, propertyValue, logIndex)
@@ -240,14 +240,14 @@ class RaftStateMachine(
                 raftOkResult()
             }
 
-            CmsProto.RaftOpProto.RAFT_OP_GET -> {
+            CmsProto.RaftOp.RAFT_OP_GET -> {
                 val key = requireNotNull(commandKey) { "Command GET should contain a key" }
                 store[key]?.let {
                     raftOkResult(serializePropertyValue(it))
                 } ?: raftNotFoundResult()
             }
 
-            CmsProto.RaftOpProto.RAFT_OP_DELETE -> {
+            CmsProto.RaftOp.RAFT_OP_DELETE -> {
                 val key = requireNotNull(commandKey) { "Command DELETE should contain a key" }
                 store.removeWithRevision(key, logIndex)?.let {
                     publishUpdateFailSafe(key, null, logIndex)
@@ -255,15 +255,15 @@ class RaftStateMachine(
                 } ?: raftNotFoundResult()
             }
 
-            CmsProto.RaftOpProto.RAFT_OP_QUERY -> {
+            CmsProto.RaftOp.RAFT_OP_QUERY -> {
                 val filter = fromPropertyQueryFilterProto(
-                    CmsProto.PropertyQueryFilterProto.parseFrom(command.value)
+                    CmsProto.PropertyQueryFilter.parseFrom(command.value)
                 )
                 val resultBytes = serializePropertyInternalDtoList(store.getByFilter(filter).toList())
                 raftOkResult(resultBytes)
             }
 
-            CmsProto.RaftOpProto.RAFT_OP_UNSPECIFIED -> raftErrorResult()
+            CmsProto.RaftOp.RAFT_OP_UNSPECIFIED -> raftErrorResult()
             else -> raftErrorResult()
         }
     }

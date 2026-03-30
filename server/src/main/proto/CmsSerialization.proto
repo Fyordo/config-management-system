@@ -5,7 +5,7 @@ package com.fyordo.cms;
 option java_package = "com.fyordo.cms";
 option java_outer_classname = "CmsProto";
 
-enum RaftOpProto {
+enum RaftOp {
   RAFT_OP_UNSPECIFIED = 0;
   RAFT_OP_GET = 1;
   RAFT_OP_PUT = 2;
@@ -13,14 +13,14 @@ enum RaftOpProto {
   RAFT_OP_QUERY = 4;
 }
 
-enum RaftResultStatusProto {
+enum RaftResultStatus {
   RAFT_RESULT_STATUS_UNSPECIFIED = 0;
   RAFT_RESULT_STATUS_OK = 1;
   RAFT_RESULT_STATUS_NOT_FOUND = 2;
   RAFT_RESULT_STATUS_ERROR = 3;
 }
 
-message PropertyKeyProto {
+message PropertyKey {
   uint32 version = 1;
   string namespace = 2;
   string service = 3;
@@ -28,22 +28,22 @@ message PropertyKeyProto {
   string key = 5;
 }
 
-message PropertyValueProto {
+message PropertyValue {
   uint32 version = 1;
   int64 last_modified_ms = 2;
   bytes value = 3;
 }
 
-message PropertyInternalDtoProto {
-  PropertyKeyProto key = 1;
-  PropertyValueProto value = 2;
+message PropertyInternalDto {
+  PropertyKey key = 1;
+  PropertyValue value = 2;
 }
 
-message PropertyInternalListProto {
-  repeated PropertyInternalDtoProto items = 1;
+message PropertyInternalList {
+  repeated PropertyInternalDto items = 1;
 }
 
-message PropertyQueryFilterProto {
+message PropertyQueryFilter {
   optional string namespace_regex = 1;
   optional string service_regex = 2;
   optional string app_id_regex = 3;
@@ -52,15 +52,15 @@ message PropertyQueryFilterProto {
   uint32 limit = 6;
 }
 
-message RaftCommandProto {
+message RaftCommand {
   uint32 version = 1;
-  RaftOpProto operation = 2;
-  optional PropertyKeyProto key = 3;
+  RaftOp operation = 2;
+  optional PropertyKey key = 3;
   bytes value = 4;
 }
 
-message RaftResultProto {
+message RaftResult {
   uint32 version = 1;
   bytes result = 2;
-  RaftResultStatusProto status = 3;
+  RaftResultStatus status = 3;
 }

@@ -117,7 +117,7 @@ class RaftClientFacade(
         }
     }
 
-    suspend fun sendCommand(command: CmsProto.RaftCommandProto): RaftOperationResult {
+    suspend fun sendCommand(command: CmsProto.RaftCommand): RaftOperationResult {
         return try {
             val serialized = serializeRaftCommand(command)
             val response = withTimeout(raftProps.clusterMessageTimeoutMs) {
@@ -137,7 +137,7 @@ class RaftClientFacade(
     }
 
 
-    suspend fun sendQuery(command: CmsProto.RaftCommandProto): RaftOperationResult {
+    suspend fun sendQuery(command: CmsProto.RaftCommand): RaftOperationResult {
         return try {
             val serialized = serializeRaftCommand(command)
             val response = withTimeout(raftProps.clusterMessageTimeoutMs) {

@@ -9,45 +9,45 @@ import com.fyordo.cms.server.serialization.query.fromPropertyQueryFilterProto
 import com.fyordo.cms.server.serialization.query.toPropertyQueryFilterProto
 import com.google.protobuf.ByteString
 
-fun serializeRaftCommand(command: CmsProto.RaftCommandProto): ByteArray {
+fun serializeRaftCommand(command: CmsProto.RaftCommand): ByteArray {
     return command.toByteArray()
 }
 
-fun deserializeRaftCommand(command: ByteArray): CmsProto.RaftCommandProto {
-    return CmsProto.RaftCommandProto.parseFrom(command)
+fun deserializeRaftCommand(command: ByteArray): CmsProto.RaftCommand {
+    return CmsProto.RaftCommand.parseFrom(command)
 }
 
-fun raftGetCommand(key: PropertyKey): CmsProto.RaftCommandProto =
-    CmsProto.RaftCommandProto.newBuilder()
+fun raftGetCommand(key: PropertyKey): CmsProto.RaftCommand =
+    CmsProto.RaftCommand.newBuilder()
         .setVersion(1)
-        .setOperation(CmsProto.RaftOpProto.RAFT_OP_GET)
+        .setOperation(CmsProto.RaftOp.RAFT_OP_GET)
         .setKey(toPropertyKeyProto(key))
         .setValue(ByteString.EMPTY)
         .build()
 
-fun raftPutCommand(key: PropertyKey, valuePayload: ByteArray): CmsProto.RaftCommandProto =
-    CmsProto.RaftCommandProto.newBuilder()
+fun raftPutCommand(key: PropertyKey, valuePayload: ByteArray): CmsProto.RaftCommand =
+    CmsProto.RaftCommand.newBuilder()
         .setVersion(1)
-        .setOperation(CmsProto.RaftOpProto.RAFT_OP_PUT)
+        .setOperation(CmsProto.RaftOp.RAFT_OP_PUT)
         .setKey(toPropertyKeyProto(key))
         .setValue(ByteString.copyFrom(valuePayload))
         .build()
 
-fun raftDeleteCommand(key: PropertyKey): CmsProto.RaftCommandProto =
-    CmsProto.RaftCommandProto.newBuilder()
+fun raftDeleteCommand(key: PropertyKey): CmsProto.RaftCommand =
+    CmsProto.RaftCommand.newBuilder()
         .setVersion(1)
-        .setOperation(CmsProto.RaftOpProto.RAFT_OP_DELETE)
+        .setOperation(CmsProto.RaftOp.RAFT_OP_DELETE)
         .setKey(toPropertyKeyProto(key))
         .setValue(ByteString.EMPTY)
         .build()
 
-fun raftQueryCommand(filter: PropertyQueryFilter): CmsProto.RaftCommandProto =
-    CmsProto.RaftCommandProto.newBuilder()
+fun raftQueryCommand(filter: PropertyQueryFilter): CmsProto.RaftCommand =
+    CmsProto.RaftCommand.newBuilder()
         .setVersion(1)
-        .setOperation(CmsProto.RaftOpProto.RAFT_OP_QUERY)
+        .setOperation(CmsProto.RaftOp.RAFT_OP_QUERY)
         .setValue(toPropertyQueryFilterProto(filter).toByteString())
         .build()
 
-fun raftCommandKey(command: CmsProto.RaftCommandProto): PropertyKey? {
+fun raftCommandKey(command: CmsProto.RaftCommand): PropertyKey? {
     return if (command.hasKey()) fromPropertyKeyProto(command.key) else null
 }

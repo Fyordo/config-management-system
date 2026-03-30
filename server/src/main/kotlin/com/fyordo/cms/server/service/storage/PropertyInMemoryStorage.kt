@@ -17,21 +17,21 @@ class PropertyInMemoryStorage(
     private val partsHolder: PropertyPartsHolder
 ) {
     private val lock: ReadWriteLock = ReentrantReadWriteLock()
-    private val storage = mutableMapOf<CmsProto.PropertyKeyProto, CmsProto.PropertyValueProto>()
+    private val storage = mutableMapOf<CmsProto.PropertyKey, CmsProto.PropertyValue>()
 
     val currentRevision = AtomicLong(0L)
 
-    operator fun set(key: CmsProto.PropertyKeyProto, value: CmsProto.PropertyValueProto) = lock.write {
+    operator fun set(key: CmsProto.PropertyKey, value: CmsProto.PropertyValue) = lock.write {
         storage[key] = value
         partsHolder.addProperty(key)
         logger.debug { "Stored value $key -> $value" }
     }
 
-    operator fun get(key: CmsProto.PropertyKeyProto): CmsProto.PropertyValueProto? = lock.read {
+    operator fun get(key: CmsProto.PropertyKey): CmsProto.PropertyValue? = lock.read {
         storage[key]
     }
 
-    fun getByFilter(filter: PropertyQueryFilter): Sequence<CmsProto.PropertyInternalDtoProto> = lock.read {
+    fun getByFilter(filter: PropertyQueryFilter): Sequence<CmsProto.PropertyInternalDto> = lock.read {
         val namespaces = partsHolder.getNamespaces().filter {
             filter.namespaceRegex?.toRegex()?.matches(it) ?: true
         }
@@ -53,7 +53,7 @@ class PropertyInMemoryStorage(
                         keys.contains(entry.key.key)
             }
             .map { (key, value) ->
-                CmsProto.PropertyInternalDtoProto.newBuilder()
+                CmsProto.PropertyInternalDto.newBuilder()
                     .setKey(key)
                     .setValue(value)
                     .build()
@@ -61,7 +61,7 @@ class PropertyInMemoryStorage(
             .take(filter.limit)
     }
 
-    fun getInitForApp(namespace: String, service: String, appId: String): List<CmsProto.PropertyInternalDtoProto> =
+    fun getInitForApp(namespace: String, service: String, appId: String): List<CmsProto.PropertyInternalDto> =
         lock.read {
             storage.filter { (key, _) ->
                 key.namespace == namespace &&
@@ -69,14 +69,14 @@ class PropertyInMemoryStorage(
                         key.appId == appId
             }
                 .map { (key, value) ->
-                    CmsProto.PropertyInternalDtoProto.newBuilder()
+                    CmsProto.PropertyInternalDto.newBuilder()
                         .setKey(key)
                         .setValue(value)
                         .build()
                 }
         }
 
-    fun remove(key: CmsProto.PropertyKeyProto): CmsProto.PropertyValueProto? = lock.write {
+    fun remove(key: CmsProto.PropertyKey): CmsProto.PropertyValue? = lock.write {
         val removed = storage.remove(key)
 
         if (removed != null) {
@@ -98,14 +98,14 @@ class PropertyInMemoryStorage(
         removed
     }
 
-    fun setWithRevision(key: CmsProto.PropertyKeyProto, value: CmsProto.PropertyValueProto, revision: Long) = lock.write {
+    fun setWithRevision(key: CmsProto.PropertyKey, value: CmsProto.PropertyValue, revision: Long) = lock.write {
         storage[key] = value
         partsHolder.addProperty(key)
         currentRevision.set(revision)
         logger.debug { "Stored value $key -> $value revision=$revision" }
     }
 
-    fun removeWithRevision(key: CmsProto.PropertyKeyProto, revision: Long): CmsProto.PropertyValueProto? = lock.write {
+    fun removeWithRevision(key: CmsProto.PropertyKey, revision: Long): CmsProto.PropertyValue? = lock.write {
         val removed = storage.remove(key)
 
         if (removed != null) {
@@ -128,16 +128,16 @@ class PropertyInMemoryStorage(
         removed
     }
 
-    fun getSnapshotData(): Pair<Long, List<CmsProto.PropertyInternalDtoProto>> = lock.read {
+    fun getSnapshotData(): Pair<Long, List<CmsProto.PropertyInternalDto>> = lock.read {
         currentRevision.get() to storage.map { (key, value) ->
-            CmsProto.PropertyInternalDtoProto.newBuilder()
+            CmsProto.PropertyInternalDto.newBuilder()
                 .setKey(key)
                 .setValue(value)
                 .build()
         }
     }
 
-    fun restoreFromSnapshot(entries: List<CmsProto.PropertyInternalDtoProto>, revision: Long) = lock.write {
+    fun restoreFromSnapshot(entries: List<CmsProto.PropertyInternalDto>, revision: Long) = lock.write {
         storage.clear()
         partsHolder.clear()
         entries.forEach { entry ->

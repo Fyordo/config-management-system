@@ -37,17 +37,17 @@ class PropertyQueryController(
             is RaftOperationResult.Success -> {
                 val deserializedResult = deserializeRaftResult(result.data)
                 when (deserializedResult.status) {
-                    CmsProto.RaftResultStatusProto.RAFT_RESULT_STATUS_OK -> PropertyDto(
+                    CmsProto.RaftResultStatus.RAFT_RESULT_STATUS_OK -> PropertyDto(
                         key = PropertyKeyDto(deserializedKey),
                         value = PropertyValueDto(
                             deserializePropertyValue(deserializedResult.result.toByteArray())
                         ),
                     )
 
-                    CmsProto.RaftResultStatusProto.RAFT_RESULT_STATUS_ERROR -> throw ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR)
-                    CmsProto.RaftResultStatusProto.RAFT_RESULT_STATUS_NOT_FOUND -> throw ResponseStatusException(HttpStatus.NOT_FOUND)
-                    CmsProto.RaftResultStatusProto.RAFT_RESULT_STATUS_UNSPECIFIED,
-                    CmsProto.RaftResultStatusProto.UNRECOGNIZED -> throw ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR)
+                    CmsProto.RaftResultStatus.RAFT_RESULT_STATUS_ERROR -> throw ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR)
+                    CmsProto.RaftResultStatus.RAFT_RESULT_STATUS_NOT_FOUND -> throw ResponseStatusException(HttpStatus.NOT_FOUND)
+                    CmsProto.RaftResultStatus.RAFT_RESULT_STATUS_UNSPECIFIED,
+                    CmsProto.RaftResultStatus.UNRECOGNIZED -> throw ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR)
                 }
             }
 

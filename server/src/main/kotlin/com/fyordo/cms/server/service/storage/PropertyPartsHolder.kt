@@ -46,7 +46,7 @@ class PropertyPartsHolder {
         }
     }
 
-    fun addProperty(key: CmsProto.PropertyKeyProto) = lock.write {
+    fun addProperty(key: CmsProto.PropertyKey) = lock.write {
         namespaces.add(key.namespace)
         services.add(key.service)
         appIds.add(key.appId)
@@ -54,7 +54,7 @@ class PropertyPartsHolder {
     }
 
     fun removeProperty(
-        key: CmsProto.PropertyKeyProto,
+        key: CmsProto.PropertyKey,
         hasOtherWithNamespace: Boolean,
         hasOtherWithService: Boolean,
         hasOtherWithAppId: Boolean,
