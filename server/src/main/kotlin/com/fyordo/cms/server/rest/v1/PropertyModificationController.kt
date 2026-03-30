@@ -2,20 +2,21 @@ package com.fyordo.cms.server.rest.v1
 
 import com.fyordo.cms.CmsProto
 import com.fyordo.cms.server.config.PropertyVersionConfig
-import com.fyordo.cms.server.dto.property.PropertyKey
-import com.fyordo.cms.server.dto.property.PropertyValue
+import com.fyordo.cms.server.dto.property.PropertyKeyDto
 import com.fyordo.cms.server.dto.raft.RaftOperationResult
-import com.fyordo.cms.server.serialization.property.toPropertyValueProto
 import com.fyordo.cms.server.serialization.raft.deserializeRaftResult
 import com.fyordo.cms.server.serialization.raft.raftDeleteCommand
 import com.fyordo.cms.server.serialization.raft.raftPutCommand
 import com.fyordo.cms.server.service.raft.RaftClientFacade
-import com.fyordo.cms.server.utils.EMPTY_BYTES
+import com.google.protobuf.ByteString
 import jakarta.validation.Valid
 import jakarta.validation.constraints.NotBlank
 import jakarta.validation.constraints.Size
 import org.springframework.http.HttpStatus
-import org.springframework.web.bind.annotation.*
+import org.springframework.web.bind.annotation.PostMapping
+import org.springframework.web.bind.annotation.RequestBody
+import org.springframework.web.bind.annotation.RequestMapping
+import org.springframework.web.bind.annotation.RestController
 import org.springframework.web.server.ResponseStatusException
 
 @RestController
@@ -35,14 +36,13 @@ class PropertyModificationController(
         }
 
         val command = raftPutCommand(
-            key = data.key,
-            valuePayload = toPropertyValueProto(
-                PropertyValue(
-                    versionConfig.currentVersion,
-                    valueBytes,
-                    System.currentTimeMillis()
-                )
-            ).toByteArray()
+            key = data.key.toProto(),
+            valuePayload = CmsProto.PropertyValue.newBuilder()
+                .setVersion(versionConfig.currentVersion)
+                .setValue(ByteString.copyFrom(valueBytes))
+                .setLastModifiedMs(System.currentTimeMillis())
+                .build()
+                .toByteArray()
         )
         val result = clientFacade.sendCommand(command)
         return when (result) {
@@ -63,11 +63,10 @@ class PropertyModificationController(
         }
     }
 
-    @DeleteMapping("/delete")
-    suspend fun delete(@NotBlank @RequestParam key: String): Map<String, CmsProto.RaftResult> {
-        val command = raftDeleteCommand(PropertyKey.fromString(key))
-        val result = clientFacade.sendCommand(command)
-        return when (result) {
+    @PostMapping("/delete")
+    suspend fun delete(@Valid @RequestBody data: PropertyKeyDto): Map<String, CmsProto.RaftResult> {
+        val command = raftDeleteCommand(data.toProto())
+        return when (val result = clientFacade.sendCommand(command)) {
             is RaftOperationResult.Success -> {
                 mapOf(
                     "result" to deserializeRaftResult(result.data)
@@ -85,7 +84,7 @@ class PropertyModificationController(
 }
 
 data class PutPropertyRequest(
-    val key: PropertyKey,
+    val key: PropertyKeyDto,
     @field:NotBlank(message = "Value cannot be blank")
     @field:Size(max = 1024 * 1024, message = "Value size cannot exceed 1MB")
     val value: String

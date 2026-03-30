@@ -1,19 +1,11 @@
 package com.fyordo.cms.server.service.raft
 
 import com.fyordo.cms.CmsProto
-import com.fyordo.cms.server.dto.property.PropertyKey
-import com.fyordo.cms.server.dto.property.PropertyValue
 import com.fyordo.cms.server.serialization.property.*
 import com.fyordo.cms.server.serialization.query.fromPropertyQueryFilterProto
-import com.fyordo.cms.server.serialization.raft.deserializeRaftCommand
-import com.fyordo.cms.server.serialization.raft.raftCommandKey
-import com.fyordo.cms.server.serialization.raft.raftErrorResult
-import com.fyordo.cms.server.serialization.raft.raftNotFoundResult
-import com.fyordo.cms.server.serialization.raft.raftOkResult
-import com.fyordo.cms.server.serialization.raft.serializeRaftResult
+import com.fyordo.cms.server.serialization.raft.*
 import com.fyordo.cms.server.service.PropertyUpdatePublisher
 import com.fyordo.cms.server.service.storage.PropertyInMemoryStorage
-import com.fyordo.cms.server.utils.EMPTY_BYTES
 import kotlinx.coroutines.*
 import kotlinx.coroutines.future.future
 import mu.KotlinLogging
@@ -74,11 +66,11 @@ class RaftStateMachine(
                 out.writeInt(SNAPSHOT_FORMAT_VERSION)
                 out.writeLong(revision)
                 out.writeInt(entries.size)
-                for ((key, value) in entries) {
-                    val keyBytes = serializePropertyKey(key)
+                for (entry in entries) {
+                    val keyBytes = serializePropertyKey(entry.key)
                     out.writeInt(keyBytes.size)
                     out.write(keyBytes)
-                    val valueBytes = serializePropertyValue(value)
+                    val valueBytes = serializePropertyValue(entry.value)
                     out.writeInt(valueBytes.size)
                     out.write(valueBytes)
                 }
@@ -121,7 +113,7 @@ class RaftStateMachine(
         }
 
         try {
-            val entries = mutableListOf<Pair<PropertyKey, PropertyValue>>()
+            val entries = mutableListOf<CmsProto.PropertyInternalDto>()
             val revision: Long
 
             DataInputStream(BufferedInputStream(file.inputStream())).use { din ->
@@ -138,7 +130,10 @@ class RaftStateMachine(
                     val keyBytes = ByteArray(keyLen).also { din.readFully(it) }
                     val valueLen = din.readInt()
                     val valueBytes = ByteArray(valueLen).also { din.readFully(it) }
-                    entries += deserializePropertyKey(keyBytes) to deserializePropertyValue(valueBytes)
+                    entries += CmsProto.PropertyInternalDto.newBuilder()
+                        .setKey(deserializePropertyKey(keyBytes))
+                        .setValue(deserializePropertyValue(valueBytes))
+                        .build()
                 }
             }
 
@@ -230,7 +225,7 @@ class RaftStateMachine(
         command: CmsProto.RaftCommand,
         logIndex: Long = 0L
     ): CmsProto.RaftResult {
-        val commandKey = raftCommandKey(command)
+        val commandKey = command.key
         return when (command.operation) {
             CmsProto.RaftOp.RAFT_OP_PUT -> {
                 val key = requireNotNull(commandKey) { "Command PUT should contain a key" }
@@ -269,8 +264,8 @@ class RaftStateMachine(
     }
 
     private fun publishUpdateFailSafe(
-        key: PropertyKey,
-        propertyValue: PropertyValue?,
+        key: CmsProto.PropertyKey,
+        propertyValue: CmsProto.PropertyValue?,
         revision: Long
     ) {
         try {

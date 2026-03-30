@@ -1,55 +1,11 @@
 package com.fyordo.cms.server.serialization.property
 
 import com.fyordo.cms.CmsProto
-import com.fyordo.cms.server.dto.property.PropertyKey
 
-fun serializePropertyKey(propertyKey: PropertyKey): ByteArray {
-    return toPropertyKeyProto(propertyKey).toByteArray()
+fun serializePropertyKey(propertyKey: CmsProto.PropertyKey): ByteArray {
+    return propertyKey.toByteArray()
 }
 
-fun deserializePropertyKey(propertyKey: ByteArray): PropertyKey {
-    return fromPropertyKeyProto(CmsProto.PropertyKey.parseFrom(propertyKey))
-}
-
-fun serializePropertyKeyV1(propertyKey: PropertyKey): ByteArray {
-    val version = propertyKey.version.toInt()
-    if (version != 1) {
-        throw IllegalStateException("Only version 1 is supported")
-    }
-
-    return toPropertyKeyProto(propertyKey).toByteArray()
-}
-
-fun deserializePropertyKeyV1(keyProto: CmsProto.PropertyKey): PropertyKey {
-    return fromPropertyKeyProto(keyProto)
-}
-
-fun toPropertyKeyProto(propertyKey: PropertyKey): CmsProto.PropertyKey {
-    val version = propertyKey.version.toInt()
-    if (version != 1) {
-        throw IllegalStateException("Only version 1 is supported")
-    }
-
-    return CmsProto.PropertyKey.newBuilder()
-        .setVersion(propertyKey.version.toInt())
-        .setNamespace(propertyKey.namespace)
-        .setService(propertyKey.service)
-        .setAppId(propertyKey.appId)
-        .setKey(propertyKey.key)
-        .build()
-}
-
-fun fromPropertyKeyProto(keyProto: CmsProto.PropertyKey): PropertyKey {
-    val version = keyProto.version
-    if (version != 1) {
-        throw IllegalStateException("Only version 1 is supported")
-    }
-
-    return PropertyKey(
-        version = version.toByte(),
-        namespace = keyProto.namespace,
-        service = keyProto.service,
-        appId = keyProto.appId,
-        key = keyProto.key
-    )
+fun deserializePropertyKey(propertyKey: ByteArray): CmsProto.PropertyKey {
+    return CmsProto.PropertyKey.parseFrom(propertyKey)
 }

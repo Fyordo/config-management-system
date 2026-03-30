@@ -10,15 +10,10 @@ import io.grpc.stub.ServerCallStreamObserver
 import io.grpc.stub.StreamObserver
 import jakarta.annotation.PostConstruct
 import jakarta.annotation.PreDestroy
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.cancel
-import kotlinx.coroutines.delay
+import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
-import kotlinx.coroutines.launch
 import mu.KotlinLogging
 import org.springframework.stereotype.Component
 import java.util.concurrent.ConcurrentHashMap
@@ -56,7 +51,7 @@ class AgentConnectionManager(
                     .setProperty(
                         AgentChannelServiceOuterClass.Property.newBuilder()
                             .setKey(event.key.key)
-                            .setValue(ByteString.copyFrom(event.value?.value ?: EMPTY_BYTES))
+                            .setValue(event.value?.value ?: ByteString.copyFrom(EMPTY_BYTES))
                     )
                     .setLastModifiedMs(event.value?.lastModifiedMs ?: 0)
                     .setRevision(event.revision)
@@ -154,12 +149,12 @@ class AgentConnectionManager(
                     )
 
                     val lastModifiedMs = propertiesList.fold(0L) { maxTime, property ->
-                        val key = property.first
-                        val value = property.second
+                        val key = property.key
+                        val value = property.value
                         properties.addProperties(
                             AgentChannelServiceOuterClass.Property.newBuilder()
                                 .setKey(key.key)
-                                .setValue(ByteString.copyFrom(value.value))
+                                .setValue(value.value)
                         )
                         maxOf(maxTime, value.lastModifiedMs)
                     }
