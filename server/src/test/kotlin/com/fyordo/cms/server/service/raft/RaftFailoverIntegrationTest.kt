@@ -1,24 +1,20 @@
 package com.fyordo.cms.server.service.raft
 
-import com.fyordo.cms.server.config.props.RaftConfiguration
-import com.fyordo.cms.server.config.props.AgentProperties
 import com.fyordo.cms.CmsProto
-import com.google.protobuf.ByteString
-import com.fyordo.cms.server.service.PropertyUpdatePublisher
+import com.fyordo.cms.server.config.props.RaftConfiguration
 import com.fyordo.cms.server.serialization.property.serializePropertyValue
-import com.fyordo.cms.server.serialization.property.deserializePropertyValue as deserializePropertyValueBytes
 import com.fyordo.cms.server.serialization.raft.deserializeRaftResult
-import com.fyordo.cms.server.serialization.raft.serializeRaftCommand as serializeRaftCommandBytes
+import com.fyordo.cms.server.service.PropertyUpdatePublisher
 import com.fyordo.cms.server.service.agent.AgentConnectionManager
 import com.fyordo.cms.server.service.storage.PropertyInMemoryStorage
 import com.fyordo.cms.server.service.storage.PropertyPartsHolder
 import com.fyordo.cms.server.utils.EMPTY_BYTES
+import com.google.protobuf.ByteString
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import org.apache.ratis.client.RaftClient
 import org.apache.ratis.conf.RaftProperties
 import org.apache.ratis.protocol.*
-import org.apache.ratis.thirdparty.com.google.protobuf.ByteString as RatisByteString
 import org.junit.jupiter.api.AfterAll
 import org.junit.jupiter.api.BeforeAll
 import org.junit.jupiter.api.Test
@@ -29,6 +25,9 @@ import java.nio.file.Files
 import java.util.*
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
+import com.fyordo.cms.server.serialization.property.deserializePropertyValue as deserializePropertyValueBytes
+import com.fyordo.cms.server.serialization.raft.serializeRaftCommand as serializeRaftCommandBytes
+import org.apache.ratis.thirdparty.com.google.protobuf.ByteString as RatisByteString
 
 /**
  * Integration tests for Raft cluster failover scenarios.
@@ -169,7 +168,7 @@ class RaftFailoverIntegrationTest {
         val storage = PropertyInMemoryStorage(pathHolder)
         val broadcaster = PropertyUpdatePublisher()
         val stateMachine = RaftStateMachine(storage, broadcaster)
-        val agentConnectionManager = AgentConnectionManager(storage, broadcaster, AgentProperties())
+        val agentConnectionManager = AgentConnectionManager(storage, broadcaster)
         val server = RaftServerService(config, stateMachine, agentConnectionManager)
         server.init()
         return server

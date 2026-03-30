@@ -1,7 +1,6 @@
 package com.fyordo.cms.server.service.agent
 
 import com.fyordo.cms.AgentChannelServiceOuterClass
-import com.fyordo.cms.server.config.props.AgentProperties
 import com.fyordo.cms.server.dto.grpc.AgentId
 import com.fyordo.cms.server.service.PropertyUpdatePublisher
 import com.fyordo.cms.server.service.storage.PropertyInMemoryStorage
@@ -11,7 +10,10 @@ import io.grpc.stub.ServerCallStreamObserver
 import io.grpc.stub.StreamObserver
 import jakarta.annotation.PostConstruct
 import jakarta.annotation.PreDestroy
-import kotlinx.coroutines.*
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
@@ -20,8 +22,6 @@ import org.springframework.stereotype.Component
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
-import kotlin.time.Duration.Companion.milliseconds
-import kotlin.time.Duration.Companion.minutes
 
 private val logger = KotlinLogging.logger {}
 
@@ -33,12 +33,10 @@ private data class Connection(
 @Component
 class AgentConnectionManager(
     private val propertyInMemoryStorage: PropertyInMemoryStorage,
-    private val broadcaster: PropertyUpdatePublisher,
-    private val agentProperties: AgentProperties
+    private val broadcaster: PropertyUpdatePublisher
 ) {
     private val connections: MutableMap<AgentId, Connection> = ConcurrentHashMap()
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-    private val healthcheckScope = CoroutineScope(Dispatchers.IO)
 
     @PostConstruct
     fun init() {
@@ -72,39 +70,12 @@ class AgentConnectionManager(
             }
             .launchIn(scope)
 
-        launchAgentHealthcheck()
-
         logger.info { "AgentConnectionFacade initialized and subscribed to broadcaster" }
-    }
-
-    private fun launchAgentHealthcheck() {
-        healthcheckScope.launch {
-            while (true) {
-                logger.debug { "AGENT_HEALTHCHECK: Starting..." }
-                val ids = mutableSetOf<AgentId>()
-                connections.forEach { (agentId, connection) ->
-                    connection.lock.withLock {
-                        val streamObserver = connection.streamObserver
-                        if (streamObserver is ServerCallStreamObserver && streamObserver.isCancelled) {
-                            ids.add(agentId)
-                        }
-                    }
-
-                    ids.forEach {
-                        logger.warn { "HEALTHCHECK: Stream is cancelled for agent: $agentId, removing connection" }
-                        closeStream(it)
-                    }
-                }
-                logger.debug { "AGENT_HEALTHCHECK: Finished. Rescheduled for 1 minute" }
-                delay(agentProperties.agentHealthcheckPeriodMs.milliseconds)
-            }
-        }
     }
 
     @PreDestroy
     fun destroy() {
         scope.cancel()
-        healthcheckScope.cancel()
         logger.info { "AgentConnectionFacade destroyed" }
     }
 
