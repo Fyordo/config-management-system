@@ -14,17 +14,14 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
-import kotlinx.coroutines.launch
 import mu.KotlinLogging
 import org.springframework.stereotype.Component
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
-import kotlin.time.Duration.Companion.minutes
 
 private val logger = KotlinLogging.logger {}
 
@@ -40,7 +37,6 @@ class AgentConnectionManager(
 ) {
     private val connections: MutableMap<AgentId, Connection> = ConcurrentHashMap()
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-    private val healthcheckScope = CoroutineScope(Dispatchers.IO)
 
     @PostConstruct
     fun init() {
@@ -56,7 +52,7 @@ class AgentConnectionManager(
                     .setProperty(
                         AgentChannelServiceOuterClass.Property.newBuilder()
                             .setKey(event.key.key)
-                            .setValue(ByteString.copyFrom(event.value?.value ?: EMPTY_BYTES))
+                            .setValue(event.value?.value ?: ByteString.copyFrom(EMPTY_BYTES))
                     )
                     .setLastModifiedMs(event.value?.lastModifiedMs ?: 0)
                     .setRevision(event.revision)
@@ -74,35 +70,12 @@ class AgentConnectionManager(
             }
             .launchIn(scope)
 
-        healthcheckScope.launch {
-            while (true) {
-                logger.debug { "AGENT_HEALTHCHECK: Starting..." }
-                val ids = mutableSetOf<AgentId>()
-                connections.forEach { (agentId, connection) ->
-                    connection.lock.withLock {
-                        val streamObserver = connection.streamObserver
-                        if (streamObserver is ServerCallStreamObserver && streamObserver.isCancelled) {
-                            ids.add(agentId)
-                        }
-                    }
-
-                    ids.forEach {
-                        logger.warn { "HEALTHCHECK: Stream is cancelled for agent: $agentId, removing connection" }
-                        closeStream(it)
-                    }
-                }
-                logger.debug { "AGENT_HEALTHCHECK: Finished. Rescheduled for 1 minute" }
-                delay(1.minutes)
-            }
-        }
-
         logger.info { "AgentConnectionFacade initialized and subscribed to broadcaster" }
     }
 
     @PreDestroy
     fun destroy() {
         scope.cancel()
-        healthcheckScope.cancel()
         logger.info { "AgentConnectionFacade destroyed" }
     }
 
@@ -154,12 +127,14 @@ class AgentConnectionManager(
                     )
 
                     val lastModifiedMs = propertiesList.fold(0L) { maxTime, property ->
+                        val key = property.key
+                        val value = property.value
                         properties.addProperties(
                             AgentChannelServiceOuterClass.Property.newBuilder()
-                                .setKey(property.key.key)
-                                .setValue(ByteString.copyFrom(property.value.value))
+                                .setKey(key.key)
+                                .setValue(value.value)
                         )
-                        maxOf(maxTime, property.value.lastModifiedMs)
+                        maxOf(maxTime, value.lastModifiedMs)
                     }
 
                     result.setInitEvent(

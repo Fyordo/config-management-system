@@ -1,48 +1,34 @@
 package com.fyordo.cms.server.serialization.query
 
+import com.fyordo.cms.CmsProto
 import com.fyordo.cms.server.dto.query.PropertyQueryFilter
-import java.io.ByteArrayInputStream
-import java.io.ByteArrayOutputStream
-import java.io.DataInputStream
-import java.io.DataOutputStream
 
 fun serializePropertyQueryFilter(filter: PropertyQueryFilter): ByteArray {
-    val byteStream = ByteArrayOutputStream()
-    val dataStream = DataOutputStream(byteStream)
-
-    serializeNullableString(filter.namespaceRegex, dataStream)
-    serializeNullableString(filter.serviceRegex, dataStream)
-    serializeNullableString(filter.appIdRegex, dataStream)
-    serializeNullableString(filter.keyRegex, dataStream)
-    serializeNullableString(filter.valueRegex, dataStream)
-
-    dataStream.writeInt(filter.limit)
-
-    dataStream.flush()
-
-    return byteStream.toByteArray()
-}
-
-private fun serializeNullableString(value: String?, ds: DataOutputStream) {
-    if (value == null) {
-        ds.writeInt(0)
-        return
-    }
-    val valueBytes = value.toByteArray(Charsets.UTF_8)
-    ds.writeInt(valueBytes.size)
-    ds.write(valueBytes)
+    return toPropertyQueryFilterProto(filter).toByteArray()
 }
 
 fun deserializePropertyQueryFilter(filter: ByteArray): PropertyQueryFilter {
-    val byteStream = ByteArrayInputStream(filter)
-    val dataStream = DataInputStream(byteStream)
+    return fromPropertyQueryFilterProto(CmsProto.PropertyQueryFilter.parseFrom(filter))
+}
 
-    val namespace = deserializeNullableString(dataStream)
-    val service = deserializeNullableString(dataStream)
-    val appId = deserializeNullableString(dataStream)
-    val key = deserializeNullableString(dataStream)
-    val value = deserializeNullableString(dataStream)
-    val limit = dataStream.readInt()
+fun toPropertyQueryFilterProto(filter: PropertyQueryFilter): CmsProto.PropertyQueryFilter {
+    val builder = CmsProto.PropertyQueryFilter.newBuilder()
+        .setLimit(filter.limit)
+    filter.namespaceRegex?.let(builder::setNamespaceRegex)
+    filter.serviceRegex?.let(builder::setServiceRegex)
+    filter.appIdRegex?.let(builder::setAppIdRegex)
+    filter.keyRegex?.let(builder::setKeyRegex)
+    filter.valueRegex?.let(builder::setValueRegex)
+    return builder.build()
+}
+
+fun fromPropertyQueryFilterProto(proto: CmsProto.PropertyQueryFilter): PropertyQueryFilter {
+    val namespace = if (proto.hasNamespaceRegex()) proto.namespaceRegex else null
+    val service = if (proto.hasServiceRegex()) proto.serviceRegex else null
+    val appId = if (proto.hasAppIdRegex()) proto.appIdRegex else null
+    val key = if (proto.hasKeyRegex()) proto.keyRegex else null
+    val value = if (proto.hasValueRegex()) proto.valueRegex else null
+    val limit = proto.limit
 
     return PropertyQueryFilter(
         namespace,
@@ -52,15 +38,4 @@ fun deserializePropertyQueryFilter(filter: ByteArray): PropertyQueryFilter {
         value,
         limit
     )
-}
-
-private fun deserializeNullableString(ds: DataInputStream): String? {
-    val length = ds.readInt()
-    if (length == 0) {
-        return null
-    }
-    val valueBytes = ByteArray(length)
-    ds.readFully(valueBytes)
-
-    return String(valueBytes, Charsets.UTF_8)
 }

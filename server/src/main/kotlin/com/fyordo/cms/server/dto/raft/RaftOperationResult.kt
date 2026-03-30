@@ -1,7 +1,7 @@
 package com.fyordo.cms.server.dto.raft
 
 sealed class RaftOperationResult {
-    data class Success(val data: String) : RaftOperationResult() {
+    data class Success(val data: ByteArray) : RaftOperationResult() {
         override fun isSuccess() = true
     }
 
@@ -13,17 +13,17 @@ sealed class RaftOperationResult {
 
     fun isError(): Boolean = !isSuccess()
 
-    fun getOrThrow(): String = when (this) {
+    fun getOrThrow(): ByteArray = when (this) {
         is Success -> data
         is Error -> throw cause ?: RuntimeException(message)
     }
 
-    fun getOrDefault(default: String): String = when (this) {
+    fun getOrDefault(default: ByteArray): ByteArray = when (this) {
         is Success -> data
         is Error -> default
     }
 
-    fun getOrNull(): String? = when (this) {
+    fun getOrNull(): ByteArray? = when (this) {
         is Success -> data
         is Error -> null
     }

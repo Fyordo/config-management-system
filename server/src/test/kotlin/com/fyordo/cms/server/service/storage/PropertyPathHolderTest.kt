@@ -1,6 +1,6 @@
 package com.fyordo.cms.server.service.storage
 
-import com.fyordo.cms.server.dto.property.PropertyKey
+import com.fyordo.cms.CmsProto
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
@@ -9,6 +9,20 @@ import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class PropertyPathHolderTest {
+
+    private fun PropertyKey(
+        version: Int,
+        namespace: String,
+        service: String,
+        appId: String,
+        key: String
+    ): CmsProto.PropertyKey = CmsProto.PropertyKey.newBuilder()
+        .setVersion(version)
+        .setNamespace(namespace)
+        .setService(service)
+        .setAppId(appId)
+        .setKey(key)
+        .build()
 
     private lateinit var pathHolder: PropertyPartsHolder
 

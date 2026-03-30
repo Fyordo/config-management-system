@@ -1,35 +1,48 @@
 package com.fyordo.cms.server.dto.property
 
+import com.fyordo.cms.CmsProto
+
 data class PropertyDto(
     val key: PropertyKeyDto,
     val value: PropertyValueDto,
 ) {
-    constructor(internalDto: PropertyInternalDto) : this(
-        key = PropertyKeyDto(internalDto.key),
-        value = PropertyValueDto(internalDto.value)
+    constructor(entry: CmsProto.PropertyInternalDto) : this(
+        key = PropertyKeyDto(entry.key),
+        value = PropertyValueDto(entry.value)
     )
 }
 
 data class PropertyKeyDto(
+    val version: Int,
     val namespace: String,
     val service: String,
     val appId: String,
     val key: String
 ) {
-    constructor(propertyKey: PropertyKey) : this(
+    constructor(propertyKey: CmsProto.PropertyKey) : this(
+        version = propertyKey.version,
         namespace = propertyKey.namespace,
         service = propertyKey.service,
         appId = propertyKey.appId,
         key = propertyKey.key
     )
+
+    fun toProto(): CmsProto.PropertyKey =
+        CmsProto.PropertyKey.newBuilder()
+            .setVersion(version)
+            .setNamespace(namespace)
+            .setService(service)
+            .setAppId(appId)
+            .setKey(key)
+            .build()
 }
 
 data class PropertyValueDto(
     val value: String,
     val lastModifiedMs: Long
 ) {
-    constructor(propertyValue: PropertyValue) : this(
-        value = String(propertyValue.value, Charsets.UTF_8),
+    constructor(propertyValue: CmsProto.PropertyValue) : this(
+        value = String(propertyValue.value.toByteArray(), Charsets.UTF_8),
         lastModifiedMs = propertyValue.lastModifiedMs
     )
 }

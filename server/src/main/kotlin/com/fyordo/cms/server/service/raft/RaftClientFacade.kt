@@ -1,7 +1,7 @@
 package com.fyordo.cms.server.service.raft
 
+import com.fyordo.cms.CmsProto
 import com.fyordo.cms.server.config.props.RaftConfiguration
-import com.fyordo.cms.server.dto.raft.RaftCommand
 import com.fyordo.cms.server.dto.raft.RaftOperationResult
 import com.fyordo.cms.server.serialization.raft.serializeRaftCommand
 import com.fyordo.cms.server.utils.raft.parsePeers
@@ -15,6 +15,7 @@ import mu.KotlinLogging
 import org.apache.ratis.client.RaftClient
 import org.apache.ratis.conf.RaftProperties
 import org.apache.ratis.protocol.*
+import org.apache.ratis.thirdparty.com.google.protobuf.ByteString
 import org.springframework.stereotype.Service
 import java.net.InetSocketAddress
 import java.util.*
@@ -116,13 +117,13 @@ class RaftClientFacade(
         }
     }
 
-    suspend fun sendCommand(command: RaftCommand): RaftOperationResult {
+    suspend fun sendCommand(command: CmsProto.RaftCommand): RaftOperationResult {
         return try {
             val serialized = serializeRaftCommand(command)
             val response = withTimeout(raftProps.clusterMessageTimeoutMs) {
                 withContext(Dispatchers.IO) {
-                    val reply = raftClient.io().send(Message.valueOf(serialized))
-                    reply.message.content.toStringUtf8()
+                    val reply = raftClient.io().send(Message.valueOf(ByteString.copyFrom(serialized)))
+                    reply.message.content.toByteArray()
                 }
             }
             RaftOperationResult.Success(response)
@@ -136,13 +137,13 @@ class RaftClientFacade(
     }
 
 
-    suspend fun sendQuery(command: RaftCommand): RaftOperationResult {
+    suspend fun sendQuery(command: CmsProto.RaftCommand): RaftOperationResult {
         return try {
             val serialized = serializeRaftCommand(command)
             val response = withTimeout(raftProps.clusterMessageTimeoutMs) {
                 withContext(Dispatchers.IO) {
-                    val reply = raftClient.io().sendReadOnly(Message.valueOf(serialized))
-                    reply.message.content.toStringUtf8()
+                    val reply = raftClient.io().sendReadOnly(Message.valueOf(ByteString.copyFrom(serialized)))
+                    reply.message.content.toByteArray()
                 }
             }
             RaftOperationResult.Success(response)

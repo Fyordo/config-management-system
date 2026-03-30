@@ -1,70 +1,36 @@
 package com.fyordo.cms.server.serialization.raft
 
-import com.fyordo.cms.server.dto.raft.RaftResult
-import com.fyordo.cms.server.dto.raft.RaftResultStatus
-import java.io.ByteArrayInputStream
-import java.io.ByteArrayOutputStream
-import java.io.DataInputStream
-import java.io.DataOutputStream
-import kotlin.io.encoding.Base64
+import com.fyordo.cms.CmsProto
+import com.google.protobuf.ByteString
 
-fun serializeRaftResult(result: RaftResult): String {
-    return when (result.version.toInt()) {
-        1 -> serializeRaftResultV1(result)
-        else -> throw NotImplementedError()
-    }
+fun serializeRaftResult(result: CmsProto.RaftResult): ByteArray {
+    return result.toByteArray()
 }
 
-fun deserializeRaftResult(result: String): RaftResult {
-    val bytes = Base64.decode(result)
-
-    val byteStream = ByteArrayInputStream(bytes)
-    val dataStream = DataInputStream(byteStream)
-
-    val version = dataStream.readByte().toInt()
-
-    return when (version) {
-        1 -> deserializeRaftResultV1(version, dataStream)
-        else -> throw NotImplementedError()
-    }
+fun deserializeRaftResult(result: ByteArray): CmsProto.RaftResult {
+    return CmsProto.RaftResult.parseFrom(result)
 }
 
-fun serializeRaftResultV1(result: RaftResult): String {
-    val version = result.version.toInt()
-    if (version != 1) {
-        throw IllegalStateException("Only version 1 is supported")
-    }
-
-    val byteStream = ByteArrayOutputStream()
-    val dataStream = DataOutputStream(byteStream)
-
-    dataStream.writeByte(version)
-
-    dataStream.writeByte(result.status.value.toInt())
-
-    dataStream.writeInt(result.result.size)
-    dataStream.write(result.result)
-
-    dataStream.flush()
-
-    return Base64.encode(byteStream.toByteArray())
+fun raftOkResult(payload: ByteArray = byteArrayOf()): CmsProto.RaftResult {
+    return CmsProto.RaftResult.newBuilder()
+        .setVersion(1)
+        .setStatus(CmsProto.RaftResultStatus.RAFT_RESULT_STATUS_OK)
+        .setResult(ByteString.copyFrom(payload))
+        .build()
 }
 
-fun deserializeRaftResultV1(version: Int, dataStream: DataInputStream): RaftResult {
-    if (version != 1) {
-        throw IllegalStateException("Only version 1 is supported")
-    }
+fun raftNotFoundResult(): CmsProto.RaftResult {
+    return CmsProto.RaftResult.newBuilder()
+        .setVersion(1)
+        .setStatus(CmsProto.RaftResultStatus.RAFT_RESULT_STATUS_NOT_FOUND)
+        .setResult(ByteString.EMPTY)
+        .build()
+}
 
-    val statusByte = dataStream.readByte()
-    val status = RaftResultStatus.getByValue(statusByte)
-
-    val resultLength = dataStream.readInt()
-    val resultBytes = ByteArray(resultLength)
-    dataStream.readFully(resultBytes)
-
-    return RaftResult(
-        result = resultBytes,
-        version = version.toByte(),
-        status = status
-    )
+fun raftErrorResult(): CmsProto.RaftResult {
+    return CmsProto.RaftResult.newBuilder()
+        .setVersion(1)
+        .setStatus(CmsProto.RaftResultStatus.RAFT_RESULT_STATUS_ERROR)
+        .setResult(ByteString.EMPTY)
+        .build()
 }
