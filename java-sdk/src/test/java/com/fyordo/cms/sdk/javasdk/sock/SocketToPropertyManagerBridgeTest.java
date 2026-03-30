@@ -1,8 +1,10 @@
 package com.fyordo.cms.sdk.javasdk.sock;
 
+import com.fyordo.cms.CmsProto;
 import com.fyordo.cms.sdk.javasdk.property.PropertyManager;
 import com.fyordo.cms.sdk.javasdk.property.repo.PropertyRepository;
 import com.fyordo.cms.sdk.javasdk.property.repo.PropertyRepositoryImpl;
+import com.google.protobuf.ByteString;
 import org.junit.jupiter.api.Test;
 
 import java.io.ByteArrayInputStream;
@@ -19,7 +21,6 @@ class SocketToPropertyManagerBridgeTest {
     @Test
     void processStreamAppliesUpdatesToPropertyManager() throws IOException {
         PropertyRepository repository = new PropertyRepositoryImpl();
-        // We do not rely on filesystem or socket here, so dummy paths are fine.
         PropertyManager manager = new PropertyManager(
                 repository,
                 Paths.get(System.getProperty("java.io.tmpdir"), "dummy.json").toString(),
@@ -49,13 +50,13 @@ class SocketToPropertyManagerBridgeTest {
     private static byte[] buildStream(PropertyUpdateMessage... messages) throws IOException {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         for (PropertyUpdateMessage msg : messages) {
-            byte[] keyBytes = msg.getKey().getBytes(StandardCharsets.UTF_8);
-            byte[] valueBytes = msg.getValue();
-
-            writeInt(out, keyBytes.length);
-            out.write(keyBytes);
-            writeInt(out, valueBytes.length);
-            out.write(valueBytes);
+            byte[] payload = CmsProto.Property.newBuilder()
+                    .setKey(msg.getKey())
+                    .setValue(ByteString.copyFrom(msg.getValue()))
+                    .build()
+                    .toByteArray();
+            writeInt(out, payload.length);
+            out.write(payload);
         }
         return out.toByteArray();
     }
