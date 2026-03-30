@@ -5,7 +5,7 @@ plugins {
 }
 
 group = "com.fyordo.cms"
-version = "1.0.2"
+version = "1.0.3"
 description = "java-example"
 
 java {
@@ -21,7 +21,7 @@ repositories {
 
 dependencies {
     implementation("org.springframework.boot:spring-boot-starter-webmvc")
-    implementation("com.fyordo.cms.sdk:java-sdk:1.0.1")
+    implementation("com.fyordo.cms.sdk:java-sdk:1.0.2")
     implementation("org.jetbrains:annotations:26.1.0")
 
     testImplementation("org.springframework.boot:spring-boot-starter-webmvc-test")

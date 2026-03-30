@@ -31,13 +31,31 @@ def _write_temp_json(data: dict, tmp_path) -> str:
 
 
 def _encode_message(key: str, value: bytes) -> bytes:
-    key_bytes = key.encode()
-    return (
-        struct.pack(">I", len(key_bytes))
-        + key_bytes
-        + struct.pack(">I", len(value))
-        + value
+    key_b = key.encode("utf-8")
+
+    def _varint(n: int) -> bytes:
+        out = bytearray()
+        while True:
+            to_write = n & 0x7F
+            n >>= 7
+            if n:
+                out.append(to_write | 0x80)
+            else:
+                out.append(to_write)
+                break
+        return bytes(out)
+
+    payload = b"".join(
+        [
+            b"\x0A",
+            _varint(len(key_b)),
+            key_b,
+            b"\x12",
+            _varint(len(value)),
+            value,
+        ]
     )
+    return struct.pack(">I", len(payload)) + payload
 
 
 # ---------------------------------------------------------------------------

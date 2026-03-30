@@ -1,8 +1,10 @@
 import java.util.Properties
+import com.google.protobuf.gradle.id
 
 plugins {
     id("java")
     id("maven-publish")
+    id("com.google.protobuf") version "0.9.5"
 }
 
 java {
@@ -36,8 +38,10 @@ repositories {
 }
 
 dependencies {
-    implementation("com.fasterxml.jackson.core:jackson-databind:2.19.0")
+    implementation("com.fasterxml.jackson.core:jackson-databind:2.21.2")
     implementation("org.jetbrains:annotations:26.1.0")
+
+    implementation("com.google.protobuf:protobuf-java:4.34.1")
 
     testImplementation(platform("org.junit:junit-bom:5.10.0"))
     testImplementation("org.junit.jupiter:junit-jupiter")
@@ -51,6 +55,26 @@ tasks.test {
 java {
     withSourcesJar()
     withJavadocJar()
+}
+
+protobuf {
+    protoc {
+        artifact = "com.google.protobuf:protoc:3.25.3"
+    }
+    plugins {
+        id("grpc") {
+            artifact = "io.grpc:protoc-gen-grpc-java:1.66.0"
+        }
+    }
+    generateProtoTasks {
+        all().forEach {
+            it.plugins {
+                id("grpc") {
+                    option("@generated=omit")
+                }
+            }
+        }
+    }
 }
 
 publishing {

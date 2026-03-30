@@ -9,13 +9,38 @@ from cms import PropertyUpdateMessage, PropertyUpdateStreamReader
 
 
 def _encode_message(key: str, value: bytes) -> bytes:
-    key_bytes = key.encode("utf-8")
-    return (
-        struct.pack(">I", len(key_bytes))
-        + key_bytes
-        + struct.pack(">I", len(value))
-        + value
+    # Protobuf payload:
+    #   1: string key
+    #   2: bytes  value
+    #
+    # Keep the encoder minimal and independent of generated proto code.
+    key_b = key.encode("utf-8")
+
+    def _varint(n: int) -> bytes:
+        out = bytearray()
+        while True:
+            to_write = n & 0x7F
+            n >>= 7
+            if n:
+                out.append(to_write | 0x80)
+            else:
+                out.append(to_write)
+                break
+        return bytes(out)
+
+    # field 1 tag = (1<<3)|2 = 0x0A
+    # field 2 tag = (2<<3)|2 = 0x12
+    payload = b"".join(
+        [
+            b"\x0A",
+            _varint(len(key_b)),
+            key_b,
+            b"\x12",
+            _varint(len(value)),
+            value,
+        ]
     )
+    return struct.pack(">I", len(payload)) + payload
 
 
 def _make_reader(data: bytes) -> PropertyUpdateStreamReader:
@@ -79,29 +104,21 @@ def test_clean_eof_on_empty_stream():
 
 
 def test_truncated_key_bytes_raises():
-    key_bytes = b"some.key"
-    data = struct.pack(">I", len(key_bytes)) + key_bytes[:3]  # truncated
+    # Truncate in the middle of the payload
+    data = _encode_message("some.key", b"v")[:5]
     with pytest.raises(EOFError):
         _make_reader(data).read_message()
 
 
 def test_eof_between_key_and_value_len_raises():
-    key_bytes = b"k"
-    # Key is present but value-length header is missing.
-    data = struct.pack(">I", len(key_bytes)) + key_bytes
+    # Payload length is present, but payload bytes are missing.
+    data = struct.pack(">I", 10)
     with pytest.raises(EOFError):
         _make_reader(data).read_message()
 
 
 def test_truncated_value_bytes_raises():
-    key_bytes = b"k"
-    value = b"long value"
-    data = (
-        struct.pack(">I", len(key_bytes))
-        + key_bytes
-        + struct.pack(">I", len(value))
-        + value[:3]  # truncated
-    )
+    data = _encode_message("k", b"long value")[:-2]  # truncated payload
     with pytest.raises(EOFError):
         _make_reader(data).read_message()
 

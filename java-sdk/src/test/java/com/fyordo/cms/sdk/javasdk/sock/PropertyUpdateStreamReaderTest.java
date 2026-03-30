@@ -1,5 +1,7 @@
 package com.fyordo.cms.sdk.javasdk.sock;
 
+import com.fyordo.cms.CmsProto;
+import com.google.protobuf.ByteString;
 import org.junit.jupiter.api.Test;
 
 import java.io.ByteArrayInputStream;
@@ -59,8 +61,8 @@ class PropertyUpdateStreamReaderTest {
                 new PropertyUpdateMessage("abc", new byte[]{1})
         );
 
-        // Truncate so that we cut inside key bytes (after length header)
-        int cutPosition = 4 + 2; // 4 bytes length + first 2 bytes of key
+        // Truncate so that we cut inside protobuf payload (after length header)
+        int cutPosition = 4 + 2; // 4 bytes length + first 2 payload bytes
         byte[] truncated = new byte[cutPosition];
         System.arraycopy(goodStream, 0, truncated, 0, cutPosition);
 
@@ -70,33 +72,34 @@ class PropertyUpdateStreamReaderTest {
     }
 
     @Test
-    void eofBetweenKeyAndValueLengthThrowsIOException() throws IOException {
+    void invalidProtobufPayloadThrowsIOException() throws IOException {
         byte[] goodStream = buildStream(
                 new PropertyUpdateMessage("abc", new byte[]{1, 2})
         );
 
-        // Up to and including key bytes, but without value length bytes
-        int keyLen = "abc".getBytes().length;
-        int cutPosition = 4 + keyLen; // 4 bytes key length + key bytes, no value length
-        byte[] truncated = new byte[cutPosition];
-        System.arraycopy(goodStream, 0, truncated, 0, cutPosition);
+        // Keep full frame length, but corrupt payload bytes so parseFrom fails
+        byte[] corrupted = goodStream.clone();
+        corrupted[4] = (byte) 0xFF;
+        corrupted[5] = (byte) 0xFF;
+        corrupted[6] = (byte) 0xFF;
+        corrupted[7] = (byte) 0xFF;
 
-        PropertyUpdateStreamReader reader = new PropertyUpdateStreamReader(new ByteArrayInputStream(truncated));
+        PropertyUpdateStreamReader reader = new PropertyUpdateStreamReader(new ByteArrayInputStream(corrupted));
 
         IOException ex = assertThrows(IOException.class, reader::readMessage);
-        assertTrue(ex.getMessage().contains("Unexpected EOF"));
+        assertTrue(ex.getMessage().contains("Failed to parse protobuf Property payload"));
     }
 
     private static byte[] buildStream(PropertyUpdateMessage... messages) throws IOException {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         for (PropertyUpdateMessage msg : messages) {
-            byte[] keyBytes = msg.getKey().getBytes(java.nio.charset.StandardCharsets.UTF_8);
-            byte[] valueBytes = msg.getValue();
-
-            writeInt(out, keyBytes.length);
-            out.write(keyBytes);
-            writeInt(out, valueBytes.length);
-            out.write(valueBytes);
+            byte[] payload = CmsProto.Property.newBuilder()
+                    .setKey(msg.getKey())
+                    .setValue(ByteString.copyFrom(msg.getValue()))
+                    .build()
+                    .toByteArray();
+            writeInt(out, payload.length);
+            out.write(payload);
         }
         return out.toByteArray();
     }

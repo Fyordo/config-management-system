@@ -1,10 +1,3 @@
-"""Binary stream decoder for the CMS agent socket protocol.
-
-Message layout (AGENT_CONTRACT.MD):
-  [key_len: uint32 BE] [key: key_len bytes]
-  [value_len: uint32 BE] [value: value_len bytes]
-"""
-
 from __future__ import annotations
 
 import struct
@@ -17,8 +10,6 @@ _UINT32_FMT = struct.Struct(">I")  # big-endian unsigned 32-bit
 
 @dataclass(frozen=True)
 class PropertyUpdateMessage:
-    """Immutable container for a single property update received from the agent."""
-
     key: str
     value: bytes
 
@@ -28,39 +19,18 @@ class PropertyUpdateMessage:
 
 
 class PropertyUpdateStreamReader:
-    """Reads length-prefixed property-update messages from a binary stream.
-
-    The stream is *not* closed by this class; lifecycle management is left to
-    the caller.
-    """
-
     def __init__(self, stream: BinaryIO) -> None:
         self._stream = stream
 
     def read_message(self) -> Optional[PropertyUpdateMessage]:
-        """Read and return the next message from the stream.
-
-        Returns:
-            A :class:`PropertyUpdateMessage` when a complete message was read.
-            ``None`` on a clean EOF at a message boundary.
-
-        Raises:
-            EOFError: When the stream ends in the middle of a message.
-            OSError: On any underlying I/O error.
-        """
-        key_len = self._read_uint32(allow_eof=True)
-        if key_len is None:
+        payload_len = self._read_uint32(allow_eof=True)
+        if payload_len is None:
             return None  # clean EOF between messages
 
-        key_bytes = self._read_exactly(key_len, context="key")
-        value_len = self._read_uint32(allow_eof=False)
-        value_bytes = self._read_exactly(value_len, context="value")  # type: ignore[arg-type]
+        payload = self._read_exactly(payload_len, context="payload")  # type: ignore[arg-type]
+        key, value = _parse_property_payload(payload)
 
-        return PropertyUpdateMessage(key=key_bytes.decode("utf-8"), value=value_bytes)
-
-    # ------------------------------------------------------------------
-    # Internal helpers
-    # ------------------------------------------------------------------
+        return PropertyUpdateMessage(key=key, value=value)
 
     def _read_uint32(self, *, allow_eof: bool) -> Optional[int]:
         raw = self._stream.read(_UINT32_FMT.size)
@@ -87,3 +57,57 @@ class PropertyUpdateStreamReader:
                 )
             buf.extend(chunk)
         return bytes(buf)
+
+def _parse_property_payload(payload: bytes) -> tuple[str, bytes]:
+    i = 0
+    key = ""
+    value = b""
+
+    while i < len(payload):
+        tag, i = _read_varint(payload, i)
+        field_no = tag >> 3
+        wire_type = tag & 0x07
+
+        if wire_type == 2:  # length-delimited
+            length, i = _read_varint(payload, i)
+            if i + length > len(payload):
+                raise ValueError("Invalid protobuf payload: truncated length-delimited field")
+            field_bytes = payload[i : i + length]
+            i += length
+
+            if field_no == 1:
+                key = field_bytes.decode("utf-8")
+            elif field_no == 2:
+                value = bytes(field_bytes)
+            continue
+
+        if wire_type == 0:  # varint
+            _, i = _read_varint(payload, i)
+        elif wire_type == 1:  # 64-bit
+            if i + 8 > len(payload):
+                raise ValueError("Invalid protobuf payload: truncated 64-bit field")
+            i += 8
+        elif wire_type == 5:  # 32-bit
+            if i + 4 > len(payload):
+                raise ValueError("Invalid protobuf payload: truncated 32-bit field")
+            i += 4
+        else:
+            raise ValueError(f"Invalid protobuf payload: unsupported wire type {wire_type}")
+
+    return key, value
+
+
+def _read_varint(data: bytes, offset: int) -> tuple[int, int]:
+    shift = 0
+    result = 0
+    i = offset
+    while i < len(data):
+        b = data[i]
+        i += 1
+        result |= (b & 0x7F) << shift
+        if (b & 0x80) == 0:
+            return result, i
+        shift += 7
+        if shift >= 64:
+            raise ValueError("Invalid protobuf payload: varint is too long")
+    raise ValueError("Invalid protobuf payload: truncated varint")

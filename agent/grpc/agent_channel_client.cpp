@@ -167,7 +167,7 @@ void AgentChannelClient::HandlePropertyUpdate(const com::fyordo::cms::ServerProp
         return;
     }
 
-    SendUpdateToUnixSocket(update_event.property().key(), update_event.property().value());
+    SendUpdateToUnixSocket(update_event.property());
 }
 
 bool AgentChannelClient::ApplyPropertyUpdateToFile(const std::string& key, const std::string& value)
@@ -196,9 +196,9 @@ bool AgentChannelClient::ApplyPropertyUpdateToFile(const std::string& key, const
 bool AgentChannelClient::WritePropertiesToFile(const com::fyordo::cms::ServerInitEvent& init_event)
 {
     nlohmann::json properties_json;
-    for (const auto& prop : init_event.properties()) {
+    for (const com::fyordo::cms::Property& prop : init_event.properties()) {
         properties_json[prop.key()] = prop.value();
-        SendUpdateToUnixSocket(prop.key(), prop.value());
+        SendUpdateToUnixSocket(prop);
     }
     if (!WriteJsonToPath(properties_json)) {
         std::cerr << "AgentChannelClient: Failed to write properties (use a path writable by the process, e.g. /app/application.json)"
@@ -243,7 +243,7 @@ bool AgentChannelClient::WriteJsonToPath(const nlohmann::json& j)
     return true;
 }
 
-void AgentChannelClient::SendUpdateToUnixSocket(const std::string& key, const std::string& value)
+void AgentChannelClient::SendUpdateToUnixSocket(const com::fyordo::cms::Property& property)
 {
     if (config_.unixSocketPath.empty()) {
         return;
@@ -274,14 +274,8 @@ void AgentChannelClient::SendUpdateToUnixSocket(const std::string& key, const st
     }
 
     std::cout << "AgentChannelClient: Connected to UNIX socket at "
-              << config_.unixSocketPath << " for key '" << key
-              << "' (value_len=" << value.size() << ")" << std::endl;
-
-    const uint32_t key_len = static_cast<uint32_t>(key.size());
-    const uint32_t value_len = static_cast<uint32_t>(value.size());
-
-    uint32_t key_len_be = htonl(key_len);
-    uint32_t value_len_be = htonl(value_len);
+              << config_.unixSocketPath << " for key '" << property.key()
+              << "' (value_len=" << property.value().size() << ")" << std::endl;
 
     auto send_all = [sock_fd](const void* buf, size_t len) -> bool {
         const char* ptr = static_cast<const char*>(buf);
@@ -296,13 +290,18 @@ void AgentChannelClient::SendUpdateToUnixSocket(const std::string& key, const st
         return true;
     };
 
-    if (!send_all(&key_len_be, sizeof(key_len_be)) ||
-        !send_all(key.data(), key.size()) ||
-        !send_all(&value_len_be, sizeof(value_len_be)) ||
-        !send_all(value.data(), value.size())) {
-        std::cerr << "AgentChannelClient: Failed to send update to UNIX socket at "
-                  << config_.unixSocketPath << ": "
-                  << std::strerror(errno) << " (errno=" << errno << ")" << std::endl;
+    std::string payload;
+    if (!property.SerializeToString(&payload)) {
+        std::cerr << "AgentChannelClient: Failed to serialize Property" << std::endl;
+        ::close(sock_fd);
+        return;
+    }
+    uint32_t payload_len_be = htonl(static_cast<uint32_t>(payload.size()));
+
+    if (!send_all(&payload_len_be, sizeof(payload_len_be)) ||
+        !send_all(payload.data(), payload.size())) {
+        std::cerr << "AgentChannelClient: Failed to send Property payload: "
+                << std::strerror(errno) << " (errno=" << errno << ")" << std::endl;
     }
 
     ::close(sock_fd);
