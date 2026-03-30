@@ -170,7 +170,7 @@ class RaftClusterIntegrationTest {
         val storage = PropertyInMemoryStorage(pathHolder)
         val broadcaster = PropertyUpdatePublisher()
         val stateMachine = RaftStateMachine(storage, broadcaster)
-        val agentConnectionManager = AgentConnectionManager(storage, broadcaster, AgentProperties())
+        val agentConnectionManager = AgentConnectionManager(storage, broadcaster)
         val server = RaftServerService(config, stateMachine, agentConnectionManager)
         server.init()
         return server
