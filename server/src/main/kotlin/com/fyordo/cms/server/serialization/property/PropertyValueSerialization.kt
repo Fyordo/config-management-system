@@ -1,28 +1,15 @@
 package com.fyordo.cms.server.serialization.property
 
+import com.fyordo.cms.CmsProto
 import com.fyordo.cms.server.dto.property.PropertyValue
-import java.io.ByteArrayInputStream
-import java.io.ByteArrayOutputStream
-import java.io.DataInputStream
-import java.io.DataOutputStream
+import com.google.protobuf.ByteString
 
 fun serializePropertyValue(propertyValue: PropertyValue): ByteArray {
-    return when (propertyValue.version.toInt()) {
-        1 -> serializePropertyValueV1(propertyValue)
-        else -> throw NotImplementedError()
-    }
+    return toPropertyValueProto(propertyValue).toByteArray()
 }
 
 fun deserializePropertyValue(propertyValue: ByteArray): PropertyValue {
-    val byteStream = ByteArrayInputStream(propertyValue)
-    val dataStream = DataInputStream(byteStream)
-
-    val version = dataStream.readByte().toInt()
-
-    return when (version) {
-        1 -> deserializePropertyValueV1(version, dataStream)
-        else -> throw NotImplementedError()
-    }
+    return fromPropertyValueProto(CmsProto.PropertyValueProto.parseFrom(propertyValue))
 }
 
 fun serializePropertyValueV1(propertyValue: PropertyValue): ByteArray {
@@ -31,35 +18,35 @@ fun serializePropertyValueV1(propertyValue: PropertyValue): ByteArray {
         throw IllegalStateException("Only version 1 is supported")
     }
 
-    val byteStream = ByteArrayOutputStream()
-    val dataStream = DataOutputStream(byteStream)
-
-    dataStream.writeByte(version)
-    dataStream.writeLong(propertyValue.lastModifiedMs)
-
-    val valueBytes = propertyValue.value
-    dataStream.writeInt(valueBytes.size)
-    dataStream.write(valueBytes)
-
-    dataStream.flush()
-
-    return byteStream.toByteArray()
+    return toPropertyValueProto(propertyValue).toByteArray()
 }
 
-fun deserializePropertyValueV1(version: Int, dataStream: DataInputStream): PropertyValue {
+fun deserializePropertyValueV1(valueProto: CmsProto.PropertyValueProto): PropertyValue {
+    return fromPropertyValueProto(valueProto)
+}
+
+fun toPropertyValueProto(propertyValue: PropertyValue): CmsProto.PropertyValueProto {
+    val version = propertyValue.version.toInt()
     if (version != 1) {
         throw IllegalStateException("Only version 1 is supported")
     }
 
-    val lastModifiedMs = dataStream.readLong()
+    return CmsProto.PropertyValueProto.newBuilder()
+        .setVersion(version)
+        .setLastModifiedMs(propertyValue.lastModifiedMs)
+        .setValue(ByteString.copyFrom(propertyValue.value))
+        .build()
+}
 
-    val valueLength = dataStream.readInt()
-    val valueBytes = ByteArray(valueLength)
-    dataStream.readFully(valueBytes)
+fun fromPropertyValueProto(valueProto: CmsProto.PropertyValueProto): PropertyValue {
+    val version = valueProto.version
+    if (version != 1) {
+        throw IllegalStateException("Only version 1 is supported")
+    }
 
     return PropertyValue(
-        value = valueBytes,
-        lastModifiedMs = lastModifiedMs,
+        value = valueProto.value.toByteArray(),
+        lastModifiedMs = valueProto.lastModifiedMs,
         version = version.toByte()
     )
 }

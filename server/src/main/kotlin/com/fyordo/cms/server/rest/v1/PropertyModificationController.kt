@@ -1,14 +1,14 @@
 package com.fyordo.cms.server.rest.v1
 
+import com.fyordo.cms.CmsProto
 import com.fyordo.cms.server.config.PropertyVersionConfig
 import com.fyordo.cms.server.dto.property.PropertyKey
 import com.fyordo.cms.server.dto.property.PropertyValue
-import com.fyordo.cms.server.dto.raft.RaftCommand
-import com.fyordo.cms.server.dto.raft.RaftOp
 import com.fyordo.cms.server.dto.raft.RaftOperationResult
-import com.fyordo.cms.server.dto.raft.RaftResult
-import com.fyordo.cms.server.serialization.property.serializePropertyValue
+import com.fyordo.cms.server.serialization.property.toPropertyValueProto
 import com.fyordo.cms.server.serialization.raft.deserializeRaftResult
+import com.fyordo.cms.server.serialization.raft.raftDeleteCommand
+import com.fyordo.cms.server.serialization.raft.raftPutCommand
 import com.fyordo.cms.server.service.raft.RaftClientFacade
 import com.fyordo.cms.server.utils.EMPTY_BYTES
 import jakarta.validation.Valid
@@ -34,16 +34,15 @@ class PropertyModificationController(
             )
         }
 
-        val command = RaftCommand(
-            operation = RaftOp.PUT,
+        val command = raftPutCommand(
             key = data.key,
-            value = serializePropertyValue(
+            valuePayload = toPropertyValueProto(
                 PropertyValue(
                     versionConfig.currentVersion,
                     valueBytes,
                     System.currentTimeMillis()
                 )
-            )
+            ).toByteArray()
         )
         val result = clientFacade.sendCommand(command)
         return when (result) {
@@ -65,18 +64,8 @@ class PropertyModificationController(
     }
 
     @DeleteMapping("/delete")
-    suspend fun delete(@NotBlank @RequestParam key: String): Map<String, RaftResult> {
-        val command = RaftCommand(
-            operation = RaftOp.DELETE,
-            key = PropertyKey.fromString(key),
-            value = serializePropertyValue(
-                PropertyValue(
-                    versionConfig.currentVersion,
-                    EMPTY_BYTES,
-                    System.currentTimeMillis()
-                )
-            )
-        )
+    suspend fun delete(@NotBlank @RequestParam key: String): Map<String, CmsProto.RaftResultProto> {
+        val command = raftDeleteCommand(PropertyKey.fromString(key))
         val result = clientFacade.sendCommand(command)
         return when (result) {
             is RaftOperationResult.Success -> {

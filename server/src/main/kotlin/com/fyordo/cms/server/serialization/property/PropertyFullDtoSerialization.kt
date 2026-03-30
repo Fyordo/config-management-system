@@ -1,39 +1,36 @@
 package com.fyordo.cms.server.serialization.property
 
-import com.fyordo.cms.server.dto.property.PropertyInternalDto
-import java.io.ByteArrayInputStream
-import java.io.ByteArrayOutputStream
-import java.io.DataInputStream
-import java.io.DataOutputStream
+import com.fyordo.cms.CmsProto
+import com.fyordo.cms.server.dto.property.PropertyEntry
 
-fun serializePropertyInternalDto(dto: PropertyInternalDto): ByteArray {
-    val byteStream = ByteArrayOutputStream()
-    val dataStream = DataOutputStream(byteStream)
-
-    val keyBytes = serializePropertyKey(dto.key)
-    dataStream.writeInt(keyBytes.size)
-    dataStream.write(keyBytes)
-    val valueBytes = serializePropertyValue(dto.value)
-    dataStream.writeInt(valueBytes.size)
-    dataStream.write(valueBytes)
-
-    dataStream.flush()
-    return byteStream.toByteArray()
+fun serializePropertyInternalDto(entry: PropertyEntry): ByteArray {
+    return toPropertyInternalDtoProto(entry).toByteArray()
 }
 
-fun deserializePropertyInternalDto(dtoBytes: ByteArray): PropertyInternalDto {
-    val byteStream = ByteArrayInputStream(dtoBytes)
-    val dataStream = DataInputStream(byteStream)
+fun deserializePropertyInternalDto(dtoBytes: ByteArray): PropertyEntry {
+    return fromPropertyInternalDtoProto(CmsProto.PropertyInternalDtoProto.parseFrom(dtoBytes))
+}
 
-    val keySize = dataStream.readInt()
-    val keyBytes = ByteArray(keySize)
-    dataStream.readFully(keyBytes)
-    val key = deserializePropertyKey(keyBytes)
+fun toPropertyInternalDtoProto(entry: PropertyEntry): CmsProto.PropertyInternalDtoProto {
+    return CmsProto.PropertyInternalDtoProto.newBuilder()
+        .setKey(toPropertyKeyProto(entry.first))
+        .setValue(toPropertyValueProto(entry.second))
+        .build()
+}
 
-    val valueSize = dataStream.readInt()
-    val valueBytes = ByteArray(valueSize)
-    dataStream.readFully(valueBytes)
-    val value = deserializePropertyValue(valueBytes)
+fun fromPropertyInternalDtoProto(dtoProto: CmsProto.PropertyInternalDtoProto): PropertyEntry {
+    return fromPropertyKeyProto(dtoProto.key) to fromPropertyValueProto(dtoProto.value)
+}
 
-    return PropertyInternalDto(key, value)
+fun serializePropertyInternalDtoList(entries: List<PropertyEntry>): ByteArray {
+    return CmsProto.PropertyInternalListProto.newBuilder()
+        .addAllItems(entries.map(::toPropertyInternalDtoProto))
+        .build()
+        .toByteArray()
+}
+
+fun deserializePropertyInternalDtoList(bytes: ByteArray): List<PropertyEntry> {
+    return CmsProto.PropertyInternalListProto.parseFrom(bytes)
+        .itemsList
+        .map(::fromPropertyInternalDtoProto)
 }

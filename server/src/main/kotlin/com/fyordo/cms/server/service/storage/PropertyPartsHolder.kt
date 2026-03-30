@@ -1,6 +1,6 @@
 package com.fyordo.cms.server.service.storage
 
-import com.fyordo.cms.server.dto.property.PropertyKey
+import com.fyordo.cms.CmsProto
 import com.fyordo.cms.server.dto.query.ConstantsDto
 import com.fyordo.cms.server.dto.query.ConstantsQueryFilter
 import com.fyordo.cms.server.utils.read
@@ -46,7 +46,7 @@ class PropertyPartsHolder {
         }
     }
 
-    fun addProperty(key: PropertyKey) = lock.write {
+    fun addProperty(key: CmsProto.PropertyKeyProto) = lock.write {
         namespaces.add(key.namespace)
         services.add(key.service)
         appIds.add(key.appId)
@@ -54,7 +54,7 @@ class PropertyPartsHolder {
     }
 
     fun removeProperty(
-        key: PropertyKey,
+        key: CmsProto.PropertyKeyProto,
         hasOtherWithNamespace: Boolean,
         hasOtherWithService: Boolean,
         hasOtherWithAppId: Boolean,

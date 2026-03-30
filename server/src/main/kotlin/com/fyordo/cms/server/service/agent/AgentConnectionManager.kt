@@ -154,12 +154,14 @@ class AgentConnectionManager(
                     )
 
                     val lastModifiedMs = propertiesList.fold(0L) { maxTime, property ->
+                        val key = property.first
+                        val value = property.second
                         properties.addProperties(
                             AgentChannelServiceOuterClass.Property.newBuilder()
-                                .setKey(property.key.key)
-                                .setValue(ByteString.copyFrom(property.value.value))
+                                .setKey(key.key)
+                                .setValue(ByteString.copyFrom(value.value))
                         )
-                        maxOf(maxTime, property.value.lastModifiedMs)
+                        maxOf(maxTime, value.lastModifiedMs)
                     }
 
                     result.setInitEvent(

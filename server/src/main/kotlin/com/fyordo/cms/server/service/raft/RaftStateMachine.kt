@@ -1,17 +1,16 @@
 package com.fyordo.cms.server.service.raft
 
-import com.fyordo.cms.server.dto.property.PropertyInternalDto
+import com.fyordo.cms.CmsProto
 import com.fyordo.cms.server.dto.property.PropertyKey
 import com.fyordo.cms.server.dto.property.PropertyValue
-import com.fyordo.cms.server.dto.raft.RaftCommand
-import com.fyordo.cms.server.dto.raft.RaftOp
-import com.fyordo.cms.server.dto.raft.RaftResult
-import com.fyordo.cms.server.dto.raft.RaftResultStatus
 import com.fyordo.cms.server.serialization.property.*
-import com.fyordo.cms.server.serialization.query.deserializePropertyQueryFilter
+import com.fyordo.cms.server.serialization.query.fromPropertyQueryFilterProto
 import com.fyordo.cms.server.serialization.raft.deserializeRaftCommand
+import com.fyordo.cms.server.serialization.raft.raftCommandKey
+import com.fyordo.cms.server.serialization.raft.raftErrorResult
+import com.fyordo.cms.server.serialization.raft.raftNotFoundResult
+import com.fyordo.cms.server.serialization.raft.raftOkResult
 import com.fyordo.cms.server.serialization.raft.serializeRaftResult
-import com.fyordo.cms.server.serialization.serializeList
 import com.fyordo.cms.server.service.PropertyUpdatePublisher
 import com.fyordo.cms.server.service.storage.PropertyInMemoryStorage
 import com.fyordo.cms.server.utils.EMPTY_BYTES
@@ -27,6 +26,7 @@ import org.apache.ratis.statemachine.SnapshotInfo
 import org.apache.ratis.statemachine.TransactionContext
 import org.apache.ratis.statemachine.impl.BaseStateMachine
 import org.apache.ratis.statemachine.impl.SimpleStateMachineStorage
+import org.apache.ratis.thirdparty.com.google.protobuf.ByteString
 import org.springframework.stereotype.Component
 import java.io.*
 import java.nio.file.Files
@@ -121,7 +121,7 @@ class RaftStateMachine(
         }
 
         try {
-            val entries = mutableListOf<PropertyInternalDto>()
+            val entries = mutableListOf<Pair<PropertyKey, PropertyValue>>()
             val revision: Long
 
             DataInputStream(BufferedInputStream(file.inputStream())).use { din ->
@@ -138,10 +138,7 @@ class RaftStateMachine(
                     val keyBytes = ByteArray(keyLen).also { din.readFully(it) }
                     val valueLen = din.readInt()
                     val valueBytes = ByteArray(valueLen).also { din.readFully(it) }
-                    entries += PropertyInternalDto(
-                        deserializePropertyKey(keyBytes),
-                        deserializePropertyValue(valueBytes)
-                    )
+                    entries += deserializePropertyKey(keyBytes) to deserializePropertyValue(valueBytes)
                 }
             }
 
@@ -180,27 +177,24 @@ class RaftStateMachine(
                 val logData = trx.logEntry
                     .stateMachineLogEntry
                     .logData
-                    .toStringUtf8()
+                    .toByteArray()
 
                 val command = try {
                     deserializeRaftCommand(logData)
                 } catch (e: Exception) {
-                    logger.error(e) { "Failed to deserialize Raft command. Log data length: ${logData.length}" }
+                    logger.error(e) { "Failed to deserialize Raft command. Log data length: ${logData.size}" }
                     throw e
                 }
 
                 logger.debug { "Applying: ${command.operation} ${command.key} logIndex=$logIndex" }
                 processCommand(command, logIndex)
                     .let(::serializeRaftResult)
-                    .let(Message::valueOf)
+                    .let { Message.valueOf(ByteString.copyFrom(it)) }
             }.getOrElse { e ->
                 logger.error(e) { "Error applying transaction at logIndex=$logIndex: ${e.javaClass.simpleName}: ${e.message}" }
                 Message.valueOf(
-                    serializeRaftResult(
-                        RaftResult(
-                            result = EMPTY_BYTES,
-                            status = RaftResultStatus.ERROR
-                        )
+                    ByteString.copyFrom(
+                        serializeRaftResult(raftErrorResult())
                     )
                 )
             }
@@ -209,64 +203,68 @@ class RaftStateMachine(
     override fun query(request: Message): CompletableFuture<Message> =
         scope.future {
             runCatching {
-                val requestContent = request.content.toStringUtf8()
+                val requestContent = request.content.toByteArray()
 
                 val command = try {
                     deserializeRaftCommand(requestContent)
                 } catch (e: Exception) {
-                    logger.error(e) { "Failed to deserialize Raft query command. Content length: ${requestContent.length}" }
+                    logger.error(e) { "Failed to deserialize Raft query command. Content length: ${requestContent.size}" }
                     throw e
                 }
 
                 logger.debug { "Query: ${command.operation} ${command.key}" }
                 processCommand(command)
                     .let(::serializeRaftResult)
-                    .let(Message::valueOf)
+                    .let { Message.valueOf(ByteString.copyFrom(it)) }
             }.getOrElse { e ->
                 logger.error(e) { "Error processing query: ${e.javaClass.simpleName}: ${e.message}" }
                 Message.valueOf(
-                    serializeRaftResult(
-                        RaftResult(
-                            result = EMPTY_BYTES,
-                            status = RaftResultStatus.ERROR
-                        )
+                    ByteString.copyFrom(
+                        serializeRaftResult(raftErrorResult())
                     )
                 )
             }
         }
 
-    private fun processCommand(command: RaftCommand, logIndex: Long = 0L): RaftResult {
+    private fun processCommand(
+        command: CmsProto.RaftCommandProto,
+        logIndex: Long = 0L
+    ): CmsProto.RaftResultProto {
+        val commandKey = raftCommandKey(command)
         return when (command.operation) {
-            RaftOp.PUT -> {
-                requireNotNull(command.key) { "Command PUT should contain a key" }
-                val propertyValue = deserializePropertyValue(command.value)
-                store.setWithRevision(command.key, propertyValue, logIndex)
-                publishUpdateFailSafe(command.key, propertyValue, logIndex)
-                RaftResult(result = EMPTY_BYTES, status = RaftResultStatus.OK)
+            CmsProto.RaftOpProto.RAFT_OP_PUT -> {
+                val key = requireNotNull(commandKey) { "Command PUT should contain a key" }
+                val propertyValue = deserializePropertyValue(command.value.toByteArray())
+                store.setWithRevision(key, propertyValue, logIndex)
+                publishUpdateFailSafe(key, propertyValue, logIndex)
+                raftOkResult()
             }
 
-            RaftOp.GET -> {
-                requireNotNull(command.key) { "Command GET should contain a key" }
-                store[command.key]?.let {
-                    RaftResult(result = serializePropertyValue(it), status = RaftResultStatus.OK)
-                } ?: RaftResult(result = EMPTY_BYTES, status = RaftResultStatus.NOT_FOUND)
+            CmsProto.RaftOpProto.RAFT_OP_GET -> {
+                val key = requireNotNull(commandKey) { "Command GET should contain a key" }
+                store[key]?.let {
+                    raftOkResult(serializePropertyValue(it))
+                } ?: raftNotFoundResult()
             }
 
-            RaftOp.DELETE -> {
-                requireNotNull(command.key) { "Command DELETE should contain a key" }
-                store.removeWithRevision(command.key, logIndex)?.let {
-                    publishUpdateFailSafe(command.key, null, logIndex)
-                    RaftResult(result = EMPTY_BYTES, status = RaftResultStatus.OK)
-                } ?: RaftResult(result = EMPTY_BYTES, status = RaftResultStatus.NOT_FOUND)
+            CmsProto.RaftOpProto.RAFT_OP_DELETE -> {
+                val key = requireNotNull(commandKey) { "Command DELETE should contain a key" }
+                store.removeWithRevision(key, logIndex)?.let {
+                    publishUpdateFailSafe(key, null, logIndex)
+                    raftOkResult()
+                } ?: raftNotFoundResult()
             }
 
-            RaftOp.QUERY -> {
-                val filter = deserializePropertyQueryFilter(command.value)
-                RaftResult(
-                    result = serializeList(store.getByFilter(filter).toList(), ::serializePropertyInternalDto),
-                    status = RaftResultStatus.OK
+            CmsProto.RaftOpProto.RAFT_OP_QUERY -> {
+                val filter = fromPropertyQueryFilterProto(
+                    CmsProto.PropertyQueryFilterProto.parseFrom(command.value)
                 )
+                val resultBytes = serializePropertyInternalDtoList(store.getByFilter(filter).toList())
+                raftOkResult(resultBytes)
             }
+
+            CmsProto.RaftOpProto.RAFT_OP_UNSPECIFIED -> raftErrorResult()
+            else -> raftErrorResult()
         }
     }
 

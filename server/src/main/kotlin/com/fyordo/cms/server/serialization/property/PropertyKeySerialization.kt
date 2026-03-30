@@ -1,28 +1,14 @@
 package com.fyordo.cms.server.serialization.property
 
+import com.fyordo.cms.CmsProto
 import com.fyordo.cms.server.dto.property.PropertyKey
-import java.io.ByteArrayInputStream
-import java.io.ByteArrayOutputStream
-import java.io.DataInputStream
-import java.io.DataOutputStream
 
 fun serializePropertyKey(propertyKey: PropertyKey): ByteArray {
-    return when (propertyKey.version.toInt()) {
-        1 -> serializePropertyKeyV1(propertyKey)
-        else -> throw NotImplementedError()
-    }
+    return toPropertyKeyProto(propertyKey).toByteArray()
 }
 
 fun deserializePropertyKey(propertyKey: ByteArray): PropertyKey {
-    val byteStream = ByteArrayInputStream(propertyKey)
-    val dataStream = DataInputStream(byteStream)
-
-    val version = dataStream.readByte().toInt()
-
-    return when (version) {
-        1 -> deserializePropertyKeyV1(version, dataStream)
-        else -> throw NotImplementedError()
-    }
+    return fromPropertyKeyProto(CmsProto.PropertyKeyProto.parseFrom(propertyKey))
 }
 
 fun serializePropertyKeyV1(propertyKey: PropertyKey): ByteArray {
@@ -31,50 +17,39 @@ fun serializePropertyKeyV1(propertyKey: PropertyKey): ByteArray {
         throw IllegalStateException("Only version 1 is supported")
     }
 
-    val byteStream = ByteArrayOutputStream()
-    val dataStream = DataOutputStream(byteStream)
-
-    dataStream.writeByte(version)
-    
-    // Сериализация строковых полей
-    writeString(dataStream, propertyKey.namespace)
-    writeString(dataStream, propertyKey.service)
-    writeString(dataStream, propertyKey.appId)
-    writeString(dataStream, propertyKey.key)
-
-    dataStream.flush()
-
-    return byteStream.toByteArray()
+    return toPropertyKeyProto(propertyKey).toByteArray()
 }
 
-fun deserializePropertyKeyV1(version: Int, dataStream: DataInputStream): PropertyKey {
+fun deserializePropertyKeyV1(keyProto: CmsProto.PropertyKeyProto): PropertyKey {
+    return fromPropertyKeyProto(keyProto)
+}
+
+fun toPropertyKeyProto(propertyKey: PropertyKey): CmsProto.PropertyKeyProto {
+    val version = propertyKey.version.toInt()
     if (version != 1) {
         throw IllegalStateException("Only version 1 is supported")
     }
 
-    val namespace = readString(dataStream)
-    val service = readString(dataStream)
-    val appId = readString(dataStream)
-    val key = readString(dataStream)
+    return CmsProto.PropertyKeyProto.newBuilder()
+        .setVersion(propertyKey.version.toInt())
+        .setNamespace(propertyKey.namespace)
+        .setService(propertyKey.service)
+        .setAppId(propertyKey.appId)
+        .setKey(propertyKey.key)
+        .build()
+}
+
+fun fromPropertyKeyProto(keyProto: CmsProto.PropertyKeyProto): PropertyKey {
+    val version = keyProto.version
+    if (version != 1) {
+        throw IllegalStateException("Only version 1 is supported")
+    }
 
     return PropertyKey(
         version = version.toByte(),
-        namespace = namespace,
-        service = service,
-        appId = appId,
-        key = key
+        namespace = keyProto.namespace,
+        service = keyProto.service,
+        appId = keyProto.appId,
+        key = keyProto.key
     )
-}
-
-private fun writeString(dataStream: DataOutputStream, value: String) {
-    val bytes = value.toByteArray(Charsets.UTF_8)
-    dataStream.writeInt(bytes.size)
-    dataStream.write(bytes)
-}
-
-private fun readString(dataStream: DataInputStream): String {
-    val length = dataStream.readInt()
-    val bytes = ByteArray(length)
-    dataStream.readFully(bytes)
-    return String(bytes, Charsets.UTF_8)
 }

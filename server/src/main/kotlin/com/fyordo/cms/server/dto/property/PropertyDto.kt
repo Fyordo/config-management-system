@@ -4,9 +4,9 @@ data class PropertyDto(
     val key: PropertyKeyDto,
     val value: PropertyValueDto,
 ) {
-    constructor(internalDto: PropertyInternalDto) : this(
-        key = PropertyKeyDto(internalDto.key),
-        value = PropertyValueDto(internalDto.value)
+    constructor(entry: PropertyEntry) : this(
+        key = PropertyKeyDto(entry.first),
+        value = PropertyValueDto(entry.second)
     )
 }
 
