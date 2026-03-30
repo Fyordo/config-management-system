@@ -24,11 +24,5 @@ majorVersion=${majorVersion}
 minorVersion=${minorVersion}
 EOF
 
-if [[ "$OSTYPE" == "darwin"* ]]; then
-    sed -i '' "s/version = \"[^\"]*\"/version = \"${newVersion}\"/" build.gradle.kts
-else
-    sed -i "s/version = \"[^\"]*\"/version = \"${newVersion}\"/" build.gradle.kts
-fi
-
 echo "Version updated to: ${newVersion}"
 echo "Updated build.number and build.gradle.kts" 
