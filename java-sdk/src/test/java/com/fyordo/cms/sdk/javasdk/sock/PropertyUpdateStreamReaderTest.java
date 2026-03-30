@@ -1,6 +1,6 @@
 package com.fyordo.cms.sdk.javasdk.sock;
 
-import com.fyordo.cms.PropertyOuterClass;
+import com.fyordo.cms.CmsProto;
 import com.google.protobuf.ByteString;
 import org.junit.jupiter.api.Test;
 
@@ -93,7 +93,7 @@ class PropertyUpdateStreamReaderTest {
     private static byte[] buildStream(PropertyUpdateMessage... messages) throws IOException {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         for (PropertyUpdateMessage msg : messages) {
-            byte[] payload = PropertyOuterClass.Property.newBuilder()
+            byte[] payload = CmsProto.Property.newBuilder()
                     .setKey(msg.getKey())
                     .setValue(ByteString.copyFrom(msg.getValue()))
                     .build()
