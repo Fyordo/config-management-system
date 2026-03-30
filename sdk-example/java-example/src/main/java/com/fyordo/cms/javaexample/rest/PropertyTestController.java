@@ -24,6 +24,8 @@ class PropertyTestController {
 
     @GetMapping("/test/property")
     public ResponseEntity<?> getPropertyValue(@RequestParam String key) {
-        return propertyManager.get(key);
+        return ResponseEntity.ofNullable(
+                propertyManager.get(key)
+        );
     }
 }

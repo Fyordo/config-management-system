@@ -1,0 +1,9 @@
+syntax = "proto3";
+
+package com.fyordo.cms;
+option java_outer_classname = "CmsProto";
+
+message Property {
+  string key = 1;
+  bytes value = 2;
+}

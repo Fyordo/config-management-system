@@ -1,11 +1,11 @@
 package com.fyordo.cms.sdk.javasdk.sock;
 
+import com.fyordo.cms.CmsProto;
 import org.jetbrains.annotations.NotNull;
 
 import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
-import java.nio.charset.StandardCharsets;
 import java.util.Objects;
 import java.util.Optional;
 
@@ -33,31 +33,26 @@ public final class PropertyUpdateStreamReader {
         return (int) u;
     }
 
-    /**
-     * Reads the next message from the stream.
-     *
-     * @return the next {@link PropertyUpdateMessage}, or empty if EOF was reached
-     * at the start of a new message (clean stream end)
-     * @throws IOException if EOF is encountered in the middle of a message, or on I/O error
-     */
     @NotNull
     public Optional<PropertyUpdateMessage> readMessage() throws IOException {
-        int keyLen = readLength();
-        if (keyLen < 0) {
+        int payloadLen = readLength();
+        if (payloadLen < 0) {
             return Optional.empty();
         }
 
-        byte[] keyBytes = readExactly(keyLen);
-        String key = new String(keyBytes, StandardCharsets.UTF_8);
+        byte[] payload = readExactly(payloadLen);
 
-        int valueLen = readLength();
-        if (valueLen < 0) {
-            throw new IOException("Unexpected EOF after key (expected value length)");
+        CmsProto.Property property;
+        try {
+            property = CmsProto.Property.parseFrom(payload);
+        } catch (IOException e) {
+            throw new IOException("Failed to parse protobuf Property payload", e);
         }
 
-        byte[] value = readExactly(valueLen);
-
-        return Optional.of(new PropertyUpdateMessage(key, value));
+        return Optional.of(new PropertyUpdateMessage(
+                property.getKey(),
+                property.getValue().toByteArray()
+        ));
     }
 
     /**
