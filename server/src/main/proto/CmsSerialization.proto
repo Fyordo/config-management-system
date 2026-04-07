@@ -7,10 +7,8 @@ option java_outer_classname = "CmsProto";
 
 enum RaftOp {
   RAFT_OP_UNSPECIFIED = 0;
-  RAFT_OP_GET = 1;
   RAFT_OP_PUT = 2;
   RAFT_OP_DELETE = 3;
-  RAFT_OP_QUERY = 4;
 }
 
 enum RaftResultStatus {

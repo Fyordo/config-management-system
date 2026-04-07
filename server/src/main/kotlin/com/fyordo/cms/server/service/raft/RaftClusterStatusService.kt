@@ -6,6 +6,7 @@ import com.fyordo.cms.server.config.props.RaftConfiguration
 import com.fyordo.cms.server.dto.raft.ClusterStatus
 import com.fyordo.cms.server.dto.raft.NodeFullStatus
 import com.fyordo.cms.server.dto.raft.NodeStatus
+import com.fyordo.cms.server.dto.raft.PeerConfig
 import com.fyordo.cms.server.utils.raft.parsePeerHosts
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
@@ -40,12 +41,13 @@ class RaftClusterStatusService(
             peers = raftProps.peers,
             currentNodeId = raftProps.nodeId,
             currentNodeHost = raftProps.host,
+            currentNodeApiPort = raftProps.peerHttpPort,
         )
 
         val nodes = coroutineScope {
-            peerHosts.map { (nodeId, host) ->
+            peerHosts.map { peer ->
                 async {
-                    if (nodeId == raftProps.nodeId) {
+                    if (peer.nodeId == raftProps.nodeId) {
                         NodeFullStatus(
                             localStatus.nodeId,
                             localStatus.isLeader,
@@ -55,7 +57,7 @@ class RaftClusterStatusService(
                             localStatus.connectedAgents
                         )
                     } else {
-                        fetchPeerStatus(nodeId, host)
+                        fetchPeerStatus(peer)
                     }
                 }
             }.awaitAll()
@@ -67,8 +69,8 @@ class RaftClusterStatusService(
         )
     }
 
-    private suspend fun fetchPeerStatus(nodeId: String, host: String): NodeFullStatus {
-        val url = "http://$host:${raftProps.peerHttpPort}/raft/status/local"
+    private suspend fun fetchPeerStatus(peer: PeerConfig): NodeFullStatus {
+        val url = "http://${peer.host}:${peer.apiPort}/raft/status/local"
         return try {
             val request = HttpRequest.newBuilder()
                 .uri(URI.create(url))
@@ -92,12 +94,12 @@ class RaftClusterStatusService(
                     localStatus.connectedAgents
                 )
             } else {
-                logger.warn { "Peer $nodeId at $url returned HTTP ${response.statusCode()}" }
-                errorStatus(nodeId, "HTTP ${response.statusCode()}")
+                logger.warn { "Peer ${peer.nodeId} at $url returned HTTP ${response.statusCode()}" }
+                errorStatus(peer.nodeId, "HTTP ${response.statusCode()}")
             }
         } catch (e: Exception) {
-            logger.warn(e) { "Failed to fetch status from peer $nodeId at $url" }
-            errorStatus(nodeId, e.message ?: "Unknown error")
+            logger.warn(e) { "Failed to fetch status from peer ${peer.nodeId} at $url" }
+            errorStatus(peer.nodeId, e.message ?: "Unknown error")
         }
     }
 

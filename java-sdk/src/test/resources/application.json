@@ -1,12 +1,7 @@
 {
-  "app.int.val": 123,
-  "app.long.val": 123123123123,
+  "app.int.val": "123",
+  "app.long.val": "123123123123",
   "app.string.val": "SomeRandomString",
-  "app.list.val": [1,2,3,4],
-  "app.object.val": {
-    "field1": 123,
-    "field2": 123.23,
-    "field3": "AnotherRandomString"
-  },
+  "app.list.val": "1,2,3,4",
   "app.enum.val": "TYPE_1"
 }

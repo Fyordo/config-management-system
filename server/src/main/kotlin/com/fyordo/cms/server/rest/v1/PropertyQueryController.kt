@@ -7,13 +7,7 @@ import com.fyordo.cms.server.dto.property.PropertyValueDto
 import com.fyordo.cms.server.dto.query.ConstantsDto
 import com.fyordo.cms.server.dto.query.ConstantsQueryFilter
 import com.fyordo.cms.server.dto.query.PropertyQueryFilter
-import com.fyordo.cms.server.dto.raft.RaftOperationResult
-import com.fyordo.cms.server.serialization.property.deserializePropertyValue
-import com.fyordo.cms.server.serialization.property.deserializePropertyInternalDtoList
-import com.fyordo.cms.server.serialization.raft.deserializeRaftResult
-import com.fyordo.cms.server.serialization.raft.raftGetCommand
-import com.fyordo.cms.server.serialization.raft.raftQueryCommand
-import com.fyordo.cms.server.service.raft.RaftClientFacade
+import com.fyordo.cms.server.service.storage.PropertyInMemoryStorage
 import com.fyordo.cms.server.service.storage.PropertyPartsHolder
 import jakarta.validation.Valid
 import org.springframework.http.HttpStatus
@@ -23,38 +17,18 @@ import org.springframework.web.server.ResponseStatusException
 @RestController
 @RequestMapping("/v1/property/query")
 class PropertyQueryController(
-    private val clientFacade: RaftClientFacade,
+    private val inMemoryStorage: PropertyInMemoryStorage,
     private val propertyPartsHolder: PropertyPartsHolder
 ) {
     @PostMapping("/get")
     suspend fun get(@Valid @RequestBody key: PropertyKeyDto): PropertyDto {
-        val query = raftGetCommand(key.toProto())
-        val result = clientFacade.sendQuery(query)
-        return when (result) {
-            is RaftOperationResult.Success -> {
-                val deserializedResult = deserializeRaftResult(result.data)
-                when (deserializedResult.status) {
-                    CmsProto.RaftResultStatus.RAFT_RESULT_STATUS_OK -> PropertyDto(
-                        key = key,
-                        value = PropertyValueDto(
-                            deserializePropertyValue(deserializedResult.result.toByteArray())
-                        ),
-                    )
+        val value: CmsProto.PropertyValue =
+            inMemoryStorage[key.toProto()] ?: throw ResponseStatusException(HttpStatus.NOT_FOUND)
 
-                    CmsProto.RaftResultStatus.RAFT_RESULT_STATUS_ERROR -> throw ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR)
-                    CmsProto.RaftResultStatus.RAFT_RESULT_STATUS_NOT_FOUND -> throw ResponseStatusException(HttpStatus.NOT_FOUND)
-                    CmsProto.RaftResultStatus.RAFT_RESULT_STATUS_UNSPECIFIED,
-                    CmsProto.RaftResultStatus.UNRECOGNIZED -> throw ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR)
-                }
-            }
-
-            is RaftOperationResult.Error -> {
-                throw ResponseStatusException(
-                    HttpStatus.INTERNAL_SERVER_ERROR,
-                    "Failed to execute query: ${result.message}"
-                )
-            }
-        }
+        return PropertyDto(
+            key = key,
+            value = PropertyValueDto(value),
+        )
     }
 
     @GetMapping("/constants")
@@ -64,21 +38,7 @@ class PropertyQueryController(
 
     @PostMapping("")
     suspend fun query(@Valid @RequestBody filter: PropertyQueryFilter): List<PropertyDto> {
-        val query = raftQueryCommand(filter)
-        val result = clientFacade.sendQuery(query)
-        return when (result) {
-            is RaftOperationResult.Success -> {
-                val deserializedResult = deserializeRaftResult(result.data)
-                deserializePropertyInternalDtoList(deserializedResult.result.toByteArray())
-                    .map { PropertyDto(it) }
-            }
-
-            is RaftOperationResult.Error -> {
-                throw ResponseStatusException(
-                    HttpStatus.INTERNAL_SERVER_ERROR,
-                    "Failed to execute query: ${result.message}"
-                )
-            }
-        }
+        return inMemoryStorage.getByFilter(filter).toList()
+            .map { PropertyDto(it) }
     }
 }

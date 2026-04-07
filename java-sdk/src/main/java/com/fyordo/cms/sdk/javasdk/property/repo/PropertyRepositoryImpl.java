@@ -7,20 +7,20 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
 public class PropertyRepositoryImpl implements PropertyRepository {
-    private final ConcurrentMap<String, Object> properties;
+    private final ConcurrentMap<String, String> properties;
 
     public PropertyRepositoryImpl() {
         this.properties = new ConcurrentHashMap<>();
     }
 
     @Nullable
-    public Object getByKey(@NotNull String key) {
+    public String getByKey(@NotNull String key) {
         return properties.getOrDefault(key, null);
     }
 
     @Nullable
-    public Object store(@NotNull String key,
-                        @Nullable Object newValue) {
+    public String store(@NotNull String key,
+                        @Nullable String newValue) {
         if (newValue == null) {
             return properties.remove(key);
         }

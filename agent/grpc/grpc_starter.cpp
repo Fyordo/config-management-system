@@ -42,6 +42,9 @@ namespace {
         if (!config.propertiesJsonPath.empty()) {
             std::cout << "  CMS_PROPERTIES_FILE: " << config.propertiesJsonPath << std::endl;
         }
+        if (!config.cmsRevisionFilePath.empty()) {
+            std::cout << "  CMS_REVISION_FILE: " << config.cmsRevisionFilePath << std::endl;
+        }
     }
 
 }
@@ -90,6 +93,7 @@ AgentConfig GetAndValidateConfigFromEnv()
     config.cmsServerHost = GetEnvOrDefault("CMS_SERVER_HOST", "");
     config.propertiesJsonPath = GetEnvOrDefault("CMS_PROPERTIES_FILE", "");
     config.unixSocketPath = GetEnvOrDefault("CMS_UNIX_SOCKET_PATH", "");
+    config.cmsRevisionFilePath = GetEnvOrDefault("CMS_REVISION_FILE", "");
 
     if (!config.IsValid()) {
         PrintMissingEnvErrors(config);

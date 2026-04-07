@@ -56,7 +56,7 @@ class RaftClusterService(
         return try {
             val request = HttpRequest.newBuilder()
                 .uri(URI.create(url))
-                .timeout(Duration.ofSeconds(2))
+                .timeout(Duration.ofSeconds(10))
                 .GET()
                 .build()
 

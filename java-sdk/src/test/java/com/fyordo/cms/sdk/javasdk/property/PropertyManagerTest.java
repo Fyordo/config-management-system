@@ -7,11 +7,13 @@ import org.junit.jupiter.api.Test;
 
 import java.net.URISyntaxException;
 import java.nio.file.Paths;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -36,23 +38,25 @@ public class PropertyManagerTest {
                 getSocketPath("pm-test.sock")
         );
         propertyManager.readFromFile();
-        Integer intVal = propertyManager.get("app.int.val");
-        Long longVal = propertyManager.get("app.long.val");
-        String stringVal = propertyManager.get("app.string.val");
-        List<Integer> listVal = propertyManager.get("app.list.val");
-        Map<String, Object> objectVal = propertyManager.get("app.object.val");
-        TestEnum enumVal = TestEnum.valueOf(propertyManager.get("app.enum.val"));
-
-        assertNotNull(intVal);
+        String intValStr = propertyManager.get("app.int.val");
+        assertNotNull(intValStr);
+        Integer intVal = Integer.parseInt(intValStr);
         assertEquals(123, intVal);
-        assertNotNull(longVal);
+
+        String longValStr = propertyManager.get("app.long.val");
+        assertNotNull(longValStr);
+        Long longVal = Long.parseLong(longValStr);
         assertEquals(123123123123L, longVal);
-        assertNotNull(stringVal);
+
+        String stringVal = propertyManager.get("app.string.val");
         assertEquals("SomeRandomString", stringVal);
-        assertNotNull(listVal);
+
+        String listValStr = propertyManager.get("app.list.val");
+        assertNotNull(listValStr);
+        List<Integer> listVal = Stream.of(listValStr.split(",")).map(Integer::parseInt).toList();
         assertEquals(4, listVal.size());
-        assertNotNull(objectVal);
-        assertEquals(3, objectVal.size());
+
+        TestEnum enumVal = TestEnum.valueOf(propertyManager.get("app.enum.val"));
         assertNotNull(enumVal);
         assertEquals(TestEnum.TYPE_1, enumVal);
     }

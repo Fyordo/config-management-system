@@ -28,7 +28,12 @@ AgentChannelClient::AgentChannelClient(const AgentConfig& config, const std::str
     : config_(config)
     , server_address_(server_address)
     , running_(false)
+    , current_revision_(ReadRevisionFromFile())
 {
+    if (current_revision_.load() >= 0) {
+        std::cout << "AgentChannelClient: Loaded stored revision " << current_revision_.load()
+                  << " from " << config_.cmsRevisionFilePath << std::endl;
+    }
 }
 
 AgentChannelClient::~AgentChannelClient()
@@ -140,22 +145,48 @@ void AgentChannelClient::RunStreamSession(void* stream_ptr, std::atomic<bool>& i
 
 void AgentChannelClient::HandleInitEvent(const com::fyordo::cms::ServerInitEvent& init_event)
 {
+    const int64_t new_revision = init_event.revision();
+    const int64_t stored_revision = current_revision_.load();
+
     std::cout << "AgentChannelClient: Received ServerInitEvent - "
               << "lastModifiedMs: " << init_event.lastmodifiedms() << ", "
-              << "revision: " << init_event.revision() << ", "
+              << "revision: " << new_revision << ", "
               << "properties count: " << init_event.properties_size() << std::endl;
+
+    if (stored_revision >= 0 && new_revision < stored_revision) {
+        std::cerr << "AgentChannelClient: ERROR - init event revision " << new_revision
+                  << " is less than stored revision " << stored_revision
+                  << ". Rejecting event." << std::endl;
+        return;
+    }
 
     if (!config_.propertiesJsonPath.empty() && !WritePropertiesToFile(init_event)) {
         std::cerr << "AgentChannelClient: Failed to write initial properties to file" << std::endl;
+        return;
+    }
+
+    if (WriteRevisionToFile(new_revision)) {
+        current_revision_.store(new_revision);
+        std::cout << "AgentChannelClient: Revision updated to " << new_revision << std::endl;
     }
 }
 
 void AgentChannelClient::HandlePropertyUpdate(const com::fyordo::cms::ServerPropertyUpdateEvent& update_event)
 {
+    const int64_t new_revision = update_event.revision();
+    const int64_t stored_revision = current_revision_.load();
+
     std::cout << "AgentChannelClient: Received ServerPropertyUpdateEvent - "
               << "key: " << update_event.property().key() << ", "
               << "lastModifiedMs: " << update_event.lastmodifiedms() << ", "
-              << "revision: " << update_event.revision() << std::endl;
+              << "revision: " << new_revision << std::endl;
+
+    if (stored_revision >= 0 && new_revision < stored_revision) {
+        std::cerr << "AgentChannelClient: ERROR - update event revision " << new_revision
+                  << " is less than stored revision " << stored_revision
+                  << ". Rejecting event." << std::endl;
+        return;
+    }
 
     if (config_.propertiesJsonPath.empty()) {
         std::cerr << "AgentChannelClient: Skipping property update (CMS_PROPERTIES_FILE not set)" << std::endl;
@@ -168,6 +199,11 @@ void AgentChannelClient::HandlePropertyUpdate(const com::fyordo::cms::ServerProp
     }
 
     SendUpdateToUnixSocket(update_event.property());
+
+    if (WriteRevisionToFile(new_revision)) {
+        current_revision_.store(new_revision);
+        std::cout << "AgentChannelClient: Revision updated to " << new_revision << std::endl;
+    }
 }
 
 bool AgentChannelClient::ApplyPropertyUpdateToFile(const std::string& key, const std::string& value)
@@ -305,6 +341,56 @@ void AgentChannelClient::SendUpdateToUnixSocket(const com::fyordo::cms::Property
     }
 
     ::close(sock_fd);
+}
+
+int64_t AgentChannelClient::ReadRevisionFromFile()
+{
+    if (config_.cmsRevisionFilePath.empty()) {
+        return -1;
+    }
+    std::ifstream in(config_.cmsRevisionFilePath);
+    if (!in.good()) {
+        return -1;
+    }
+    int64_t revision = -1;
+    in >> revision;
+    if (in.fail()) {
+        std::cerr << "AgentChannelClient: Failed to parse revision from "
+                  << config_.cmsRevisionFilePath << std::endl;
+        return -1;
+    }
+    return revision;
+}
+
+bool AgentChannelClient::WriteRevisionToFile(int64_t revision)
+{
+    if (config_.cmsRevisionFilePath.empty()) {
+        return true;
+    }
+    std::lock_guard<std::mutex> lock(file_write_mutex_);
+    const std::string tmp_path = config_.cmsRevisionFilePath + ".tmp";
+    {
+        std::ofstream file(tmp_path);
+        if (!file) {
+            std::cerr << "AgentChannelClient: Failed to open revision file for writing: "
+                      << tmp_path << std::endl;
+            return false;
+        }
+        file << revision;
+        file.flush();
+        if (!file.good()) {
+            std::cerr << "AgentChannelClient: Write or flush failed for revision file: "
+                      << tmp_path << std::endl;
+            return false;
+        }
+    }
+    if (std::rename(tmp_path.c_str(), config_.cmsRevisionFilePath.c_str()) != 0) {
+        std::cerr << "AgentChannelClient: Failed to rename revision temp file to "
+                  << config_.cmsRevisionFilePath << std::endl;
+        std::remove(tmp_path.c_str());
+        return false;
+    }
+    return true;
 }
 
 bool AgentChannelClient::WaitForConnected(grpc::Channel* channel)
