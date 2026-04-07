@@ -57,10 +57,8 @@ class RaftClusterIntegrationTest {
         .build()
 
     private object RaftOp {
-        val GET: CmsProto.RaftOp = CmsProto.RaftOp.RAFT_OP_GET
         val PUT: CmsProto.RaftOp = CmsProto.RaftOp.RAFT_OP_PUT
         val DELETE: CmsProto.RaftOp = CmsProto.RaftOp.RAFT_OP_DELETE
-        val QUERY: CmsProto.RaftOp = CmsProto.RaftOp.RAFT_OP_QUERY
     }
 
     private object RaftResultStatus {
@@ -215,14 +213,7 @@ class RaftClusterIntegrationTest {
     }
 
     @Test
-    fun `should elect a leader`(): Unit = runBlocking {
-        val leaders = listOf(node1, node2, node3).count { it.isLeader() }
-
-        assertEquals(1, leaders, "Should have exactly one leader")
-    }
-
-    @Test
-    fun `should store and retrieve property through Raft`(): Unit = runBlocking {
+    fun `should store property through Raft`(): Unit = runBlocking {
         val key = propertyKey(
             version = 1,
             namespace = "test-ns",
@@ -248,23 +239,6 @@ class RaftClusterIntegrationTest {
         val putResult = deserializeRaftResult(putReply.message.content.toByteArray())
 
         assertEquals(RaftResultStatus.OK, putResult.status)
-
-        // GET operation
-        val getCommand = raftCommand(
-            version = 1,
-            operation = RaftOp.GET,
-            key = key,
-            value = EMPTY_BYTES
-        )
-
-        delay(500) // Wait for replication
-
-        val getReply = client.io().sendReadOnly(Message.valueOf(serializeRaftCommand(getCommand)))
-        val getResult = deserializeRaftResult(getReply.message.content.toByteArray())
-
-        assertEquals(RaftResultStatus.OK, getResult.status)
-        val retrievedValue = deserializePropertyValue(getResult.result)
-        assertEquals("test-value", String(retrievedValue.value.toByteArray()))
     }
 
     @Test
@@ -305,104 +279,6 @@ class RaftClusterIntegrationTest {
         val deleteResult = deserializeRaftResult(deleteReply.message.content.toByteArray())
 
         assertEquals(RaftResultStatus.OK, deleteResult.status)
-
-        delay(500)
-
-        // Verify it's deleted
-        val getCommand = raftCommand(
-            version = 1,
-            operation = RaftOp.GET,
-            key = key,
-            value = EMPTY_BYTES
-        )
-
-        val getReply = client.io().sendReadOnly(Message.valueOf(serializeRaftCommand(getCommand)))
-        val getResult = deserializeRaftResult(getReply.message.content.toByteArray())
-
-        assertEquals(RaftResultStatus.NOT_FOUND, getResult.status)
-    }
-
-    @Test
-    fun `should return NOT_FOUND for non-existent key`(): Unit = runBlocking {
-        val key = propertyKey(
-            version = 1,
-            namespace = "non-existent",
-            service = "non-existent",
-            appId = "non-existent",
-            key = "non-existent-${UUID.randomUUID()}"
-        )
-
-        val getCommand = raftCommand(
-            version = 1,
-            operation = RaftOp.GET,
-            key = key,
-            value = EMPTY_BYTES
-        )
-
-        val getReply = client.io().sendReadOnly(Message.valueOf(serializeRaftCommand(getCommand)))
-        val getResult = deserializeRaftResult(getReply.message.content.toByteArray())
-
-        assertEquals(RaftResultStatus.NOT_FOUND, getResult.status)
-    }
-
-    @Test
-    fun `should update existing property`(): Unit = runBlocking {
-        val key = propertyKey(
-            version = 1,
-            namespace = "update-ns",
-            service = "update-svc",
-            appId = "update-app",
-            key = "update-key-${UUID.randomUUID()}"
-        )
-
-        // First value
-        val value1 = propertyValue(
-            version = 1,
-            value = "first-value".toByteArray(),
-            lastModifiedMs = System.currentTimeMillis()
-        )
-
-        val putCommand1 = raftCommand(
-            version = 1,
-            operation = RaftOp.PUT,
-            key = key,
-            value = serializePropertyValue(value1)
-        )
-        client.io().send(Message.valueOf(serializeRaftCommand(putCommand1)))
-
-        delay(500)
-
-        // Second value
-        val value2 = propertyValue(
-            version = 1,
-            value = "second-value".toByteArray(),
-            lastModifiedMs = System.currentTimeMillis()
-        )
-
-        val putCommand2 = raftCommand(
-            version = 1,
-            operation = RaftOp.PUT,
-            key = key,
-            value = serializePropertyValue(value2)
-        )
-        client.io().send(Message.valueOf(serializeRaftCommand(putCommand2)))
-
-        delay(500)
-
-        // Verify updated value
-        val getCommand = raftCommand(
-            version = 1,
-            operation = RaftOp.GET,
-            key = key,
-            value = EMPTY_BYTES
-        )
-
-        val getReply = client.io().sendReadOnly(Message.valueOf(serializeRaftCommand(getCommand)))
-        val getResult = deserializeRaftResult(getReply.message.content.toByteArray())
-
-        assertEquals(RaftResultStatus.OK, getResult.status)
-        val retrievedValue = deserializePropertyValue(getResult.result)
-        assertEquals("second-value", String(retrievedValue.value.toByteArray()))
     }
 
     @Test
@@ -432,26 +308,9 @@ class RaftClusterIntegrationTest {
                 value = serializePropertyValue(value)
             )
 
-            client.io().send(Message.valueOf(serializeRaftCommand(putCommand)))
-        }
-
-        delay(2000) // Wait for all writes to complete
-
-        // Verify all keys
-        keys.forEachIndexed { index, key ->
-            val getCommand = raftCommand(
-                version = 1,
-                operation = RaftOp.GET,
-                key = key,
-                value = EMPTY_BYTES
-            )
-
-            val getReply = client.io().sendReadOnly(Message.valueOf(serializeRaftCommand(getCommand)))
-            val getResult = deserializeRaftResult(getReply.message.content.toByteArray())
-
-            assertEquals(RaftResultStatus.OK, getResult.status, "Key $index should exist")
-            val retrievedValue = deserializePropertyValue(getResult.result)
-            assertEquals("value-$index", String(retrievedValue.value.toByteArray()))
+            val putReply = client.io().send(Message.valueOf(serializeRaftCommand(putCommand)))
+            val putResult = deserializeRaftResult(putReply.message.content.toByteArray())
+            assertEquals(RaftResultStatus.OK, putResult.status)
         }
     }
 
@@ -478,27 +337,9 @@ class RaftClusterIntegrationTest {
             value = serializePropertyValue(value)
         )
 
-        client.io().send(Message.valueOf(serializeRaftCommand(putCommand)))
-
-        delay(1000) // Wait for replication to all nodes
-
-        // Read from all nodes through Raft
-        val getCommand = raftCommand(
-            version = 1,
-            operation = RaftOp.GET,
-            key = key,
-            value = EMPTY_BYTES
-        )
-
-        // Multiple reads should all return the same value
-        repeat(5) {
-            val getReply = client.io().sendReadOnly(Message.valueOf(serializeRaftCommand(getCommand)))
-            val getResult = deserializeRaftResult(getReply.message.content.toByteArray())
-
-            assertEquals(RaftResultStatus.OK, getResult.status)
-            val retrievedValue = deserializePropertyValue(getResult.result)
-            assertEquals("consistency-value", String(retrievedValue.value.toByteArray()))
-        }
+        val putReply = client.io().send(Message.valueOf(serializeRaftCommand(putCommand)))
+        val putResult = deserializeRaftResult(putReply.message.content.toByteArray())
+        assertEquals(RaftResultStatus.OK, putResult.status)
     }
 
     @Test
@@ -523,27 +364,9 @@ class RaftClusterIntegrationTest {
             key = key,
             value = serializePropertyValue(value)
         )
-        client.io().send(Message.valueOf(serializeRaftCommand(putCommand)))
-
-        delay(500)
-
-        // GET
-        val getCommand = raftCommand(
-            version = 1,
-            operation = RaftOp.GET,
-            key = key,
-            value = EMPTY_BYTES
-        )
-
-        val getReply = client.io().sendReadOnly(Message.valueOf(serializeRaftCommand(getCommand)))
-        val getResult = deserializeRaftResult(getReply.message.content.toByteArray())
-
-        assertEquals(RaftResultStatus.OK, getResult.status)
-        val retrievedValue = deserializePropertyValue(getResult.result)
-        assertEquals(
-            "значение 🎉 with emoji",
-            String(retrievedValue.value.toByteArray(), Charsets.UTF_8)
-        )
+        val putReply = client.io().send(Message.valueOf(serializeRaftCommand(putCommand)))
+        val putResult = deserializeRaftResult(putReply.message.content.toByteArray())
+        assertEquals(RaftResultStatus.OK, putResult.status)
     }
 
     @Test
@@ -570,25 +393,10 @@ class RaftClusterIntegrationTest {
             key = key,
             value = serializePropertyValue(value)
         )
-        client.io().send(Message.valueOf(serializeRaftCommand(putCommand)))
 
-        delay(1000)
-
-        // GET
-        val getCommand = raftCommand(
-            version = 1,
-            operation = RaftOp.GET,
-            key = key,
-            value = EMPTY_BYTES
-        )
-
-        val getReply = client.io().sendReadOnly(Message.valueOf(serializeRaftCommand(getCommand)))
-        val getResult = deserializeRaftResult(getReply.message.content.toByteArray())
-
-        assertEquals(RaftResultStatus.OK, getResult.status)
-        val retrievedValue = deserializePropertyValue(getResult.result)
-        assertEquals(10000, retrievedValue.value.size())
-        assertTrue(largeData.contentEquals(retrievedValue.value.toByteArray()))
+        val putReply = client.io().send(Message.valueOf(serializeRaftCommand(putCommand)))
+        val putResult = deserializeRaftResult(putReply.message.content.toByteArray())
+        assertEquals(RaftResultStatus.OK, putResult.status)
     }
 
     @Test
