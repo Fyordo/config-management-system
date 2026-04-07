@@ -58,7 +58,7 @@ class RaftClientFacade(
         raftProps.peers.forEach { peerConfig ->
             if (peerConfig.isNotBlank()) {
                 val parts = peerConfig.split(PEERS_PARTS_DELIMITER)
-                if (parts.size != 3) {
+                if (parts.size != 4) {
                     throw IllegalArgumentException(
                         "Invalid peer configuration format: '$peerConfig'. Expected format: 'nodeId:host:port'"
                     )

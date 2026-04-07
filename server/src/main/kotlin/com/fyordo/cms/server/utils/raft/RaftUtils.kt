@@ -1,5 +1,6 @@
 package com.fyordo.cms.server.utils.raft
 
+import com.fyordo.cms.server.dto.raft.PeerConfig
 import mu.KotlinLogging
 import org.apache.ratis.protocol.RaftPeer
 import org.apache.ratis.protocol.RaftPeerId
@@ -19,7 +20,7 @@ fun parsePeers(
     }
 
     val parts = peerConfig.split(PEERS_PARTS_DELIMITER)
-    if (parts.size != 3) {
+    if (parts.size != 4) {
         logger.warn { "Invalid peer config size, must be 3 parts, but was ${parts.size}" }
         return null
     }
@@ -33,7 +34,7 @@ fun parsePeers(
         return null
     }
 
-    if (peerIdRaw == currentNodeId && peerHost == currentNodeHost && peerPort == currentNodePort) {
+    if (peerIdRaw == currentNodeId) {
         logger.info { "Skipping self RAFT peer entry from configuration: '$peerConfig'" }
         return null
     }
@@ -50,22 +51,32 @@ fun parsePeerHosts(
     peers: List<String>,
     currentNodeId: String,
     currentNodeHost: String,
-): List<Pair<String, String>> {
-    val result = mutableListOf<Pair<String, String>>()
+    currentNodeApiPort: Int,
+): List<PeerConfig> {
+    val result = mutableListOf<PeerConfig>()
     val seen = mutableSetOf<String>()
 
-    result.add(currentNodeId to currentNodeHost)
+    result.add(PeerConfig(
+        currentNodeId,
+        currentNodeHost,
+        currentNodeApiPort
+    ))
     seen.add(currentNodeId)
 
     peers.forEach { peerConfig ->
         if (peerConfig.isBlank()) return@forEach
         val parts = peerConfig.split(PEERS_PARTS_DELIMITER)
-        if (parts.size != 3) return@forEach
+        if (parts.size != 4) return@forEach
         val nodeId = parts[0]
         val host = parts[1]
+        val apiPort = parts[3].toInt()
         if (nodeId !in seen) {
             seen.add(nodeId)
-            result.add(nodeId to host)
+            result.add(PeerConfig(
+                nodeId,
+                host,
+                apiPort
+            ))
         }
     }
     return result

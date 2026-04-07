@@ -39,10 +39,13 @@ private:
     void SendUpdateToUnixSocket(const com::fyordo::cms::Property& property);
     bool WaitForConnected(grpc::Channel* channel);
     bool WriteJsonToPath(const nlohmann::json& j);
+    bool WriteRevisionToFile(int64_t revision);
+    int64_t ReadRevisionFromFile();
 
     AgentConfig config_;
     std::string server_address_;
     std::atomic<bool> running_;
+    std::atomic<int64_t> current_revision_;
     std::thread client_thread_;
     std::mutex file_write_mutex_;
 };

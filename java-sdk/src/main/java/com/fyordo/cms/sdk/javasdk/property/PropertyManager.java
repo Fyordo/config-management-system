@@ -3,24 +3,23 @@ package com.fyordo.cms.sdk.javasdk.property;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fyordo.cms.sdk.javasdk.property.repo.PropertyRepository;
+import com.fyordo.cms.sdk.javasdk.sock.SocketToPropertyManagerBridge;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.nio.charset.StandardCharsets;
+import java.net.StandardProtocolFamily;
+import java.net.UnixDomainSocketAddress;
 import java.nio.channels.Channels;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
-import java.net.StandardProtocolFamily;
-import java.net.UnixDomainSocketAddress;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
-
-import com.fyordo.cms.sdk.javasdk.sock.SocketToPropertyManagerBridge;
 
 public class PropertyManager {
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
@@ -87,14 +86,14 @@ public class PropertyManager {
                 throw new IllegalArgumentException("File is blank");
             }
 
-            Map<String, Object> values = OBJECT_MAPPER.readValue(json, new TypeReference<>() {
+            Map<String, String> values = OBJECT_MAPPER.readValue(json, new TypeReference<>() {
             });
 
             if (values == null) {
                 return;
             }
 
-            for (Map.Entry<String, Object> entry : values.entrySet()) {
+            for (Map.Entry<String, String> entry : values.entrySet()) {
                 store(entry.getKey(), entry.getValue());
             }
         } catch (IOException e) {
@@ -108,12 +107,12 @@ public class PropertyManager {
     }
 
     @Nullable
-    public <T> T get(@NotNull String key) {
-        return (T) repository.getByKey(key);
+    public String get(@NotNull String key) {
+        return repository.getByKey(key);
     }
 
     public void store(@NotNull String key,
-                      @Nullable Object newValue) {
+                      @Nullable String newValue) {
         Object oldValue = repository.store(key, newValue);
         callbacks.getOrDefault(key, defaultCallback)
                 .apply(key, oldValue, newValue);

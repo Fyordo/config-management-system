@@ -16,27 +16,20 @@ private val logger = KotlinLogging.logger {}
 class GlobalExceptionHandler {
 
     @ExceptionHandler(IllegalArgumentException::class)
-    fun handleIllegalArgument(
-        ex: IllegalArgumentException,
-        request: WebRequest
-    ): ResponseEntity<ErrorResponse> {
+    fun handleIllegalArgument(ex: IllegalArgumentException): ResponseEntity<ErrorResponse> {
         logger.warn(ex) { "Illegal argument: ${ex.message}" }
         return ResponseEntity
             .status(HttpStatus.BAD_REQUEST)
             .body(
                 ErrorResponse(
                     status = HttpStatus.BAD_REQUEST.value(),
-                    message = ex.message ?: "Invalid argument",
-                    path = request.getDescription(false).removePrefix("uri=")
+                    message = ex.message ?: "Invalid argument"
                 )
             )
     }
 
     @ExceptionHandler(MethodArgumentNotValidException::class)
-    fun handleValidationException(
-        ex: MethodArgumentNotValidException,
-        request: WebRequest
-    ): ResponseEntity<ErrorResponse> {
+    fun handleValidationException(ex: MethodArgumentNotValidException): ResponseEntity<ErrorResponse> {
         val errors = ex.bindingResult.fieldErrors.joinToString(", ") { error ->
             "${error.field}: ${error.defaultMessage}"
         }
@@ -46,17 +39,13 @@ class GlobalExceptionHandler {
             .body(
                 ErrorResponse(
                     status = HttpStatus.BAD_REQUEST.value(),
-                    message = errors,
-                    path = request.getDescription(false).removePrefix("uri=")
+                    message = errors
                 )
             )
     }
 
     @ExceptionHandler(ConstraintViolationException::class)
-    fun handleConstraintViolation(
-        ex: ConstraintViolationException,
-        request: WebRequest
-    ): ResponseEntity<ErrorResponse> {
+    fun handleConstraintViolation(ex: ConstraintViolationException): ResponseEntity<ErrorResponse> {
         val errors = ex.constraintViolations.joinToString(", ") { violation ->
             "${violation.propertyPath}: ${violation.message}"
         }
@@ -66,42 +55,33 @@ class GlobalExceptionHandler {
             .body(
                 ErrorResponse(
                     status = HttpStatus.BAD_REQUEST.value(),
-                    message = errors,
-                    path = request.getDescription(false).removePrefix("uri=")
+                    message = errors
                 )
             )
     }
 
     @ExceptionHandler(ResponseStatusException::class)
-    fun handleResponseStatusException(
-        ex: ResponseStatusException,
-        request: WebRequest
-    ): ResponseEntity<ErrorResponse> {
+    fun handleResponseStatusException(ex: ResponseStatusException): ResponseEntity<ErrorResponse> {
         logger.warn(ex) { "Response status exception: ${ex.reason}" }
         return ResponseEntity
             .status(ex.statusCode)
             .body(
                 ErrorResponse(
                     status = ex.statusCode.value(),
-                    message = ex.reason,
-                    path = request.getDescription(false).removePrefix("uri=")
+                    message = ex.reason
                 )
             )
     }
 
     @ExceptionHandler(Exception::class)
-    fun handleGenericException(
-        ex: Exception,
-        request: WebRequest
-    ): ResponseEntity<ErrorResponse> {
+    fun handleGenericException(ex: Exception): ResponseEntity<ErrorResponse> {
         logger.error(ex) { "Unhandled exception: ${ex.message}" }
         return ResponseEntity
             .status(HttpStatus.INTERNAL_SERVER_ERROR)
             .body(
                 ErrorResponse(
                     status = HttpStatus.INTERNAL_SERVER_ERROR.value(),
-                    message = "An unexpected error occurred",
-                    path = request.getDescription(false).removePrefix("uri=")
+                    message = "An unexpected error occurred"
                 )
             )
     }

@@ -14,6 +14,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Paths;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
 class SocketToPropertyManagerBridgeTest {
@@ -40,11 +41,11 @@ class SocketToPropertyManagerBridgeTest {
 
         bridge.processStream();
 
-        Object v1 = repository.getByKey("key1");
-        Object v2 = repository.getByKey("key2");
+        String v1 = repository.getByKey("key1");
+        String v2 = repository.getByKey("key2");
 
-        assertArrayEquals("val1".getBytes(StandardCharsets.UTF_8), (byte[]) v1);
-        assertArrayEquals(new byte[]{1, 2, 3}, (byte[]) v2);
+        assertEquals("val1", v1);
+        assertEquals(new String(new byte[]{1, 2, 3}), v2);
     }
 
     private static byte[] buildStream(PropertyUpdateMessage... messages) throws IOException {

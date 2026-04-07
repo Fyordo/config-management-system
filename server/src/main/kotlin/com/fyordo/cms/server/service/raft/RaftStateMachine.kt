@@ -1,8 +1,10 @@
 package com.fyordo.cms.server.service.raft
 
 import com.fyordo.cms.CmsProto
-import com.fyordo.cms.server.serialization.property.*
-import com.fyordo.cms.server.serialization.query.fromPropertyQueryFilterProto
+import com.fyordo.cms.server.serialization.property.deserializePropertyKey
+import com.fyordo.cms.server.serialization.property.deserializePropertyValue
+import com.fyordo.cms.server.serialization.property.serializePropertyKey
+import com.fyordo.cms.server.serialization.property.serializePropertyValue
 import com.fyordo.cms.server.serialization.raft.*
 import com.fyordo.cms.server.service.PropertyUpdatePublisher
 import com.fyordo.cms.server.service.storage.PropertyInMemoryStorage
@@ -94,14 +96,14 @@ class RaftStateMachine(
 
     override fun getLatestSnapshot(): SnapshotInfo? =
         try {
-            snapshotStorage.findLatestSnapshot()
+            snapshotStorage.latestSnapshot
         } catch (e: Exception) {
             logger.warn(e) { "Failed to locate latest snapshot" }
             null
         }
 
     private fun loadSnapshotIfExists() {
-        val snapshot = snapshotStorage.findLatestSnapshot() ?: run {
+        val snapshot = snapshotStorage.latestSnapshot ?: run {
             logger.info { "No snapshot found - full log replay will populate state" }
             return
         }
@@ -235,27 +237,12 @@ class RaftStateMachine(
                 raftOkResult()
             }
 
-            CmsProto.RaftOp.RAFT_OP_GET -> {
-                val key = requireNotNull(commandKey) { "Command GET should contain a key" }
-                store[key]?.let {
-                    raftOkResult(serializePropertyValue(it))
-                } ?: raftNotFoundResult()
-            }
-
             CmsProto.RaftOp.RAFT_OP_DELETE -> {
                 val key = requireNotNull(commandKey) { "Command DELETE should contain a key" }
                 store.removeWithRevision(key, logIndex)?.let {
                     publishUpdateFailSafe(key, null, logIndex)
                     raftOkResult()
                 } ?: raftNotFoundResult()
-            }
-
-            CmsProto.RaftOp.RAFT_OP_QUERY -> {
-                val filter = fromPropertyQueryFilterProto(
-                    CmsProto.PropertyQueryFilter.parseFrom(command.value)
-                )
-                val resultBytes = serializePropertyInternalDtoList(store.getByFilter(filter).toList())
-                raftOkResult(resultBytes)
             }
 
             CmsProto.RaftOp.RAFT_OP_UNSPECIFIED -> raftErrorResult()
