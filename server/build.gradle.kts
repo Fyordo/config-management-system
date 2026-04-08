@@ -48,6 +48,9 @@ dependencies {
 	implementation("org.springframework.boot:spring-boot-starter-validation")
 	implementation("org.springframework.boot:spring-boot-configuration-processor")
 
+	// ===== MONITORING =====
+	implementation("io.micrometer:micrometer-registry-prometheus")
+
 	// ===== COROUTINES =====
 	implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core")
 	implementation("org.jetbrains.kotlinx:kotlinx-coroutines-jdk8")
