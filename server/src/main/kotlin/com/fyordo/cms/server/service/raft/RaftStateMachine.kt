@@ -1,6 +1,7 @@
 package com.fyordo.cms.server.service.raft
 
 import com.fyordo.cms.CmsProto
+import com.fyordo.cms.server.config.CmsMetrics
 import com.fyordo.cms.server.serialization.property.deserializePropertyKey
 import com.fyordo.cms.server.serialization.property.deserializePropertyValue
 import com.fyordo.cms.server.serialization.property.serializePropertyKey
@@ -8,6 +9,7 @@ import com.fyordo.cms.server.serialization.property.serializePropertyValue
 import com.fyordo.cms.server.serialization.raft.*
 import com.fyordo.cms.server.service.PropertyUpdatePublisher
 import com.fyordo.cms.server.service.storage.PropertyInMemoryStorage
+import io.micrometer.core.instrument.Timer
 import kotlinx.coroutines.*
 import kotlinx.coroutines.future.future
 import mu.KotlinLogging
@@ -33,7 +35,8 @@ private const val SNAPSHOT_FORMAT_VERSION = 1
 @Component
 class RaftStateMachine(
     private val store: PropertyInMemoryStorage,
-    private val propertyUpdatePublisher: PropertyUpdatePublisher
+    private val propertyUpdatePublisher: PropertyUpdatePublisher,
+    private val metrics: CmsMetrics
 ) : BaseStateMachine() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default + CoroutineName("RaftStateMachine"))
     private val snapshotStorage = SimpleStateMachineStorage()
@@ -85,6 +88,7 @@ class RaftStateMachine(
                 StandardCopyOption.REPLACE_EXISTING
             )
 
+            metrics.raftSnapshotTotal.increment()
             logger.info { "Snapshot taken: logIndex=$index revision=$revision entries=${entries.size}" }
             index
         } catch (e: Exception) {
@@ -170,6 +174,8 @@ class RaftStateMachine(
     override fun applyTransaction(trx: TransactionContext): CompletableFuture<Message> =
         scope.future {
             val logIndex = trx.logEntry.index
+            metrics.raftApplyTotal.increment()
+            val sample = Timer.start()
             runCatching {
                 val logData = trx.logEntry
                     .stateMachineLogEntry
@@ -187,7 +193,10 @@ class RaftStateMachine(
                 processCommand(command, logIndex)
                     .let(::serializeRaftResult)
                     .let { Message.valueOf(ByteString.copyFrom(it)) }
+            }.also {
+                sample.stop(metrics.raftApplyTimer)
             }.getOrElse { e ->
+                metrics.raftApplyErrorTotal.increment()
                 logger.error(e) { "Error applying transaction at logIndex=$logIndex: ${e.javaClass.simpleName}: ${e.message}" }
                 Message.valueOf(
                     ByteString.copyFrom(
@@ -199,6 +208,7 @@ class RaftStateMachine(
 
     override fun query(request: Message): CompletableFuture<Message> =
         scope.future {
+            metrics.raftQueryTotal.increment()
             runCatching {
                 val requestContent = request.content.toByteArray()
 
@@ -214,6 +224,7 @@ class RaftStateMachine(
                     .let(::serializeRaftResult)
                     .let { Message.valueOf(ByteString.copyFrom(it)) }
             }.getOrElse { e ->
+                metrics.raftQueryErrorTotal.increment()
                 logger.error(e) { "Error processing query: ${e.javaClass.simpleName}: ${e.message}" }
                 Message.valueOf(
                     ByteString.copyFrom(
@@ -234,6 +245,7 @@ class RaftStateMachine(
                 val propertyValue = deserializePropertyValue(command.value.toByteArray())
                 store.setWithRevision(key, propertyValue, logIndex)
                 publishUpdateFailSafe(key, propertyValue, logIndex)
+                metrics.raftPutTotal.increment()
                 raftOkResult()
             }
 
@@ -241,6 +253,7 @@ class RaftStateMachine(
                 val key = requireNotNull(commandKey) { "Command DELETE should contain a key" }
                 store.removeWithRevision(key, logIndex)?.let {
                     publishUpdateFailSafe(key, null, logIndex)
+                    metrics.raftDeleteTotal.increment()
                     raftOkResult()
                 } ?: raftNotFoundResult()
             }

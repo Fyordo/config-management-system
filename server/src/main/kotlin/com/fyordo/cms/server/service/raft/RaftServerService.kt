@@ -15,6 +15,7 @@ import org.apache.ratis.protocol.RaftPeer
 import org.apache.ratis.protocol.RaftPeerId
 import org.apache.ratis.server.RaftServer
 import org.apache.ratis.server.RaftServerConfigKeys
+import org.apache.ratis.server.storage.RaftStorage
 import org.apache.ratis.util.SizeInBytes
 import org.apache.ratis.util.TimeDuration
 import org.springframework.stereotype.Service
@@ -107,6 +108,7 @@ class RaftServerService(
                 .setGroup(raftGroup)
                 .setProperties(ratisProperties)
                 .setStateMachine(raftStateMachine)
+                .setOption(RaftStorage.StartupOption.RECOVER)
                 .build()
 
             raftServer.start()

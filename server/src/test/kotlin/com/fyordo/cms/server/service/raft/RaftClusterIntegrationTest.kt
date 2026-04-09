@@ -10,6 +10,7 @@ import com.fyordo.cms.server.serialization.raft.deserializeRaftResult
 import com.fyordo.cms.server.serialization.raft.serializeRaftCommand as serializeRaftCommandBytes
 import com.fyordo.cms.server.service.agent.AgentConnectionManager
 import com.fyordo.cms.server.service.storage.PropertyInMemoryStorage
+import com.fyordo.cms.server.config.CmsMetrics
 import com.fyordo.cms.server.service.storage.PropertyPartsHolder
 import com.fyordo.cms.server.utils.EMPTY_BYTES
 import kotlinx.coroutines.delay
@@ -63,8 +64,6 @@ class RaftClusterIntegrationTest {
 
     private object RaftResultStatus {
         val OK: CmsProto.RaftResultStatus = CmsProto.RaftResultStatus.RAFT_RESULT_STATUS_OK
-        val NOT_FOUND: CmsProto.RaftResultStatus = CmsProto.RaftResultStatus.RAFT_RESULT_STATUS_NOT_FOUND
-        val ERROR: CmsProto.RaftResultStatus = CmsProto.RaftResultStatus.RAFT_RESULT_STATUS_ERROR
     }
 
     private fun raftCommand(
@@ -89,6 +88,7 @@ class RaftClusterIntegrationTest {
     private val testGroupId = "test-raft-group-${UUID.randomUUID()}"
     private val basePort = 17000 + (Math.random() * 1000).toInt()
     private val testDataDir = Files.createTempDirectory("raft-test-").toFile()
+    private val metrics = CmsMetrics.noOp()
 
     private lateinit var node1: RaftServerService
     private lateinit var node2: RaftServerService
@@ -167,7 +167,7 @@ class RaftClusterIntegrationTest {
         val pathHolder = PropertyPartsHolder()
         val storage = PropertyInMemoryStorage(pathHolder)
         val broadcaster = PropertyUpdatePublisher()
-        val stateMachine = RaftStateMachine(storage, broadcaster)
+        val stateMachine = RaftStateMachine(storage, broadcaster, metrics)
         val agentConnectionManager = AgentConnectionManager(storage, broadcaster)
         val server = RaftServerService(config, stateMachine, agentConnectionManager)
         server.init()
