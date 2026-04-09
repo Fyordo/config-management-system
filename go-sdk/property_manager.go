@@ -113,7 +113,16 @@ func (pm *PropertyManager) Store(key string, newValue *string) {
 	cb, ok := pm.callbacks[key]
 	pm.mu.RUnlock()
 
-	if ok && cb != nil {
+	pm.invokeCallback(key, oldValue, newValue, cb, ok)
+}
+
+func (pm *PropertyManager) invokeCallback(key string, oldValue, newValue *string, cb PropertyUpdateCallback, found bool) {
+	defer func() {
+		if r := recover(); r != nil {
+			log.Printf("cms: callback panicked for key %q: %v", key, r)
+		}
+	}()
+	if found && cb != nil {
 		cb(key, oldValue, newValue)
 	} else {
 		pm.defaultCallback(key, oldValue, newValue)
@@ -152,15 +161,11 @@ func (pm *PropertyManager) ListenSocket() {
 
 	go func() {
 		defer func() {
-			err := ln.Close()
-			if err != nil {
-				log.Printf("cms: Failed to close listener")
-				return
+			if err := ln.Close(); err != nil {
+				log.Printf("cms: failed to close listener: %v", err)
 			}
-			err = os.Remove(pm.unixSocketPath)
-			if err != nil {
-				log.Printf("cms: Failed to remove socket %s", pm.unixSocketPath)
-				return
+			if err := os.Remove(pm.unixSocketPath); err != nil && !os.IsNotExist(err) {
+				log.Printf("cms: failed to remove socket %s: %v", pm.unixSocketPath, err)
 			}
 			pm.listenerMu.Lock()
 			pm.listenerRunning = false
@@ -174,7 +179,7 @@ func (pm *PropertyManager) ListenSocket() {
 				return
 			}
 
-			pm.processConn(conn)
+			go pm.processConn(conn)
 		}
 	}()
 }

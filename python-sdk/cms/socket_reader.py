@@ -6,6 +6,7 @@ from typing import BinaryIO, Optional
 
 
 _UINT32_FMT = struct.Struct(">I")  # big-endian unsigned 32-bit
+_MAX_PAYLOAD_LENGTH = 1024 * 1024  # 1 MB
 
 
 @dataclass(frozen=True)
@@ -26,6 +27,11 @@ class PropertyUpdateStreamReader:
         payload_len = self._read_uint32(allow_eof=True)
         if payload_len is None:
             return None  # clean EOF between messages
+
+        if payload_len > _MAX_PAYLOAD_LENGTH:
+            raise ValueError(
+                f"Payload length {payload_len} exceeds maximum {_MAX_PAYLOAD_LENGTH}"
+            )
 
         payload = self._read_exactly(payload_len, context="payload")  # type: ignore[arg-type]
         key, value = _parse_property_payload(payload)

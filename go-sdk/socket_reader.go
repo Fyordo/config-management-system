@@ -8,6 +8,8 @@ import (
 	"google.golang.org/protobuf/encoding/protowire"
 )
 
+const maxPayloadLength = 1024 * 1024 // 1 MB
+
 type PropertyUpdateMessage struct {
 	Key   string
 	Value []byte
@@ -29,6 +31,10 @@ func (s *PropertyUpdateStreamReader) ReadMessage() (*PropertyUpdateMessage, erro
 	}
 	if err != nil {
 		return nil, fmt.Errorf("reading payload length: %w", err)
+	}
+
+	if payloadLen > maxPayloadLength {
+		return nil, fmt.Errorf("payload length %d exceeds maximum %d", payloadLen, maxPayloadLength)
 	}
 
 	payload, err := s.readExactly(int(payloadLen))

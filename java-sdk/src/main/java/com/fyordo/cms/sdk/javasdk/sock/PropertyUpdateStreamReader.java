@@ -11,7 +11,7 @@ import java.util.Optional;
 
 public final class PropertyUpdateStreamReader {
 
-    private static final int MAX_LENGTH = Integer.MAX_VALUE;
+    private static final int MAX_LENGTH = 1024 * 1024; // 1 MB
 
     private final InputStream in;
     private final byte[] lenBuf = new byte[4];

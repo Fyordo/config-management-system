@@ -84,12 +84,18 @@ class PropertyManager:
     def init(self) -> None:
         """Load the JSON config file then start the socket listener.
 
+        The file is loaded first so that properties are available even when
+        the socket cannot be bound.
+
         Raises:
             ValueError: If the config file is empty or cannot be parsed.
             OSError: If the config file cannot be opened.
         """
-        self._start_listener()
         self._read_from_file()
+        try:
+            self._start_listener()
+        except OSError as exc:
+            logger.error("cms: failed to start socket listener: %s", exc)
 
     def get(self, key: str) -> Optional[str]:
         """Return the current value for *key*, or ``None`` if not present."""
@@ -217,7 +223,7 @@ class PropertyManager:
             while True:
                 try:
                     msg = reader.read_message()
-                except (EOFError, OSError) as exc:
+                except (EOFError, OSError, ValueError) as exc:
                     logger.debug("cms: stream ended: %s", exc)
                     break
                 if msg is None:
@@ -232,7 +238,10 @@ class PropertyManager:
         old_value = self._repository.store(key, new_value)
         with self._callbacks_lock:
             cb = self._callbacks.get(key)
-        if cb is not None:
-            cb(key, old_value, new_value)
-        else:
-            self._default_callback(key, old_value, new_value)
+        try:
+            if cb is not None:
+                cb(key, old_value, new_value)
+            else:
+                self._default_callback(key, old_value, new_value)
+        except Exception:
+            logger.exception("cms: callback threw for key '%s'", key)

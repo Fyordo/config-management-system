@@ -5,5 +5,5 @@ import org.jetbrains.annotations.Nullable;
 
 @FunctionalInterface
 public interface PropertyUpdateCallback {
-    void apply(@NotNull String key, @Nullable Object oldValue, @Nullable Object newValue);
+    void apply(@NotNull String key, @Nullable String oldValue, @Nullable String newValue);
 }

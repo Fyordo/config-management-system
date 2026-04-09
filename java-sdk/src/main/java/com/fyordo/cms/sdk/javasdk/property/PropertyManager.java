@@ -17,12 +17,15 @@ import java.nio.channels.SocketChannel;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 public class PropertyManager {
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
+    private static final Logger LOG = Logger.getLogger(PropertyManager.class.getName());
 
     private final Map<String, PropertyUpdateCallback> callbacks;
     private final PropertyRepository repository;
@@ -44,7 +47,7 @@ public class PropertyManager {
                            @NotNull String unixSocketPath,
                            @NotNull PropertyUpdateCallback defaultCallback) {
         this.repository = Objects.requireNonNull(repository);
-        this.callbacks = new HashMap<>();
+        this.callbacks = new ConcurrentHashMap<>();
         this.defaultCallback = Objects.requireNonNull(defaultCallback);
         this.configFilePath = Path.of(Objects.requireNonNull(configFilePath));
         this.unixSocketPath = Path.of(Objects.requireNonNull(unixSocketPath));
@@ -113,9 +116,13 @@ public class PropertyManager {
 
     public void store(@NotNull String key,
                       @Nullable String newValue) {
-        Object oldValue = repository.store(key, newValue);
-        callbacks.getOrDefault(key, defaultCallback)
-                .apply(key, oldValue, newValue);
+        String oldValue = repository.store(key, newValue);
+        try {
+            callbacks.getOrDefault(key, defaultCallback)
+                    .apply(key, oldValue, newValue);
+        } catch (Exception e) {
+            LOG.log(Level.WARNING, "cms: callback threw for key '" + key + "'", e);
+        }
     }
 
     @NotNull
@@ -125,7 +132,7 @@ public class PropertyManager {
             return existing;
         }
 
-        System.out.println("Starting socket-listening thread");
+        LOG.info("Starting socket-listening thread");
         Thread t = new Thread(() -> {
             try {
                 Files.createDirectories(unixSocketPath.getParent() != null ? unixSocketPath.getParent() : Path.of("."));
@@ -133,7 +140,7 @@ public class PropertyManager {
 
                 try (ServerSocketChannel server = ServerSocketChannel.open(StandardProtocolFamily.UNIX)) {
                     server.bind(UnixDomainSocketAddress.of(unixSocketPath));
-                    System.out.println("Listening socket...");
+                    LOG.info("Listening socket...");
                     while (!Thread.currentThread().isInterrupted()) {
                         try (SocketChannel client = server.accept()) {
                             SocketToPropertyManagerBridge bridge = new SocketToPropertyManagerBridge(
@@ -141,13 +148,15 @@ public class PropertyManager {
                                     Channels.newInputStream(client)
                             );
                             bridge.processStream();
+                        } catch (IOException e) {
+                            LOG.log(Level.WARNING, "cms: error processing connection", e);
                         }
                     }
                 } finally {
                     Files.deleteIfExists(unixSocketPath);
                 }
             } catch (IOException e) {
-                e.printStackTrace(System.err);
+                LOG.log(Level.SEVERE, "cms: socket listener failed", e);
             }
         }, "property-manager-socket-listener");
 
