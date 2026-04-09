@@ -59,11 +59,12 @@ dependencies {
 	implementation("io.projectreactor.kotlin:reactor-kotlin-extensions")
 
 	// ===== RAFT (Apache Ratis) =====
-	val ratisVersion = "2.5.1"
+	val ratisVersion = "3.2.2"
 	implementation("org.apache.ratis:ratis-server:$ratisVersion")
 	implementation("org.apache.ratis:ratis-client:$ratisVersion")
 	implementation("org.apache.ratis:ratis-netty:$ratisVersion")
 	implementation("org.apache.ratis:ratis-grpc:$ratisVersion")
+	implementation("org.apache.ratis:ratis-metrics-default:$ratisVersion")
 
 	// ===== GRPC =====
 	implementation("io.grpc:grpc-services")
