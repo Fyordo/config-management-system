@@ -173,7 +173,7 @@ func (pm *PropertyManager) ListenSocket() {
 				return
 			}
 
-			go pm.processConn(conn)
+			pm.processConn(conn)
 		}
 	}()
 }

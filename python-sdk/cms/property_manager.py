@@ -148,13 +148,7 @@ class PropertyManager:
                 except OSError as exc:
                     logger.error("cms: socket accept error: %s", exc)
                     break
-                t = threading.Thread(
-                    target=self._handle_connection,
-                    args=(conn,),
-                    daemon=True,
-                    name="cms-conn-handler",
-                )
-                t.start()
+                self._handle_connection(conn)
         finally:
             srv.close()
             try:
