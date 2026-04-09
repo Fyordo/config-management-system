@@ -32,7 +32,7 @@ jobs:
           go-version-file: go-sdk/go.mod
 
       - name: Download dependencies
-        run: go mod download
+        run: go mod tidy
         working-directory: ./go-sdk
 
       - name: Run tests
