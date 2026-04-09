@@ -21,7 +21,7 @@ func main() {
 		socketPath,
 	)
 
-	pm.AddUpdateCallback("app.go.example", func(key string, oldValue, newValue interface{}) {
+	pm.AddUpdateCallback("app.go.example", func(key string, oldValue, newValue *string) {
 		fmt.Println("Property Callback !")
 	})
 
@@ -54,7 +54,7 @@ func makePropertyHandler(pm *cms.PropertyManager) http.HandlerFunc {
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]interface{}{
 			"key":   key,
-			"value": value,
+			"value": *value,
 		})
 	}
 }

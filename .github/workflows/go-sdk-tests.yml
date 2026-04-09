@@ -1,0 +1,76 @@
+name: Go SDK Tests
+
+on:
+  push:
+    branches:
+      - master
+    paths:
+      - 'go-sdk/**'
+  pull_request:
+    branches:
+      - "*"
+    paths:
+      - 'go-sdk/**'
+
+permissions:
+  contents: read
+  checks: write
+  pull-requests: write
+
+jobs:
+  test:
+    name: Run Go-SDK Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go-sdk/go.mod
+          cache-dependency-path: go-sdk/go.sum
+
+      - name: Run tests
+        run: go test -v -count=1 ./... 2>&1 | tee test-output.txt
+        working-directory: ./go-sdk
+
+      - name: Generate test report
+        uses: robherley/go-test-action@v0
+        if: always()
+        with:
+          moduleDirectory: ./go-sdk
+
+      - name: Comment test results on PR
+        uses: actions/github-script@v7
+        if: always() && github.event_name == 'pull_request'
+        with:
+          script: |
+            const fs = require('fs');
+            const outputPath = 'go-sdk/test-output.txt';
+
+            let comment = '## 🧪 Go SDK Test Results\n\n';
+
+            try {
+              const output = fs.readFileSync(outputPath, 'utf8');
+              const passed = (output.match(/--- PASS/g) || []).length;
+              const failed = (output.match(/--- FAIL/g) || []).length;
+
+              if (failed > 0) {
+                comment += `❌ ${failed} test(s) failed, ${passed} passed.\n\n`;
+              } else {
+                comment += `✅ All ${passed} tests passed!\n\n`;
+              }
+            } catch (error) {
+              comment += `⚠️ Error reading test results: ${error.message}`;
+            }
+
+            comment += '\n\nCheck the [Actions tab](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}) for detailed results.';
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: comment
+            });

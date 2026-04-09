@@ -7,20 +7,27 @@ import logging
 import os
 import socket
 import threading
-from typing import Any, Callable, Optional
+from typing import Any, Callable, Optional, cast
 
 from .property_repository import InMemoryPropertyRepository, PropertyRepository
 from .socket_reader import PropertyUpdateStreamReader
 
 logger = logging.getLogger(__name__)
 
-UpdateCallback = Callable[[str, Optional[Any], Optional[Any]], None]
+UpdateCallback = Callable[[str, Optional[str], Optional[str]], None]
 
 _ENV_SOCKET_PATH = "CMS_UNIX_SOCKET_PATH"
 
 
-def _noop_callback(key: str, old: Optional[Any], new: Optional[Any]) -> None:  # noqa: ARG001
+def _noop_callback(key: str, old: Optional[str], new: Optional[str]) -> None:  # noqa: ARG001
     pass
+
+
+def _json_value_to_storage_string(value: Any) -> str:
+    """Match Java/Go SDK: JSON strings are kept raw; other JSON values are re-serialized."""
+    if isinstance(value, str):
+        return value
+    return json.dumps(value, ensure_ascii=False, separators=(",", ":"))
 
 
 class PropertyManager:
@@ -33,8 +40,9 @@ class PropertyManager:
     Args:
         config_file_path:
             Path to the JSON file containing the initial property map
-            (``{"key": value, ...}``).  The file is read once during
-            :meth:`init`.
+            (``{"key": <any JSON value>, ...}``). Values are normalized to
+            strings (JSON strings stay as-is; other types use compact
+            ``json.dumps``) before storage, matching the Java SDK.
         unix_socket_path:
             Path for the UNIX domain socket.  Defaults to the value of the
             ``CMS_UNIX_SOCKET_PATH`` environment variable when *not* supplied.
@@ -83,7 +91,7 @@ class PropertyManager:
         self._start_listener()
         self._read_from_file()
 
-    def get(self, key: str) -> Optional[Any]:
+    def get(self, key: str) -> Optional[str]:
         """Return the current value for *key*, or ``None`` if not present."""
         return self._repository.get_by_key(key)
 
@@ -116,7 +124,7 @@ class PropertyManager:
             raise ValueError(f"Config file is blank: '{path}'")
 
         try:
-            values: dict[str, Any] = json.loads(raw)
+            values = json.loads(raw)
         except json.JSONDecodeError as exc:
             raise ValueError(f"Failed to parse JSON from '{path}': {exc}") from exc
 
@@ -125,8 +133,13 @@ class PropertyManager:
                 f"Config file '{path}' must contain a JSON object at the top level"
             )
 
-        for key, value in values.items():
-            self._store(key, value)
+        data = cast(dict[Any, Any], values)
+        for key, value in data.items():
+            if not isinstance(key, str):
+                raise ValueError(
+                    f"Config file '{path}' must use string object keys; got {type(key)!r}"
+                )
+            self._store(key, _json_value_to_storage_string(value))
 
     # ------------------------------------------------------------------
     # Internal: socket listener
@@ -209,13 +222,13 @@ class PropertyManager:
                     break
                 if msg is None:
                     break  # clean EOF
-                self._store(msg.key, msg.value)
+                self._store(msg.key, msg.value.decode("utf-8", errors="replace"))
 
     # ------------------------------------------------------------------
     # Internal: store + dispatch callbacks
     # ------------------------------------------------------------------
 
-    def _store(self, key: str, new_value: Optional[Any]) -> None:
+    def _store(self, key: str, new_value: Optional[str]) -> None:
         old_value = self._repository.store(key, new_value)
         with self._callbacks_lock:
             cb = self._callbacks.get(key)

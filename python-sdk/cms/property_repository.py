@@ -4,18 +4,18 @@ from __future__ import annotations
 
 import threading
 from abc import ABC, abstractmethod
-from typing import Any, Optional
+from typing import Optional
 
 
 class PropertyRepository(ABC):
     """Interface for key/value property storage."""
 
     @abstractmethod
-    def get_by_key(self, key: str) -> Optional[Any]:
+    def get_by_key(self, key: str) -> Optional[str]:
         """Return the stored value for *key*, or ``None`` if absent."""
 
     @abstractmethod
-    def store(self, key: str, new_value: Optional[Any]) -> Optional[Any]:
+    def store(self, key: str, new_value: Optional[str]) -> Optional[str]:
         """Store *new_value* under *key*.
 
         If *new_value* is ``None`` the key is removed.
@@ -28,13 +28,13 @@ class InMemoryPropertyRepository(PropertyRepository):
 
     def __init__(self) -> None:
         self._lock = threading.RLock()
-        self._properties: dict[str, Any] = {}
+        self._properties: dict[str, str] = {}
 
-    def get_by_key(self, key: str) -> Optional[Any]:
+    def get_by_key(self, key: str) -> Optional[str]:
         with self._lock:
             return self._properties.get(key)
 
-    def store(self, key: str, new_value: Optional[Any]) -> Optional[Any]:
+    def store(self, key: str, new_value: Optional[str]) -> Optional[str]:
         with self._lock:
             old = self._properties.get(key)
             if new_value is None:
