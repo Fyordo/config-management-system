@@ -7,6 +7,7 @@ import com.fyordo.cms.server.serialization.raft.deserializeRaftResult
 import com.fyordo.cms.server.service.PropertyUpdatePublisher
 import com.fyordo.cms.server.service.agent.AgentConnectionManager
 import com.fyordo.cms.server.service.storage.PropertyInMemoryStorage
+import com.fyordo.cms.server.config.CmsMetrics
 import com.fyordo.cms.server.service.storage.PropertyPartsHolder
 import com.fyordo.cms.server.utils.EMPTY_BYTES
 import com.google.protobuf.ByteString
@@ -93,6 +94,7 @@ class RaftFailoverIntegrationTest {
     private val testGroupId = "failover-test-raft-group-${UUID.randomUUID()}"
     private val basePort = 18000 + (Math.random() * 1000).toInt()
     private val testDataDir = Files.createTempDirectory("raft-failover-test-").toFile()
+    private val metrics = CmsMetrics.noOp()
 
     private lateinit var node1: RaftServerService
     private lateinit var node2: RaftServerService
@@ -166,7 +168,7 @@ class RaftFailoverIntegrationTest {
         val pathHolder = PropertyPartsHolder()
         val storage = PropertyInMemoryStorage(pathHolder)
         val broadcaster = PropertyUpdatePublisher()
-        val stateMachine = RaftStateMachine(storage, broadcaster)
+        val stateMachine = RaftStateMachine(storage, broadcaster, metrics)
         val agentConnectionManager = AgentConnectionManager(storage, broadcaster)
         val server = RaftServerService(config, stateMachine, agentConnectionManager)
         server.init()
