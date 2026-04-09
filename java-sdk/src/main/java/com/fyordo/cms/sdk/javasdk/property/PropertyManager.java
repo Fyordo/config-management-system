@@ -65,8 +65,8 @@ public class PropertyManager {
             if (Files.exists(configFilePath)) {
                 return;
             }
-            System.out.printf("[PropertyManager] Config file not found, waiting... (%d/%d): %s%n",
-                    attempt, maxAttempts, configFilePath);
+            LOG.info(String.format("Config file not found, waiting... (%d/%d): %s",
+                    attempt, maxAttempts, configFilePath));
             try {
                 Thread.sleep(1_000);
             } catch (InterruptedException e) {
@@ -132,35 +132,36 @@ public class PropertyManager {
             return existing;
         }
 
-        LOG.info("Starting socket-listening thread");
-        Thread t = new Thread(() -> {
-            try {
-                Files.createDirectories(unixSocketPath.getParent() != null ? unixSocketPath.getParent() : Path.of("."));
-                Files.deleteIfExists(unixSocketPath);
+        LOG.info("Starting socket-listening virtual thread");
+        Thread t = Thread.ofVirtual()
+                .name("property-manager-socket-listener")
+                .unstarted(() -> {
+                    try {
+                        Files.createDirectories(unixSocketPath.getParent() != null ? unixSocketPath.getParent() : Path.of("."));
+                        Files.deleteIfExists(unixSocketPath);
 
-                try (ServerSocketChannel server = ServerSocketChannel.open(StandardProtocolFamily.UNIX)) {
-                    server.bind(UnixDomainSocketAddress.of(unixSocketPath));
-                    LOG.info("Listening socket...");
-                    while (!Thread.currentThread().isInterrupted()) {
-                        try (SocketChannel client = server.accept()) {
-                            SocketToPropertyManagerBridge bridge = new SocketToPropertyManagerBridge(
-                                    this,
-                                    Channels.newInputStream(client)
-                            );
-                            bridge.processStream();
-                        } catch (IOException e) {
-                            LOG.log(Level.WARNING, "cms: error processing connection", e);
+                        try (ServerSocketChannel server = ServerSocketChannel.open(StandardProtocolFamily.UNIX)) {
+                            server.bind(UnixDomainSocketAddress.of(unixSocketPath));
+                            LOG.info("Listening socket...");
+                            while (!Thread.currentThread().isInterrupted()) {
+                                try (SocketChannel client = server.accept()) {
+                                    SocketToPropertyManagerBridge bridge = new SocketToPropertyManagerBridge(
+                                            this,
+                                            Channels.newInputStream(client)
+                                    );
+                                    bridge.processStream();
+                                } catch (IOException e) {
+                                    LOG.log(Level.WARNING, "cms: error processing connection", e);
+                                }
+                            }
+                        } finally {
+                            Files.deleteIfExists(unixSocketPath);
                         }
+                    } catch (IOException e) {
+                        LOG.log(Level.SEVERE, "cms: socket listener failed", e);
                     }
-                } finally {
-                    Files.deleteIfExists(unixSocketPath);
-                }
-            } catch (IOException e) {
-                LOG.log(Level.SEVERE, "cms: socket listener failed", e);
-            }
-        }, "property-manager-socket-listener");
+                });
 
-        t.setDaemon(true);
         socketListenerThread = t;
         t.start();
         return t;
