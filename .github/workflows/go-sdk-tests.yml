@@ -30,7 +30,10 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version-file: go-sdk/go.mod
-          cache-dependency-path: go-sdk/go.sum
+
+      - name: Download dependencies
+        run: go mod download
+        working-directory: ./go-sdk
 
       - name: Run tests
         run: go test -v -count=1 ./... 2>&1 | tee test-output.txt
