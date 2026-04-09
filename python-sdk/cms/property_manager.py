@@ -1,5 +1,3 @@
-"""High-level orchestrator: loads config from JSON and listens for socket updates."""
-
 from __future__ import annotations
 
 import json
@@ -24,35 +22,12 @@ def _noop_callback(key: str, old: Optional[str], new: Optional[str]) -> None:  #
 
 
 def _json_value_to_storage_string(value: Any) -> str:
-    """Match Java/Go SDK: JSON strings are kept raw; other JSON values are re-serialized."""
     if isinstance(value, str):
         return value
     return json.dumps(value, ensure_ascii=False, separators=(",", ":"))
 
 
 class PropertyManager:
-    """Loads initial configuration from a JSON file and keeps it current via a
-    UNIX domain socket.
-
-    The SDK acts as the **server**: it creates and listens on the socket so that
-    the CMS agent (client) can connect and stream property updates.
-
-    Args:
-        config_file_path:
-            Path to the JSON file containing the initial property map
-            (``{"key": <any JSON value>, ...}``). Values are normalized to
-            strings (JSON strings stay as-is; other types use compact
-            ``json.dumps``) before storage, matching the Java SDK.
-        unix_socket_path:
-            Path for the UNIX domain socket.  Defaults to the value of the
-            ``CMS_UNIX_SOCKET_PATH`` environment variable when *not* supplied.
-        repository:
-            Storage backend.  Defaults to a new
-            :class:`~cms.InMemoryPropertyRepository` when omitted.
-        default_callback:
-            Called for every property update that has no per-key callback
-            registered.  Signature: ``(key, old_value, new_value) -> None``.
-    """
 
     def __init__(
         self,
@@ -77,20 +52,7 @@ class PropertyManager:
         self._listener_lock = threading.Lock()
         self._listener_running = False
 
-    # ------------------------------------------------------------------
-    # Public API
-    # ------------------------------------------------------------------
-
     def init(self) -> None:
-        """Load the JSON config file then start the socket listener.
-
-        The file is loaded first so that properties are available even when
-        the socket cannot be bound.
-
-        Raises:
-            ValueError: If the config file is empty or cannot be parsed.
-            OSError: If the config file cannot be opened.
-        """
         self._read_from_file()
         try:
             self._start_listener()
@@ -98,25 +60,15 @@ class PropertyManager:
             logger.error("cms: failed to start socket listener: %s", exc)
 
     def get(self, key: str) -> Optional[str]:
-        """Return the current value for *key*, or ``None`` if not present."""
         return self._repository.get_by_key(key)
 
     def add_update_callback(self, key: str, callback: UpdateCallback) -> None:
-        """Register *callback* to be invoked whenever *key* is updated.
-
-        Replaces any previously registered callback for the same key.
-        """
         with self._callbacks_lock:
             self._callbacks[key] = callback
 
     def remove_update_callback(self, key: str) -> None:
-        """Remove the per-key callback for *key* (no-op if none was registered)."""
         with self._callbacks_lock:
             self._callbacks.pop(key, None)
-
-    # ------------------------------------------------------------------
-    # Internal: config file
-    # ------------------------------------------------------------------
 
     def _read_from_file(self) -> None:
         path = self._config_file_path
@@ -147,10 +99,6 @@ class PropertyManager:
                 )
             self._store(key, _json_value_to_storage_string(value))
 
-    # ------------------------------------------------------------------
-    # Internal: socket listener
-    # ------------------------------------------------------------------
-
     def _start_listener(self) -> None:
         if not self._unix_socket_path:
             logger.warning(
@@ -168,7 +116,6 @@ class PropertyManager:
             if sock_dir:
                 os.makedirs(sock_dir, exist_ok=True)
 
-            # Remove a stale socket file if present.
             try:
                 os.unlink(sock_path)
             except FileNotFoundError:
@@ -227,12 +174,8 @@ class PropertyManager:
                     logger.debug("cms: stream ended: %s", exc)
                     break
                 if msg is None:
-                    break  # clean EOF
+                    break
                 self._store(msg.key, msg.value.decode("utf-8", errors="replace"))
-
-    # ------------------------------------------------------------------
-    # Internal: store + dispatch callbacks
-    # ------------------------------------------------------------------
 
     def _store(self, key: str, new_value: Optional[str]) -> None:
         old_value = self._repository.store(key, new_value)

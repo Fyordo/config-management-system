@@ -93,19 +93,14 @@ func (pm *PropertyManager) Get(key string) *string {
 	return pm.repository.GetByKey(key)
 }
 
-// Set stores value for key and runs the same callback logic as Store.
-// Prefer Set over Store when you have a plain string (avoids &value pitfalls in loops).
 func (pm *PropertyManager) Set(key, value string) {
 	pm.Store(key, StringRef(value))
 }
 
-// Delete removes key from storage (equivalent to Store(key, nil)).
 func (pm *PropertyManager) Delete(key string) {
 	pm.Store(key, nil)
 }
 
-// Store sets or removes a property. Pass newValue == nil to delete the key; otherwise use Set or StringRef
-// when you only have a string and do not want to manage pointers yourself.
 func (pm *PropertyManager) Store(key string, newValue *string) {
 	oldValue := pm.repository.Store(key, newValue)
 
@@ -145,7 +140,6 @@ func (pm *PropertyManager) ListenSocket() {
 		}
 	}
 
-	// Remove a stale socket file left from a previous run.
 	if err := os.Remove(pm.unixSocketPath); err != nil && !os.IsNotExist(err) {
 		log.Printf("cms: failed to remove stale socket %s: %v", pm.unixSocketPath, err)
 	}
@@ -200,20 +194,16 @@ func (pm *PropertyManager) processConn(conn net.Conn) {
 			return
 		}
 		if msg == nil {
-			return // clean EOF — agent closed the connection
+			return
 		}
 		pm.Set(msg.Key, string(msg.Value))
 	}
 }
 
-// StringRef returns a pointer to a copy of s. Use with Store when you need an explicit *string
-// (e.g. from another API). Safe with range variables; Set is enough for most call sites.
 func StringRef(s string) *string {
 	return &s
 }
 
-// jsonRawToStorageString decodes one JSON value and converts it to the canonical string stored in memory.
-// JSON strings are kept as-is; numbers, booleans, arrays, and objects are serialized with json.Marshal.
 func jsonRawToStorageString(raw json.RawMessage) (string, error) {
 	raw = trimJSONWhitespace(raw)
 	if len(raw) > 0 && raw[0] == '"' {

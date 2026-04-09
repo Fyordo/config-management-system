@@ -5,10 +5,6 @@ import org.jetbrains.annotations.NotNull;
 import java.util.Arrays;
 import java.util.Objects;
 
-/**
- * One property update message read from the agent socket stream.
- * Key is UTF-8 string; value is opaque binary (see AGENT_CONTRACT.MD).
- */
 public final class PropertyUpdateMessage {
 
     private final String key;

@@ -23,7 +23,7 @@ public final class PropertyUpdateStreamReader {
     private int readLength() throws IOException {
         int n = readFully(lenBuf, 4);
         if (n < 0) {
-            return -1; // EOF at message boundary
+            return -1;
         }
         long u = (lenBuf[0] & 0xffL) << 24 | (lenBuf[1] & 0xffL) << 16
                 | (lenBuf[2] & 0xffL) << 8 | (lenBuf[3] & 0xffL);
@@ -55,9 +55,6 @@ public final class PropertyUpdateStreamReader {
         ));
     }
 
-    /**
-     * @return bytes read (0 only on EOF before any byte)
-     */
     private int readFully(byte[] buf, int count) throws IOException {
         int total = 0;
         while (total < count) {

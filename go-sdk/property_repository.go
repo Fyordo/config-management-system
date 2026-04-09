@@ -2,13 +2,8 @@ package cms
 
 import "sync"
 
-// PropertyRepository stores property values as UTF-8 text, mirroring the Java SDK.
 type PropertyRepository interface {
-	// GetByKey returns nil if the key is absent (including when the value was never set).
 	GetByKey(key string) *string
-
-	// Store sets the value for key when newValue is non-nil, or removes the key when newValue is nil.
-	// It returns the previous value, or nil if the key was absent.
 	Store(key string, newValue *string) *string
 }
 
