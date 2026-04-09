@@ -19,6 +19,8 @@ import org.apache.ratis.thirdparty.com.google.protobuf.ByteString
 import org.springframework.stereotype.Service
 import java.net.InetSocketAddress
 import java.util.*
+import java.util.concurrent.locks.ReentrantLock
+import kotlin.concurrent.withLock
 
 private val logger = KotlinLogging.logger {}
 private const val PEERS_PARTS_DELIMITER = ':'
@@ -28,18 +30,19 @@ class RaftClientFacade(
     private val raftProps: RaftConfiguration
 ) {
     private lateinit var raftClient: RaftClient
+    private lateinit var raftGroup: RaftGroup
+    private val clientLock = ReentrantLock()
 
     @PostConstruct
     fun init() {
         logger.info { "Initializing RAFT client..." }
 
         try {
-            // Validate peer configuration
             validatePeerConfiguration()
 
             val groupId = RaftGroupId.valueOf(UUID.nameUUIDFromBytes(raftProps.groupId.toByteArray()))
 
-            val raftGroup = buildPeersList()
+            raftGroup = buildPeersList()
                 .let { peers ->
                     if (peers.isEmpty()) {
                         throw IllegalStateException("No valid RAFT peers configured")
@@ -52,6 +55,28 @@ class RaftClientFacade(
             logger.error(e) { "Failed to initialize RAFT client" }
             throw e
         }
+    }
+
+    private fun reconnect() {
+        clientLock.withLock {
+            logger.warn { "Reconnecting RAFT client..." }
+            try {
+                if (::raftClient.isInitialized) {
+                    runCatching { raftClient.close() }
+                }
+                initClient(raftGroup)
+                logger.info { "RAFT client reconnected successfully" }
+            } catch (e: Exception) {
+                logger.error(e) { "Failed to reconnect RAFT client" }
+                throw e
+            }
+        }
+    }
+
+    private fun isClosedError(e: Throwable): Boolean {
+        val msg = e.message ?: ""
+        return msg.contains("already CLOSED", ignoreCase = true) ||
+            msg.contains("is CLOSED", ignoreCase = true)
     }
 
     private fun validatePeerConfiguration() {
@@ -73,10 +98,10 @@ class RaftClientFacade(
         }
     }
 
-    private fun initClient(raftGroup: RaftGroup) {
+    private fun initClient(group: RaftGroup) {
         raftClient = RaftClient.newBuilder()
             .setClientId(ClientId.randomId())
-            .setRaftGroup(raftGroup)
+            .setRaftGroup(group)
             .setProperties(RaftProperties())
             .build()
             .also {
@@ -119,41 +144,68 @@ class RaftClientFacade(
 
     suspend fun sendCommand(command: CmsProto.RaftCommand): RaftOperationResult {
         return try {
-            val serialized = serializeRaftCommand(command)
-            val response = withTimeout(raftProps.clusterMessageTimeoutMs) {
-                withContext(Dispatchers.IO) {
-                    val reply = raftClient.io().send(Message.valueOf(ByteString.copyFrom(serialized)))
-                    reply.message.content.toByteArray()
-                }
-            }
-            RaftOperationResult.Success(response)
+            doSendCommand(command)
         } catch (e: TimeoutCancellationException) {
             logger.error(e) { "Timeout sending command: $command (timeout: ${raftProps.clusterMessageTimeoutMs}ms)" }
             RaftOperationResult.Error("Command timeout after ${raftProps.clusterMessageTimeoutMs}ms", e)
         } catch (e: Exception) {
+            if (isClosedError(e)) {
+                logger.warn { "RAFT client was CLOSED, reconnecting and retrying command..." }
+                reconnect()
+                return try {
+                    doSendCommand(command)
+                } catch (retryEx: Exception) {
+                    logger.error(retryEx) { "Error sending command after reconnect: $command" }
+                    RaftOperationResult.Error("Failed to send command: ${retryEx.message}", retryEx)
+                }
+            }
             logger.error(e) { "Error sending command: $command" }
             RaftOperationResult.Error("Failed to send command: ${e.message}", e)
         }
     }
 
+    private suspend fun doSendCommand(command: CmsProto.RaftCommand): RaftOperationResult {
+        val serialized = serializeRaftCommand(command)
+        val response = withTimeout(raftProps.clusterMessageTimeoutMs) {
+            withContext(Dispatchers.IO) {
+                val reply = raftClient.io().send(Message.valueOf(ByteString.copyFrom(serialized)))
+                reply.message.content.toByteArray()
+            }
+        }
+        return RaftOperationResult.Success(response)
+    }
 
     suspend fun sendQuery(command: CmsProto.RaftCommand): RaftOperationResult {
         return try {
-            val serialized = serializeRaftCommand(command)
-            val response = withTimeout(raftProps.clusterMessageTimeoutMs) {
-                withContext(Dispatchers.IO) {
-                    val reply = raftClient.io().sendReadOnly(Message.valueOf(ByteString.copyFrom(serialized)))
-                    reply.message.content.toByteArray()
-                }
-            }
-            RaftOperationResult.Success(response)
+            doSendQuery(command)
         } catch (e: TimeoutCancellationException) {
             logger.error(e) { "Timeout sending query: $command (timeout: ${raftProps.clusterMessageTimeoutMs}ms)" }
             RaftOperationResult.Error("Query timeout after ${raftProps.clusterMessageTimeoutMs}ms", e)
         } catch (e: Exception) {
+            if (isClosedError(e)) {
+                logger.warn { "RAFT client was CLOSED, reconnecting and retrying query..." }
+                reconnect()
+                return try {
+                    doSendQuery(command)
+                } catch (retryEx: Exception) {
+                    logger.error(retryEx) { "Error sending query after reconnect: $command" }
+                    RaftOperationResult.Error("Failed to send query: ${retryEx.message}", retryEx)
+                }
+            }
             logger.error(e) { "Error sending query: $command" }
             RaftOperationResult.Error("Failed to send query: ${e.message}", e)
         }
+    }
+
+    private suspend fun doSendQuery(command: CmsProto.RaftCommand): RaftOperationResult {
+        val serialized = serializeRaftCommand(command)
+        val response = withTimeout(raftProps.clusterMessageTimeoutMs) {
+            withContext(Dispatchers.IO) {
+                val reply = raftClient.io().sendReadOnly(Message.valueOf(ByteString.copyFrom(serialized)))
+                reply.message.content.toByteArray()
+            }
+        }
+        return RaftOperationResult.Success(response)
     }
 }
 

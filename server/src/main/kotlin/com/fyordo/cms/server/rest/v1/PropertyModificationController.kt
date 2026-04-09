@@ -27,15 +27,8 @@ class PropertyModificationController(
     private val versionConfig: PropertyVersionConfig,
     private val raftServerService: RaftServerService,
 ) {
-    private fun requireLeader() {
-        if (!raftServerService.isLeader()) {
-            throw ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Not the leader node")
-        }
-    }
-
     @PostMapping("/put")
     suspend fun put(@Valid @RequestBody data: PutPropertyRequest): Map<String, String> {
-        requireLeader()
         val valueBytes = data.value.toByteArray(Charsets.UTF_8)
         if (valueBytes.size > versionConfig.maxValueSizeBytes) {
             throw ResponseStatusException(
@@ -74,7 +67,6 @@ class PropertyModificationController(
 
     @PostMapping("/delete")
     suspend fun delete(@Valid @RequestBody data: PropertyKeyDto): Map<String, CmsProto.RaftResult> {
-        requireLeader()
         val command = raftDeleteCommand(data.toProto())
         return when (val result = clientFacade.sendCommand(command)) {
             is RaftOperationResult.Success -> {
