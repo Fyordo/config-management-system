@@ -67,7 +67,15 @@ void AgentChannelClient::Run()
     while (running_.load()) {
         try {
             AGENT_STATE.store(AgentState::CONNECT);
-            auto channel = grpc::CreateChannel(server_address_, grpc::InsecureChannelCredentials());
+            grpc::ChannelArguments channel_args;
+            channel_args.SetServiceConfigJSON(
+                R"({"loadBalancingConfig": [{"round_robin": {}}]})");
+            channel_args.SetInt(GRPC_ARG_KEEPALIVE_TIME_MS,              KEEPALIVE_TIME_MS);
+            channel_args.SetInt(GRPC_ARG_KEEPALIVE_TIMEOUT_MS,           KEEPALIVE_TIMEOUT_MS);
+            channel_args.SetInt(GRPC_ARG_KEEPALIVE_PERMIT_WITHOUT_CALLS, 1);
+            channel_args.SetInt(GRPC_ARG_HTTP2_MAX_PINGS_WITHOUT_DATA,   0);
+            auto channel = grpc::CreateCustomChannel(
+                server_address_, grpc::InsecureChannelCredentials(), channel_args);
             auto stub = AgentChannelService::NewStub(channel);
 
             if (!WaitForConnected(channel.get())) {
@@ -302,9 +310,16 @@ void AgentChannelClient::SendUpdateToUnixSocket(const com::fyordo::cms::Property
     std::strncpy(addr.sun_path, config_.unixSocketPath.c_str(), sizeof(addr.sun_path) - 1);
 
     if (::connect(sock_fd, reinterpret_cast<sockaddr*>(&addr), sizeof(addr)) == -1) {
-        std::cerr << "AgentChannelClient: Failed to connect to UNIX socket at "
-                  << config_.unixSocketPath << ": "
-                  << std::strerror(errno) << " (errno=" << errno << ")" << std::endl;
+        if (errno == ENOENT || errno == ECONNREFUSED) {
+            std::cout << "AgentChannelClient: UNIX socket not ready at "
+                      << config_.unixSocketPath
+                      << " (SDK may not have started yet), skipping push for key '"
+                      << property.key() << "'" << std::endl;
+        } else {
+            std::cerr << "AgentChannelClient: Failed to connect to UNIX socket at "
+                      << config_.unixSocketPath << ": "
+                      << std::strerror(errno) << " (errno=" << errno << ")" << std::endl;
+        }
         ::close(sock_fd);
         return;
     }

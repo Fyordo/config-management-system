@@ -25,4 +25,3 @@ minorVersion=${minorVersion}
 EOF
 
 echo "Version updated to: ${newVersion}"
-echo "Updated build.number and build.gradle.kts" 

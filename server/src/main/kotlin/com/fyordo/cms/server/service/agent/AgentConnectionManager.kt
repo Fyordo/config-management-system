@@ -1,6 +1,7 @@
 package com.fyordo.cms.server.service.agent
 
 import com.fyordo.cms.AgentChannelServiceOuterClass
+import com.fyordo.cms.server.config.CmsMetrics
 import com.fyordo.cms.server.dto.grpc.AgentId
 import com.fyordo.cms.server.service.PropertyUpdatePublisher
 import com.fyordo.cms.server.service.storage.PropertyInMemoryStorage
@@ -8,6 +9,7 @@ import com.fyordo.cms.server.utils.EMPTY_BYTES
 import com.google.protobuf.ByteString
 import io.grpc.stub.ServerCallStreamObserver
 import io.grpc.stub.StreamObserver
+import io.micrometer.core.instrument.MeterRegistry
 import jakarta.annotation.PostConstruct
 import jakarta.annotation.PreDestroy
 import kotlinx.coroutines.CoroutineScope
@@ -33,10 +35,16 @@ private data class Connection(
 @Component
 class AgentConnectionManager(
     private val propertyInMemoryStorage: PropertyInMemoryStorage,
-    private val broadcaster: PropertyUpdatePublisher
+    private val broadcaster: PropertyUpdatePublisher,
+    private val metrics: CmsMetrics,
+    registry: MeterRegistry
 ) {
     private val connections: MutableMap<AgentId, Connection> = ConcurrentHashMap()
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+    init {
+        registry.gaugeMapSize("cms_agent_connected", emptyList(), connections)
+    }
 
     @PostConstruct
     fun init() {
@@ -86,6 +94,7 @@ class AgentConnectionManager(
     fun register(agentId: AgentId, streamObserver: StreamObserver<AgentChannelServiceOuterClass.ServerStreamEvent>) {
         logger.info { "Registering stream event: $agentId" }
         connections[agentId] = Connection(streamObserver)
+        metrics.agentConnectionsTotal.increment()
     }
 
     fun sendToAgent(agentId: AgentId, result: AgentChannelServiceOuterClass.ServerStreamEvent) {
@@ -159,6 +168,7 @@ class AgentConnectionManager(
     fun closeStream(agentId: AgentId) {
         connections.remove(agentId)?.let { connection ->
             logger.info { "Closed connection with agentId: $agentId" }
+            metrics.agentDisconnectionsTotal.increment()
             connection.lock.withLock {
                 try {
                     connection.streamObserver.onCompleted()

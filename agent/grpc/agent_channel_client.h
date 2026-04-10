@@ -30,6 +30,9 @@ private:
     static constexpr std::chrono::seconds CONNECTION_TIMEOUT{5};
     static constexpr std::chrono::milliseconds POLL_INTERVAL_MS{100};
 
+    static constexpr int KEEPALIVE_TIME_MS       = 10'000;
+    static constexpr int KEEPALIVE_TIMEOUT_MS    =  5'000;
+
     void Run();
     void RunStreamSession(void* stream, std::atomic<bool>& is_reading);
     void HandleInitEvent(const com::fyordo::cms::ServerInitEvent& init_event);
