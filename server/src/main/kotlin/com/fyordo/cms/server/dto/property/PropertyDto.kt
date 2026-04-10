@@ -1,6 +1,8 @@
 package com.fyordo.cms.server.dto.property
 
 import com.fyordo.cms.CmsProto
+import com.fasterxml.jackson.annotation.JsonCreator
+import com.fasterxml.jackson.annotation.JsonProperty
 
 data class PropertyDto(
     val key: PropertyKeyDto,
@@ -12,12 +14,12 @@ data class PropertyDto(
     )
 }
 
-data class PropertyKeyDto(
-    val version: Int,
-    val namespace: String,
-    val service: String,
-    val appId: String,
-    val key: String
+data class PropertyKeyDto @JsonCreator constructor(
+    @param:JsonProperty("version") val version: Int,
+    @param:JsonProperty("namespace") val namespace: String,
+    @param:JsonProperty("service") val service: String,
+    @param:JsonProperty("appId") val appId: String,
+    @param:JsonProperty("key") val key: String
 ) {
     constructor(propertyKey: CmsProto.PropertyKey) : this(
         version = propertyKey.version,
@@ -37,9 +39,9 @@ data class PropertyKeyDto(
             .build()
 }
 
-data class PropertyValueDto(
-    val value: String,
-    val lastModifiedMs: Long
+data class PropertyValueDto @JsonCreator constructor(
+    @param:JsonProperty("value") val value: String,
+    @param:JsonProperty("lastModifiedMs") val lastModifiedMs: Long
 ) {
     constructor(propertyValue: CmsProto.PropertyValue) : this(
         value = String(propertyValue.value.toByteArray(), Charsets.UTF_8),
