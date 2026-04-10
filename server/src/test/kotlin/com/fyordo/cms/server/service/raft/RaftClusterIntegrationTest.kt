@@ -11,6 +11,7 @@ import com.fyordo.cms.server.serialization.raft.serializeRaftCommand as serializ
 import com.fyordo.cms.server.service.agent.AgentConnectionManager
 import com.fyordo.cms.server.service.storage.PropertyInMemoryStorage
 import com.fyordo.cms.server.config.CmsMetrics
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry
 import com.fyordo.cms.server.service.storage.PropertyPartsHolder
 import com.fyordo.cms.server.utils.EMPTY_BYTES
 import kotlinx.coroutines.delay
@@ -88,6 +89,7 @@ class RaftClusterIntegrationTest {
     private val testGroupId = "test-raft-group-${UUID.randomUUID()}"
     private val basePort = 17000 + (Math.random() * 1000).toInt()
     private val testDataDir = Files.createTempDirectory("raft-test-").toFile()
+    private val testRegistry = SimpleMeterRegistry()
     private val metrics = CmsMetrics.noOp()
 
     private lateinit var node1: RaftServerService
@@ -168,7 +170,7 @@ class RaftClusterIntegrationTest {
         val storage = PropertyInMemoryStorage(pathHolder)
         val broadcaster = PropertyUpdatePublisher()
         val stateMachine = RaftStateMachine(storage, broadcaster, metrics)
-        val agentConnectionManager = AgentConnectionManager(storage, broadcaster)
+        val agentConnectionManager = AgentConnectionManager(storage, broadcaster, metrics, testRegistry)
         val server = RaftServerService(config, stateMachine, agentConnectionManager)
         server.init()
         return server

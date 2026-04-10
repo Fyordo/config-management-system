@@ -7,9 +7,8 @@ import com.fyordo.cms.server.serialization.raft.serializeRaftCommand
 import com.fyordo.cms.server.utils.raft.parsePeers
 import jakarta.annotation.PostConstruct
 import jakarta.annotation.PreDestroy
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.TimeoutCancellationException
-import kotlinx.coroutines.withContext
+import kotlinx.coroutines.future.await
 import kotlinx.coroutines.withTimeout
 import mu.KotlinLogging
 import org.apache.ratis.client.RaftClient
@@ -167,10 +166,8 @@ class RaftClientFacade(
     private suspend fun doSendCommand(command: CmsProto.RaftCommand): RaftOperationResult {
         val serialized = serializeRaftCommand(command)
         val response = withTimeout(raftProps.clusterMessageTimeoutMs) {
-            withContext(Dispatchers.IO) {
-                val reply = raftClient.io().send(Message.valueOf(ByteString.copyFrom(serialized)))
-                reply.message.content.toByteArray()
-            }
+            val reply = raftClient.async().send(Message.valueOf(ByteString.copyFrom(serialized))).await()
+            reply.message.content.toByteArray()
         }
         return RaftOperationResult.Success(response)
     }
@@ -200,10 +197,8 @@ class RaftClientFacade(
     private suspend fun doSendQuery(command: CmsProto.RaftCommand): RaftOperationResult {
         val serialized = serializeRaftCommand(command)
         val response = withTimeout(raftProps.clusterMessageTimeoutMs) {
-            withContext(Dispatchers.IO) {
-                val reply = raftClient.io().sendReadOnly(Message.valueOf(ByteString.copyFrom(serialized)))
-                reply.message.content.toByteArray()
-            }
+            val reply = raftClient.async().sendReadOnly(Message.valueOf(ByteString.copyFrom(serialized))).await()
+            reply.message.content.toByteArray()
         }
         return RaftOperationResult.Success(response)
     }
