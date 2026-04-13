@@ -8,7 +8,7 @@ data class NodeStatus(
     val nodeId: String,
     val isLeader: Boolean,
     val groupId: String,
-    val connectedAgents: Set<AgentId> = emptySet(),
+    val connectedAgents: Int = 0,
 )
 
 @JsonIgnoreProperties(ignoreUnknown = true)
@@ -18,5 +18,5 @@ data class NodeFullStatus(
     val groupId: String?,
     val reachable: Boolean,
     val error: String?,
-    val connectedAgents: Set<AgentId> = emptySet(),
+    val connectedAgents: Int = 0,
 )

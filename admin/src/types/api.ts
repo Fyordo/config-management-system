@@ -44,19 +44,13 @@ export interface PutPropertyRequest {
   value: string;
 }
 
-export interface ConnectedAgent {
-  namespace: string;
-  service: string;
-  appId: string;
-}
-
 export interface RaftNodeStatus {
   nodeId: string;
   isLeader: boolean | null;
   groupId: string | null;
   reachable: boolean;
   error?: string | null;
-  connectedAgents: ConnectedAgent[];
+  connectedAgents: number;
 }
 
 export interface RaftGroupStatus {

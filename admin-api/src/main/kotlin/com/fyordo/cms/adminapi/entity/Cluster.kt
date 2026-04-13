@@ -1,7 +1,7 @@
 package com.fyordo.cms.adminapi.entity
 
 import jakarta.persistence.*
-import java.util.UUID
+import java.util.*
 
 @Entity
 @Table(name = "cluster")
@@ -19,7 +19,4 @@ class Cluster(
 
     @Column(name = "raft_address", nullable = false)
     var raftAddress: String,
-
-    @OneToMany(mappedBy = "cluster", cascade = [CascadeType.ALL], orphanRemoval = true)
-    val appGroups: MutableList<AppGroup> = mutableListOf(),
 )
