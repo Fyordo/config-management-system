@@ -5,7 +5,8 @@ from dataclasses import dataclass
 from typing import BinaryIO, Optional
 
 
-_UINT32_FMT = struct.Struct(">I")  # big-endian unsigned 32-bit
+_UINT32_FMT = struct.Struct(">I")
+_MAX_PAYLOAD_LENGTH = 1024 * 1024
 
 
 @dataclass(frozen=True)
@@ -14,7 +15,6 @@ class PropertyUpdateMessage:
     value: bytes
 
     def __post_init__(self) -> None:
-        # Ensure value is always an immutable copy stored as bytes.
         object.__setattr__(self, "value", bytes(self.value))
 
 
@@ -25,7 +25,12 @@ class PropertyUpdateStreamReader:
     def read_message(self) -> Optional[PropertyUpdateMessage]:
         payload_len = self._read_uint32(allow_eof=True)
         if payload_len is None:
-            return None  # clean EOF between messages
+            return None
+
+        if payload_len > _MAX_PAYLOAD_LENGTH:
+            raise ValueError(
+                f"Payload length {payload_len} exceeds maximum {_MAX_PAYLOAD_LENGTH}"
+            )
 
         payload = self._read_exactly(payload_len, context="payload")  # type: ignore[arg-type]
         key, value = _parse_property_payload(payload)

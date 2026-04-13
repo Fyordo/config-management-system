@@ -9,11 +9,6 @@ import java.nio.charset.StandardCharsets;
 import java.util.Objects;
 import java.util.Optional;
 
-/**
- * Reads property update messages from a stream (e.g. UNIX socket from the agent)
- * and applies each update via {@link PropertyManager#store(String, String)}.
- * Stream format is as in AGENT_CONTRACT.MD.
- */
 public final class SocketToPropertyManagerBridge {
 
     private final PropertyManager propertyManager;
@@ -25,13 +20,6 @@ public final class SocketToPropertyManagerBridge {
         this.reader = new PropertyUpdateStreamReader(Objects.requireNonNull(in));
     }
 
-    /**
-     * Reads messages from the stream until EOF and calls
-     * {@link PropertyManager#store(String, String)} for each message.
-     * Value is passed as {@code byte[]} (opaque per contract).
-     *
-     * @throws IOException if the stream ends in the middle of a message or on I/O error
-     */
     public void processStream() throws IOException {
         Optional<PropertyUpdateMessage> opt;
         while ((opt = reader.readMessage()).isPresent()) {

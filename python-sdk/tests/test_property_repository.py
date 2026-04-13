@@ -24,29 +24,29 @@ def test_store_returns_old_value():
 
 def test_store_none_removes_key():
     repo = InMemoryPropertyRepository()
-    repo.store("k", 42)
+    repo.store("k", "42")
     old = repo.store("k", None)
-    assert old == 42
+    assert old == "42"
     assert repo.get_by_key("k") is None
 
 
-def test_store_various_types():
+def test_store_strings():
     repo = InMemoryPropertyRepository()
-    repo.store("int", 123)
-    repo.store("float", 1.5)
-    repo.store("list", [1, 2, 3])
-    repo.store("dict", {"a": 1})
-    repo.store("bytes", b"\x00\xff")
+    repo.store("a", "123")
+    repo.store("b", "1.5")
+    repo.store("c", "[1,2,3]")
+    repo.store("d", '{"a":1}')
+    repo.store("e", "\x00\xff")
 
-    assert repo.get_by_key("int") == 123
-    assert repo.get_by_key("float") == 1.5
-    assert repo.get_by_key("list") == [1, 2, 3]
-    assert repo.get_by_key("dict") == {"a": 1}
-    assert repo.get_by_key("bytes") == b"\x00\xff"
+    assert repo.get_by_key("a") == "123"
+    assert repo.get_by_key("b") == "1.5"
+    assert repo.get_by_key("c") == "[1,2,3]"
+    assert repo.get_by_key("d") == '{"a":1}'
+    assert repo.get_by_key("e") == "\x00\xff"
 
 
-def test_store_large_bytes():
+def test_store_large_string():
     repo = InMemoryPropertyRepository()
-    data = bytes(range(256)) * 4000  # 1 MB
+    data = (bytes(range(256)) * 4000).decode("latin-1")  # 1 MB round-trip as text
     repo.store("big", data)
     assert repo.get_by_key("big") == data

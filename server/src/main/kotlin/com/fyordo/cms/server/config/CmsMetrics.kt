@@ -20,6 +20,10 @@ class CmsMetrics(registry: MeterRegistry) {
     val raftQueryTotal: Counter = registry.counter("cms_raft_query_total")
     val raftQueryErrorTotal: Counter = registry.counter("cms_raft_query_error_total")
 
+    // Agent gRPC streams
+    val agentConnectionsTotal: Counter = registry.counter("cms_agent_connections_total")
+    val agentDisconnectionsTotal: Counter = registry.counter("cms_agent_disconnections_total")
+
     // Property queries
     val propertyGetTotal: Counter = registry.counter("cms_property_get_total")
     val propertyGetNotFoundTotal: Counter = registry.counter("cms_property_get_not_found_total")

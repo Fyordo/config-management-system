@@ -1,6 +1,6 @@
 """CMS Python SDK — Config Management System client library.
 
-Reads initial configuration from a JSON file and keeps properties up to date
+Reads initial configuration from a JSON file and keeps string properties up to date
 by listening for binary update events on a UNIX domain socket sent by the CMS
 agent (see ``agent/AGENT_CONTRACT.MD``).
 

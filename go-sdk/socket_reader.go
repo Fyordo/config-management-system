@@ -8,6 +8,8 @@ import (
 	"google.golang.org/protobuf/encoding/protowire"
 )
 
+const maxPayloadLength = 1024 * 1024 // 1 MB
+
 type PropertyUpdateMessage struct {
 	Key   string
 	Value []byte
@@ -24,11 +26,14 @@ func NewPropertyUpdateStreamReader(r io.Reader) *PropertyUpdateStreamReader {
 func (s *PropertyUpdateStreamReader) ReadMessage() (*PropertyUpdateMessage, error) {
 	payloadLen, err := s.readUint32()
 	if err == io.EOF || err == io.ErrUnexpectedEOF {
-		// Clean EOF at the start of a new message — stream has ended normally.
 		return nil, nil
 	}
 	if err != nil {
 		return nil, fmt.Errorf("reading payload length: %w", err)
+	}
+
+	if payloadLen > maxPayloadLength {
+		return nil, fmt.Errorf("payload length %d exceeds maximum %d", payloadLen, maxPayloadLength)
 	}
 
 	payload, err := s.readExactly(int(payloadLen))
@@ -59,13 +64,7 @@ func (s *PropertyUpdateStreamReader) readExactly(n int) ([]byte, error) {
 	return buf, err
 }
 
-// parsePropertyPayload decodes com.fyordo.cms.Property:
-//
-//	1: string key
-//	2: bytes  value
-//
-// It intentionally parses only the fields needed by the Go SDK without relying
-// on generated protobuf types.
+// parsePropertyPayload decodes com.fyordo.cms.Property (field 1: key, field 2: value).
 func parsePropertyPayload(payload []byte) (key string, value []byte, err error) {
 	for len(payload) > 0 {
 		num, typ, n := protowire.ConsumeTag(payload)

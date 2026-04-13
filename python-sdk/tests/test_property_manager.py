@@ -97,16 +97,15 @@ def test_loads_all_types_from_file():
     pm = PropertyManager(config_file_path=_config_path("application.json"))
     pm.init()
 
-    assert pm.get("app.int.val") == 123
-    assert pm.get("app.long.val") == 123123123123
+    assert pm.get("app.int.val") == "123"
+    assert pm.get("app.long.val") == "123123123123"
     assert pm.get("app.string.val") == "SomeRandomString"
-    assert pm.get("app.list.val") == [1, 2, 3, 4]
-    assert pm.get("app.object.val") == {
-        "field1": 123,
-        "field2": 123.23,
-        "field3": "AnotherRandomString",
-    }
-    assert pm.get("app.bool.val") is True
+    assert pm.get("app.list.val") == "[1,2,3,4]"
+    assert (
+        pm.get("app.object.val")
+        == '{"field1":123,"field2":123.23,"field3":"AnotherRandomString"}'
+    )
+    assert pm.get("app.bool.val") == "true"
 
 
 # ---------------------------------------------------------------------------
@@ -186,12 +185,12 @@ def test_socket_updates_stored(tmp_path):
 
     deadline = time.monotonic() + 2
     while time.monotonic() < deadline:
-        if pm.get("a") == b"updated" and pm.get("b") == b"\x01\x02":
+        if pm.get("a") == "updated" and pm.get("b") == "\x01\x02":
             break
         time.sleep(0.05)
 
-    assert pm.get("a") == b"updated"
-    assert pm.get("b") == b"\x01\x02"
+    assert pm.get("a") == "updated"
+    assert pm.get("b") == "\x01\x02"
 
 
 def test_socket_callback_fires_on_update(tmp_path):
@@ -216,7 +215,7 @@ def test_socket_callback_fires_on_update(tmp_path):
             break
         time.sleep(0.05)
 
-    assert received == [("x", None, b"val")]
+    assert received == [("x", None, "val")]
 
 
 def test_no_socket_path_does_not_raise(tmp_path):
@@ -227,4 +226,4 @@ def test_no_socket_path_does_not_raise(tmp_path):
     )
     # Must not raise even though no socket path is provided.
     pm.init()
-    assert pm.get("k") == 1
+    assert pm.get("k") == "1"

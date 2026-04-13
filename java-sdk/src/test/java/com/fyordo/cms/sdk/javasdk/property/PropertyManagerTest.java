@@ -65,8 +65,8 @@ public class PropertyManagerTest {
     public void defaultCallbackInvokedOnStore() {
         PropertyRepository repository = new PropertyRepositoryImpl();
         AtomicReference<String> lastKey = new AtomicReference<>();
-        AtomicReference<Object> lastOld = new AtomicReference<>();
-        AtomicReference<Object> lastNew = new AtomicReference<>();
+        AtomicReference<String> lastOld = new AtomicReference<>();
+        AtomicReference<String> lastNew = new AtomicReference<>();
 
         PropertyManager propertyManager = new PropertyManager(
                 repository,

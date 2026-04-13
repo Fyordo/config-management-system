@@ -13,6 +13,8 @@ import com.google.protobuf.ByteString
 import jakarta.validation.Valid
 import jakarta.validation.constraints.NotBlank
 import jakarta.validation.constraints.Size
+import com.fasterxml.jackson.annotation.JsonCreator
+import com.fasterxml.jackson.annotation.JsonProperty
 import org.springframework.http.HttpStatus
 import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestBody
@@ -85,9 +87,9 @@ class PropertyModificationController(
     }
 }
 
-data class PutPropertyRequest(
-    val key: PropertyKeyDto,
+data class PutPropertyRequest @JsonCreator constructor(
+    @param:JsonProperty("key") val key: PropertyKeyDto,
     @field:NotBlank(message = "Value cannot be blank")
     @field:Size(max = 1024 * 1024, message = "Value size cannot exceed 1MB")
-    val value: String
+    @param:JsonProperty("value") val value: String
 )

@@ -10,7 +10,7 @@ import (
 	"sync"
 )
 
-type PropertyUpdateCallback func(key string, oldValue, newValue interface{})
+type PropertyUpdateCallback func(key string, oldValue, newValue *string)
 
 type PropertyManager struct {
 	mu              sync.RWMutex
@@ -32,7 +32,7 @@ func NewPropertyManager(
 		repository,
 		configFilePath,
 		unixSocketPath,
-		func(_ string, _, _ interface{}) {},
+		func(_ string, _, _ *string) {},
 	)
 }
 
@@ -68,13 +68,17 @@ func (pm *PropertyManager) ReadFromFile() error {
 		return fmt.Errorf("config file is blank: %s", pm.configFilePath)
 	}
 
-	var values map[string]interface{}
+	var values map[string]json.RawMessage
 	if err := json.Unmarshal(data, &values); err != nil {
 		return fmt.Errorf("failed to parse JSON from file %s: %w", pm.configFilePath, err)
 	}
 
-	for key, value := range values {
-		pm.Store(key, value)
+	for key, raw := range values {
+		s, err := jsonRawToStorageString(raw)
+		if err != nil {
+			return fmt.Errorf("failed to normalize property %q in %s: %w", key, pm.configFilePath, err)
+		}
+		pm.Set(key, s)
 	}
 	return nil
 }
@@ -85,18 +89,35 @@ func (pm *PropertyManager) AddUpdateCallback(key string, callback PropertyUpdate
 	pm.callbacks[key] = callback
 }
 
-func (pm *PropertyManager) Get(key string) interface{} {
+func (pm *PropertyManager) Get(key string) *string {
 	return pm.repository.GetByKey(key)
 }
 
-func (pm *PropertyManager) Store(key string, newValue interface{}) {
+func (pm *PropertyManager) Set(key, value string) {
+	pm.Store(key, StringRef(value))
+}
+
+func (pm *PropertyManager) Delete(key string) {
+	pm.Store(key, nil)
+}
+
+func (pm *PropertyManager) Store(key string, newValue *string) {
 	oldValue := pm.repository.Store(key, newValue)
 
 	pm.mu.RLock()
 	cb, ok := pm.callbacks[key]
 	pm.mu.RUnlock()
 
-	if ok && cb != nil {
+	pm.invokeCallback(key, oldValue, newValue, cb, ok)
+}
+
+func (pm *PropertyManager) invokeCallback(key string, oldValue, newValue *string, cb PropertyUpdateCallback, found bool) {
+	defer func() {
+		if r := recover(); r != nil {
+			log.Printf("cms: callback panicked for key %q: %v", key, r)
+		}
+	}()
+	if found && cb != nil {
 		cb(key, oldValue, newValue)
 	} else {
 		pm.defaultCallback(key, oldValue, newValue)
@@ -119,7 +140,6 @@ func (pm *PropertyManager) ListenSocket() {
 		}
 	}
 
-	// Remove a stale socket file left from a previous run.
 	if err := os.Remove(pm.unixSocketPath); err != nil && !os.IsNotExist(err) {
 		log.Printf("cms: failed to remove stale socket %s: %v", pm.unixSocketPath, err)
 	}
@@ -135,15 +155,11 @@ func (pm *PropertyManager) ListenSocket() {
 
 	go func() {
 		defer func() {
-			err := ln.Close()
-			if err != nil {
-				log.Printf("cms: Failed to close listener")
-				return
+			if err := ln.Close(); err != nil {
+				log.Printf("cms: failed to close listener: %v", err)
 			}
-			err = os.Remove(pm.unixSocketPath)
-			if err != nil {
-				log.Printf("cms: Failed to remove socket %s", pm.unixSocketPath)
-				return
+			if err := os.Remove(pm.unixSocketPath); err != nil && !os.IsNotExist(err) {
+				log.Printf("cms: failed to remove socket %s: %v", pm.unixSocketPath, err)
 			}
 			pm.listenerMu.Lock()
 			pm.listenerRunning = false
@@ -178,8 +194,44 @@ func (pm *PropertyManager) processConn(conn net.Conn) {
 			return
 		}
 		if msg == nil {
-			return // clean EOF — agent closed the connection
+			return
 		}
-		pm.Store(msg.Key, msg.Value)
+		pm.Set(msg.Key, string(msg.Value))
 	}
+}
+
+func StringRef(s string) *string {
+	return &s
+}
+
+func jsonRawToStorageString(raw json.RawMessage) (string, error) {
+	raw = trimJSONWhitespace(raw)
+	if len(raw) > 0 && raw[0] == '"' {
+		var s string
+		if err := json.Unmarshal(raw, &s); err != nil {
+			return "", err
+		}
+		return s, nil
+	}
+	var v interface{}
+	if err := json.Unmarshal(raw, &v); err != nil {
+		return "", err
+	}
+	out, err := json.Marshal(v)
+	if err != nil {
+		return "", err
+	}
+	return string(out), nil
+}
+
+func trimJSONWhitespace(b []byte) []byte {
+	for len(b) > 0 {
+		switch b[0] {
+		case ' ', '\n', '\r', '\t':
+			b = b[1:]
+		default:
+			return b
+		}
+	}
+	return b
 }

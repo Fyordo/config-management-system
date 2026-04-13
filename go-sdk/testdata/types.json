@@ -1,0 +1,8 @@
+{
+  "str": "hello",
+  "num": 42,
+  "float": 3.14,
+  "bool": true,
+  "arr": [1, 2, 3],
+  "obj": {"a": 1}
+}

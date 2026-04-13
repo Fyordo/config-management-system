@@ -47,7 +47,7 @@ class Handler(BaseHTTPRequestHandler):
             self._send_json({"error": f"property '{key}' not found"}, 404)
             return
 
-        self._send_json({"key": key, "value": value if not isinstance(value, bytes) else value.decode("utf-8", errors="replace")})
+        self._send_json({"key": key, "value": value})
 
     def _send_json(self, body: dict, status: int = 200):
         payload = json.dumps(body).encode()
