@@ -7,30 +7,29 @@ import org.springframework.data.jpa.repository.JpaRepository
 import org.springframework.data.jpa.repository.Query
 import org.springframework.data.repository.query.Param
 import java.sql.Timestamp
-import java.util.UUID
 
-interface UserAuditRepository : JpaRepository<UserAudit, UUID> {
+interface UserAuditRepository : JpaRepository<UserAudit, Long> {
 
     @Query(
         value = """
             SELECT a.* FROM audit a
-            WHERE (:namespaceRegex IS NULL OR a.namespace ~ CAST(:namespaceRegex AS text))
-              AND (:serviceRegex IS NULL OR a.service ~ CAST(:serviceRegex AS text))
-              AND (:appIdRegex IS NULL OR a.app_id ~ CAST(:appIdRegex AS text))
-              AND (:keyRegex IS NULL OR a."key" ~ CAST(:keyRegex AS text))
-              AND (:userId IS NULL OR a.user_id = :userId)
-              AND (:afterTs IS NULL OR a.timestamp >= :afterTs)
-              AND (:beforeTs IS NULL OR a.timestamp <= :beforeTs)
+            WHERE (CAST(:namespaceRegex AS text) IS NULL OR a.namespace ~ CAST(:namespaceRegex AS text))
+              AND (CAST(:serviceRegex AS text) IS NULL OR a.service ~ CAST(:serviceRegex AS text))
+              AND (CAST(:appIdRegex AS text) IS NULL OR a.app_id ~ CAST(:appIdRegex AS text))
+              AND (CAST(:keyRegex AS text) IS NULL OR a."key" ~ CAST(:keyRegex AS text))
+              AND (CAST(:userId AS text) IS NULL OR a.user_id = CAST(:userId AS text))
+              AND (CAST(:afterTs AS timestamp) IS NULL OR a.timestamp >= CAST(:afterTs AS timestamp))
+              AND (CAST(:beforeTs AS timestamp) IS NULL OR a.timestamp <= CAST(:beforeTs AS timestamp))
         """,
         countQuery = """
             SELECT count(a.id) FROM audit a
-            WHERE (:namespaceRegex IS NULL OR a.namespace ~ CAST(:namespaceRegex AS text))
-              AND (:serviceRegex IS NULL OR a.service ~ CAST(:serviceRegex AS text))
-              AND (:appIdRegex IS NULL OR a.app_id ~ CAST(:appIdRegex AS text))
-              AND (:keyRegex IS NULL OR a."key" ~ CAST(:keyRegex AS text))
-              AND (:userId IS NULL OR a.user_id = :userId)
-              AND (:afterTs IS NULL OR a.timestamp >= :afterTs)
-              AND (:beforeTs IS NULL OR a.timestamp <= :beforeTs)
+            WHERE (CAST(:namespaceRegex AS text) IS NULL OR a.namespace ~ CAST(:namespaceRegex AS text))
+              AND (CAST(:serviceRegex AS text) IS NULL OR a.service ~ CAST(:serviceRegex AS text))
+              AND (CAST(:appIdRegex AS text) IS NULL OR a.app_id ~ CAST(:appIdRegex AS text))
+              AND (CAST(:keyRegex AS text) IS NULL OR a."key" ~ CAST(:keyRegex AS text))
+              AND (CAST(:userId AS text) IS NULL OR a.user_id = CAST(:userId AS text))
+              AND (CAST(:afterTs AS timestamp) IS NULL OR a.timestamp >= CAST(:afterTs AS timestamp))
+              AND (CAST(:beforeTs AS timestamp) IS NULL OR a.timestamp <= CAST(:beforeTs AS timestamp))
         """,
         nativeQuery = true,
     )

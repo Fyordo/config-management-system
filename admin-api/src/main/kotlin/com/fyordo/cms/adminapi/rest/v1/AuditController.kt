@@ -19,7 +19,6 @@ import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.ResponseStatus
 import org.springframework.web.bind.annotation.RestController
-import java.util.UUID
 
 @RestController
 @RequestMapping("/api/v1/audit")
@@ -35,7 +34,7 @@ class AuditController(
         auditService.findByFilter(filter, PageRequest.of(page, size))
 
     @GetMapping("/{id}")
-    fun getById(@PathVariable id: UUID): ResponseEntity<UserAuditFullDto> {
+    fun getById(@PathVariable id: Long): ResponseEntity<UserAuditFullDto> {
         val dto = auditService.findById(id) ?: return ResponseEntity.notFound().build()
         return ResponseEntity.ok(dto)
     }

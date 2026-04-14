@@ -5,6 +5,7 @@ import { ClusterProvider } from "@/context/ClusterContext";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { DashboardPage } from "@/pages/DashboardPage";
 import { PropertiesPage } from "@/pages/PropertiesPage";
+import { AuditPage } from "@/pages/AuditPage";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -24,6 +25,7 @@ export default function App() {
             <Route element={<AppLayout />}>
               <Route index element={<DashboardPage />} />
               <Route path="properties" element={<PropertiesPage />} />
+              <Route path="audit" element={<AuditPage />} />
             </Route>
           </Routes>
         </BrowserRouter>

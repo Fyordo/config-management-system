@@ -1,11 +1,12 @@
 import { NavLink } from "react-router-dom";
-import { LayoutDashboard, Settings2, Server } from "lucide-react";
+import { ClipboardList, LayoutDashboard, Settings2, Server } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Separator } from "@/components/ui/separator";
 
 const navItems = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard, end: true },
   { to: "/properties", label: "Properties", icon: Settings2, end: false },
+  { to: "/audit", label: "Audit", icon: ClipboardList, end: false },
 ];
 
 export function Sidebar() {

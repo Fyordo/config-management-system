@@ -14,7 +14,6 @@ import org.springframework.data.domain.Sort
 import org.springframework.stereotype.Service
 import java.sql.Timestamp
 import java.time.LocalDateTime
-import java.util.UUID
 
 private val logger = KotlinLogging.logger {}
 
@@ -22,7 +21,7 @@ private val logger = KotlinLogging.logger {}
 class AuditService(
     private val userAuditRepository: UserAuditRepository
 ) {
-    fun findById(id: UUID): UserAuditFullDto? =
+    fun findById(id: Long): UserAuditFullDto? =
         userAuditRepository.findById(id).map { it.toFullDto() }.orElse(null)
 
     fun findByFilter(filter: UserAuditSearchFilter, pageable: Pageable): Page<UserAuditNoValueDto> {
