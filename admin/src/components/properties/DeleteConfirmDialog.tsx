@@ -1,7 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { usePropertiesApi, propertyKeyToString } from "@/api/properties";
-import type { PropertyDto } from "@/types/api";
+import type { DeletePropertyRequest, PropertyDto } from "@/types/api";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -27,7 +27,7 @@ export function DeleteConfirmDialog({
   const propertiesApi = usePropertiesApi();
 
   const mutation = useMutation({
-    mutationFn: (key: string) => propertiesApi.delete(key),
+    mutationFn: (data: DeletePropertyRequest) => propertiesApi.delete(data),
     onSuccess: () => {
       toast.success("Property deleted");
       void queryClient.invalidateQueries({ queryKey: ["properties"] });
@@ -42,7 +42,10 @@ export function DeleteConfirmDialog({
 
   function handleDelete() {
     if (!property) return;
-    mutation.mutate(propertyKeyToString(property.key));
+    mutation.mutate({
+      key: property.key,
+      prevValue: property.value.value,
+    });
   }
 
   return (

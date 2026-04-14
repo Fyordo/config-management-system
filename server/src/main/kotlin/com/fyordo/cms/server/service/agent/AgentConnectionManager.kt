@@ -22,6 +22,7 @@ import kotlinx.coroutines.flow.onEach
 import mu.KotlinLogging
 import org.springframework.stereotype.Component
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
 
@@ -87,8 +88,8 @@ class AgentConnectionManager(
         logger.info { "AgentConnectionFacade destroyed" }
     }
 
-    fun getConnectedAgents(): Set<AgentId> {
-        return connections.keys
+    fun getConnectedAgents(): Int {
+        return connections.keys.size
     }
 
     fun register(agentId: AgentId, streamObserver: StreamObserver<AgentChannelServiceOuterClass.ServerStreamEvent>) {

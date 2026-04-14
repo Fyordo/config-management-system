@@ -42,12 +42,14 @@ export interface ClusterInfo {
 export interface PutPropertyRequest {
   key: PropertyKey;
   value: string;
+  /** Only for audit; not sent to the CMS server. */
+  prevValue?: string | null;
 }
 
-export interface ConnectedAgent {
-  namespace: string;
-  service: string;
-  appId: string;
+export interface DeletePropertyRequest {
+  key: PropertyKey;
+  /** Only for audit; not sent to the CMS server. */
+  prevValue?: string | null;
 }
 
 export interface RaftNodeStatus {
@@ -56,7 +58,7 @@ export interface RaftNodeStatus {
   groupId: string | null;
   reachable: boolean;
   error?: string | null;
-  connectedAgents: ConnectedAgent[];
+  connectedAgents: number;
 }
 
 export interface RaftGroupStatus {

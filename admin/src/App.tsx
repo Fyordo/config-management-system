@@ -2,9 +2,11 @@ import { BrowserRouter, Route, Routes } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "sonner";
 import { ClusterProvider } from "@/context/ClusterContext";
+import { ThemeProvider } from "@/context/ThemeContext";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { DashboardPage } from "@/pages/DashboardPage";
 import { PropertiesPage } from "@/pages/PropertiesPage";
+import { AuditPage } from "@/pages/AuditPage";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -18,27 +20,20 @@ const queryClient = new QueryClient({
 export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <ClusterProvider>
-        <BrowserRouter>
-          <Routes>
-            <Route element={<AppLayout />}>
-              <Route index element={<DashboardPage />} />
-              <Route path="properties" element={<PropertiesPage />} />
-            </Route>
-          </Routes>
-        </BrowserRouter>
-        <Toaster
-          position="bottom-right"
-          theme="dark"
-          richColors
-          toastOptions={{
-            style: {
-              background: "oklch(0.12 0.015 240)",
-              border: "1px solid oklch(0.22 0.02 240)",
-            },
-          }}
-        />
-      </ClusterProvider>
+      <ThemeProvider>
+        <ClusterProvider>
+          <BrowserRouter>
+            <Routes>
+              <Route element={<AppLayout />}>
+                <Route index element={<DashboardPage />} />
+                <Route path="properties" element={<PropertiesPage />} />
+                <Route path="audit" element={<AuditPage />} />
+              </Route>
+            </Routes>
+          </BrowserRouter>
+          <Toaster position="bottom-right" theme="dark" richColors />
+        </ClusterProvider>
+      </ThemeProvider>
     </QueryClientProvider>
   );
 }
