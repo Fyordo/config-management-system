@@ -1,7 +1,9 @@
 import { useMemo } from "react";
+import { createAuditEntry, DEFAULT_AUDIT_USER_ID } from "./audit";
 import { createClient } from "./client";
 import { useCluster } from "@/context/ClusterContext";
 import type {
+  DeletePropertyRequest,
   PropertyConstants,
   PropertyDto,
   PropertyKey,
@@ -27,13 +29,40 @@ export function createPropertiesApi(baseUrl: string) {
         "/v1/property/query/constants"
       ),
 
-    put: (data: PutPropertyRequest) =>
-      api.post<{ result: string; key: string }>("/v1/property/modify/put", data),
+    put: async (data: PutPropertyRequest) => {
+      const result = await api.post<{ result: string; key: string }>(
+        "/v1/property/modify/put",
+        { key: data.key, value: data.value },
+      );
+      void createAuditEntry({
+        userId: DEFAULT_AUDIT_USER_ID,
+        namespace: data.key.namespace,
+        service: data.key.service,
+        appId: data.key.appId,
+        key: data.key.key,
+        prevValue: data.prevValue ?? null,
+        newValue: data.value,
+      }).catch((err: unknown) => {
+        console.warn("[audit] Failed to record property change", err);
+      });
+      return result;
+    },
 
-    delete: (key: string) =>
-      api.delete<{ result: string }>(
-        `/v1/property/modify/delete?key=${encodeURIComponent(key)}`
-      ),
+    delete: async (data: DeletePropertyRequest) => {
+      const result = await api.post<{ result: string }>("/v1/property/modify/delete", data.key);
+      void createAuditEntry({
+        userId: DEFAULT_AUDIT_USER_ID,
+        namespace: data.key.namespace,
+        service: data.key.service,
+        appId: data.key.appId,
+        key: data.key.key,
+        prevValue: data.prevValue ?? null,
+        newValue: null,
+      }).catch((err: unknown) => {
+        console.warn("[audit] Failed to record property deletion", err);
+      });
+      return result;
+    },
   };
 }
 

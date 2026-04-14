@@ -42,6 +42,14 @@ export interface ClusterInfo {
 export interface PutPropertyRequest {
   key: PropertyKey;
   value: string;
+  /** Only for audit; not sent to the CMS server. */
+  prevValue?: string | null;
+}
+
+export interface DeletePropertyRequest {
+  key: PropertyKey;
+  /** Only for audit; not sent to the CMS server. */
+  prevValue?: string | null;
 }
 
 export interface RaftNodeStatus {

@@ -8,7 +8,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certifi
     curl -fSL "https://github.com/async-profiler/async-profiler/releases/download/v${AP_VERSION}/async-profiler-${AP_VERSION}-linux-${AP_ARCH}.tar.gz" \
       | tar xz -C /opt && \
     mv /opt/async-profiler-* /opt/async-profiler && \
-    apt-get purge -y curl && apt-get autoremove -y && rm -rf /var/lib/apt/lists/*
+    apt-get autoremove -y && rm -rf /var/lib/apt/lists/*
 
 ENV PATH="/opt/async-profiler:${PATH}"
 

@@ -8,9 +8,9 @@ import java.util.UUID
 @Table(name = "audit")
 class UserAudit(
     @Id
-    @GeneratedValue(strategy = GenerationType.UUID)
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(updatable = false, nullable = false)
-    val id: UUID = UUID.randomUUID(),
+    val id: Long? = null,
 
     @Column(nullable = false)
     var userId: String,
@@ -27,10 +27,10 @@ class UserAudit(
     @Column(nullable = false)
     var key: String,
 
-    @Column(nullable = false, columnDefinition = "TEXT")
+    @Column(nullable = true, columnDefinition = "TEXT")
     var prevValue: String?,
 
-    @Column(nullable = false, columnDefinition = "TEXT")
+    @Column(nullable = true, columnDefinition = "TEXT")
     var newValue: String?,
 
     @Column(nullable = false)
