@@ -1,5 +1,5 @@
 import { useMemo, useState, type CSSProperties } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ChevronsUpDown,
   ChevronDown,
@@ -7,6 +7,7 @@ import {
   Eye,
   Filter,
   Loader2,
+  RotateCcw,
   X,
 } from "lucide-react";
 import ReactDiffViewer from "react-diff-viewer-continued";
@@ -27,6 +28,8 @@ import {
 } from "@/api/audit";
 import { useCluster } from "@/context/ClusterContext";
 import { useTheme } from "@/context/ThemeContext";
+import type { PropertyDto } from "@/types/api";
+import { PropertyDialog } from "@/components/properties/PropertyDialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -64,6 +67,7 @@ function toIsoOrUndefined(value: string | undefined): string | undefined {
 }
 
 export function AuditPage() {
+  const queryClient = useQueryClient();
   const { currentCluster } = useCluster();
   const { theme } = useTheme();
   const [sorting, setSorting] = useState<SortingState>([{ id: "id", desc: true }]);
@@ -73,6 +77,8 @@ export function AuditPage() {
   const [filterDraft, setFilterDraft] = useState<AuditSearchFilter>(EMPTY_FILTER);
   const [filter, setFilter] = useState<AuditSearchFilter>(EMPTY_FILTER);
   const [detailsId, setDetailsId] = useState<number | null>(null);
+  const [rollbackLoadingId, setRollbackLoadingId] = useState<number | null>(null);
+  const [rollbackProperty, setRollbackProperty] = useState<PropertyDto | null>(null);
 
   const activeFilter = useMemo<AuditSearchFilter>(
     () => ({
@@ -152,7 +158,46 @@ export function AuditPage() {
         header: "",
         enableSorting: false,
         cell: ({ row }) => (
-          <div className="flex justify-end">
+          <div className="flex items-center justify-end gap-1">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 gap-1.5 px-2 text-xs"
+              title="Rollback to previous value"
+              disabled={rollbackLoadingId === row.original.id}
+              onClick={async () => {
+                setRollbackLoadingId(row.original.id);
+                try {
+                  const audit = await queryClient.fetchQuery({
+                    queryKey: ["audit", "details", row.original.id],
+                    queryFn: () => getAuditById(row.original.id),
+                  });
+                  setRollbackProperty({
+                    key: {
+                      version: 1,
+                      namespace: audit.namespace,
+                      service: audit.service,
+                      appId: audit.appId,
+                      key: audit.key,
+                    },
+                    value: {
+                      value: audit.prevValue ?? "",
+                      lastModifiedMs: 0,
+                      version: 1,
+                    },
+                  });
+                } finally {
+                  setRollbackLoadingId(null);
+                }
+              }}
+            >
+              {rollbackLoadingId === row.original.id ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <RotateCcw className="h-3.5 w-3.5" />
+              )}
+              Rollback
+            </Button>
             <Button
               variant="ghost"
               size="icon"
@@ -166,7 +211,7 @@ export function AuditPage() {
         ),
       }),
     ],
-    [],
+    [queryClient, rollbackLoadingId],
   );
 
   const table = useReactTable({
@@ -454,6 +499,11 @@ export function AuditPage() {
           </div>
         </DialogContent>
       </Dialog>
+      <PropertyDialog
+        open={!!rollbackProperty}
+        onOpenChange={(open) => !open && setRollbackProperty(null)}
+        editProperty={rollbackProperty}
+      />
     </div>
   );
 }
