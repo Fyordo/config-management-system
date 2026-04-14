@@ -4,7 +4,7 @@ import com.fyordo.cms.adminapi.dto.ClusterFullStatus
 import com.fyordo.cms.adminapi.dto.ClusterStatus
 import com.fyordo.cms.adminapi.dto.cluster.ClusterDto
 import com.fyordo.cms.adminapi.entity.Cluster
-import com.fyordo.cms.adminapi.repository.UnitRepository
+import com.fyordo.cms.adminapi.repository.ClusterRepository
 import kotlinx.coroutines.*
 import mu.KotlinLogging
 import org.springframework.stereotype.Service
@@ -21,7 +21,7 @@ private val logger = KotlinLogging.logger {}
 @Service
 class RaftClusterService(
     private val objectMapper: ObjectMapper,
-    private val unitDao: UnitRepository
+    private val unitDao: ClusterRepository
 ) {
     private val httpClient: HttpClient = HttpClient.newBuilder()
         .connectTimeout(Duration.ofSeconds(2))

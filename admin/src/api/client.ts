@@ -29,17 +29,21 @@ async function request<T>(
   return text ? (JSON.parse(text) as T) : ({} as T);
 }
 
+function jsonBody(body: unknown): string {
+  return JSON.stringify(body ?? {});
+}
+
 export const api = {
   get: <T>(path: string) => request<T>(ADMIN_API_URL, path),
   post: <T>(path: string, body: unknown) =>
-    request<T>(ADMIN_API_URL, path, { method: "POST", body: JSON.stringify(body) }),
-  delete: <T>(path: string) => request<T>(ADMIN_API_URL, path, { method: "DELETE" }),
+    request<T>(ADMIN_API_URL, path, { method: "POST", body: jsonBody(body) }),
+  delete: <T>(path: string) => request<T>(ADMIN_API_URL, path, { method: "POST" }),
 };
 
 export const serverApi = {
   get: <T>(path: string) => request<T>(SERVER_URL, path),
   post: <T>(path: string, body: unknown) =>
-    request<T>(SERVER_URL, path, { method: "POST", body: JSON.stringify(body) }),
+    request<T>(SERVER_URL, path, { method: "POST", body: jsonBody(body) }),
   delete: <T>(path: string) => request<T>(SERVER_URL, path, { method: "DELETE" }),
 };
 
@@ -47,8 +51,8 @@ export function createClient(baseUrl: string) {
   return {
     get: <T>(path: string) => request<T>(baseUrl, path),
     post: <T>(path: string, body: unknown) =>
-      request<T>(baseUrl, path, { method: "POST", body: JSON.stringify(body) }),
-    delete: <T>(path: string) => request<T>(baseUrl, path, { method: "DELETE" }),
+      request<T>(baseUrl, path, { method: "POST", body: jsonBody(body) }),
+    delete: <T>(path: string) => request<T>(baseUrl, path, { method: "POST" }),
   };
 }
 

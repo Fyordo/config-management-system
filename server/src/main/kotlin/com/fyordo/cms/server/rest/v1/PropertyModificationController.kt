@@ -48,8 +48,7 @@ class PropertyModificationController(
                 .build()
                 .toByteArray()
         )
-        val result = clientFacade.sendCommand(command)
-        return when (result) {
+        return when (val result = clientFacade.sendCommand(command)) {
             is RaftOperationResult.Success -> {
                 val success = deserializeRaftResult(result.data).status
                 mapOf(
@@ -68,12 +67,13 @@ class PropertyModificationController(
     }
 
     @PostMapping("/delete")
-    suspend fun delete(@Valid @RequestBody data: PropertyKeyDto): Map<String, CmsProto.RaftResult> {
+    suspend fun delete(@Valid @RequestBody data: PropertyKeyDto): Map<String, CmsProto.RaftResultStatus> {
         val command = raftDeleteCommand(data.toProto())
         return when (val result = clientFacade.sendCommand(command)) {
             is RaftOperationResult.Success -> {
+                val deserializedData = deserializeRaftResult(result.data)
                 mapOf(
-                    "result" to deserializeRaftResult(result.data)
+                    "result" to deserializedData.status
                 )
             }
 

@@ -9,5 +9,5 @@ data class NodeStatus(
     val groupId: String?,
     val reachable: Boolean,
     val error: String?,
-    val connectedAgents: Set<AgentId> = emptySet(),
+    val connectedAgents: Int = 0,
 )

@@ -101,6 +101,7 @@ export function PropertyDialog({
         key: form.key,
       },
       value: form.value,
+      ...(isEdit && editProperty ? { prevValue: editProperty.value.value } : {}),
     });
   }
 
