@@ -26,6 +26,7 @@ import {
   searchAudit,
 } from "@/api/audit";
 import { useCluster } from "@/context/ClusterContext";
+import { useTheme } from "@/context/ThemeContext";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -64,6 +65,7 @@ function toIsoOrUndefined(value: string | undefined): string | undefined {
 
 export function AuditPage() {
   const { currentCluster } = useCluster();
+  const { theme } = useTheme();
   const [sorting, setSorting] = useState<SortingState>([{ id: "id", desc: true }]);
   const [showFilters, setShowFilters] = useState(false);
   const [page, setPage] = useState(0);
@@ -419,11 +421,12 @@ export function AuditPage() {
                   <div><span className="text-muted-foreground">App ID:</span> <span className="font-mono">{details.appId}</span></div>
                   <div><span className="text-muted-foreground">Key:</span> <span className="font-mono">{details.key}</span></div>
                 </div>
-                <div className="rounded-md border border-border bg-muted/20 max-h-[52vh] overflow-auto">
+                <div className="rounded-md border border-border bg-background/80 max-h-[52vh] overflow-auto">
                   <ReactDiffViewer
                     oldValue={details.prevValue ?? ""}
                     newValue={details.newValue ?? ""}
                     splitView
+                    useDarkTheme={theme === "dark"}
                     showDiffOnly={false}
                     disableWordDiff
                     styles={{

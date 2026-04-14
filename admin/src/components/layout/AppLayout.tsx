@@ -1,11 +1,13 @@
 import { useEffect } from "react";
 import { Outlet } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { Check, ChevronsUpDown } from "lucide-react";
+import { Check, ChevronsUpDown, Moon, Sun } from "lucide-react";
 import { Sidebar } from "./Sidebar";
 import { useCluster, STORAGE_KEY } from "@/context/ClusterContext";
+import { useTheme } from "@/context/ThemeContext";
 import { raftApi } from "@/api/raft";
 import type { ClusterInfo } from "@/types/api";
+import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -17,6 +19,7 @@ import {
 
 export function AppLayout() {
   const { currentCluster, setCurrentCluster } = useCluster();
+  const { theme, toggleTheme } = useTheme();
 
   const { data: clusters } = useQuery({
     queryKey: ["clusters"],
@@ -36,7 +39,16 @@ export function AppLayout() {
     <div className="flex h-screen overflow-hidden bg-background">
       <Sidebar />
       <div className="flex flex-1 flex-col overflow-hidden">
-        <header className="flex h-10 items-center justify-end border-b border-border px-4 shrink-0">
+        <header className="flex h-10 items-center justify-end gap-2 border-b border-border px-4 shrink-0">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7"
+            onClick={toggleTheme}
+            title={theme === "dark" ? "Switch to light theme" : "Switch to dark theme"}
+          >
+            {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+          </Button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button className="flex items-center gap-2 rounded-md px-2 py-1 text-xs transition-colors hover:bg-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-ring">
