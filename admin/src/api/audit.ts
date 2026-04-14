@@ -1,6 +1,13 @@
 import { api } from "./client";
 
-export const DEFAULT_AUDIT_USER_ID = "admin-user-id";
+export const AUDIT_USER_ID_STORAGE_KEY = "cms:admin:audit-user-id";
+const FALLBACK_AUDIT_USER_ID = "admin-user-id";
+
+export function getDefaultAuditUserId(): string {
+  if (typeof window === "undefined") return FALLBACK_AUDIT_USER_ID;
+  const stored = localStorage.getItem(AUDIT_USER_ID_STORAGE_KEY)?.trim();
+  return stored || FALLBACK_AUDIT_USER_ID;
+}
 
 export interface CreateAuditRequest {
   userId: string;

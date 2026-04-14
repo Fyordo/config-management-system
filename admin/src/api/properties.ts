@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { createAuditEntry, DEFAULT_AUDIT_USER_ID } from "./audit";
+import { createAuditEntry, getDefaultAuditUserId } from "./audit";
 import { createClient } from "./client";
 import { useCluster } from "@/context/ClusterContext";
 import type {
@@ -34,8 +34,9 @@ export function createPropertiesApi(baseUrl: string) {
         "/v1/property/modify/put",
         { key: data.key, value: data.value },
       );
+      const userId = getDefaultAuditUserId();
       void createAuditEntry({
-        userId: DEFAULT_AUDIT_USER_ID,
+        userId,
         namespace: data.key.namespace,
         service: data.key.service,
         appId: data.key.appId,
@@ -50,8 +51,9 @@ export function createPropertiesApi(baseUrl: string) {
 
     delete: async (data: DeletePropertyRequest) => {
       const result = await api.post<{ result: string }>("/v1/property/modify/delete", data.key);
+      const userId = getDefaultAuditUserId();
       void createAuditEntry({
-        userId: DEFAULT_AUDIT_USER_ID,
+        userId,
         namespace: data.key.namespace,
         service: data.key.service,
         appId: data.key.appId,
