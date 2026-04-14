@@ -5,7 +5,7 @@ plugins {
 }
 
 group = "com.fyordo.cms"
-version = "1.0.8"
+version = "1.0.9"
 description = "java-example"
 
 java {
