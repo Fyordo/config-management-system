@@ -22,7 +22,6 @@ import kotlinx.coroutines.flow.onEach
 import mu.KotlinLogging
 import org.springframework.stereotype.Component
 import java.util.concurrent.ConcurrentHashMap
-import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
 
@@ -163,6 +162,15 @@ class AgentConnectionManager(
             }
         } ?: run {
             logger.error { "AgentConnectionFacade.sendInitToAgent failed, no stream found for agentId=[$agentId]" }
+        }
+    }
+
+    fun checkAgentRevision(agentId: AgentId, revision: Long) {
+        logger.debug { "Received ack from agent: agentId=$agentId, revision=$revision" }
+
+        if (revision < propertyInMemoryStorage.currentRevision.get()) {
+            logger.info { "Agent [$agentId] has old revision [$revision], sending init" }
+            sendInitToAgent(agentId)
         }
     }
 

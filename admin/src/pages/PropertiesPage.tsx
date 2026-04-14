@@ -42,7 +42,7 @@ const EMPTY_FILTER: PropertyQueryFilter = {
   serviceRegex: "",
   appIdRegex: "",
   keyRegex: "",
-  limit: 500,
+  limit: 50,
 };
 
 function SortIcon({ state }: { state: false | "asc" | "desc" }) {
