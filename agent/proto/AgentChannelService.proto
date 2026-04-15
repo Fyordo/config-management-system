@@ -3,13 +3,24 @@ syntax = "proto3";
 package com.fyordo.cms;
 
 service AgentChannelService {
-  rpc WatchProperties (AgentConnectRequest) returns (stream ServerStreamEvent);
+  rpc WatchProperties (stream AgentStreamEvent) returns (stream ServerStreamEvent);
 }
 
-message AgentConnectRequest {
+message AgentStreamEvent {
+  oneof command {
+    AgentConnectEvent connectEvent = 1;
+    AgentAckEvent ackEvent = 2;
+  }
+}
+
+message AgentConnectEvent {
   string namespace = 1;
   string service = 2;
   string appId = 3;
+}
+
+message AgentAckEvent {
+  int64 revision = 1;
 }
 
 message ServerStreamEvent {

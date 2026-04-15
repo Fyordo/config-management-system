@@ -29,12 +29,14 @@ private:
     static constexpr std::chrono::seconds RECONNECT_DELAY{5};
     static constexpr std::chrono::seconds CONNECTION_TIMEOUT{5};
     static constexpr std::chrono::milliseconds POLL_INTERVAL_MS{100};
+    static constexpr std::chrono::seconds ACK_INTERVAL{10};
 
     static constexpr int KEEPALIVE_TIME_MS       = 10'000;
     static constexpr int KEEPALIVE_TIMEOUT_MS    =  5'000;
 
     void Run();
     void RunStreamSession(void* stream, std::atomic<bool>& is_reading);
+    void SendAckToServer(void* stream, int64_t revision);
     void HandleInitEvent(const com::fyordo::cms::ServerInitEvent& init_event);
     void HandlePropertyUpdate(const com::fyordo::cms::ServerPropertyUpdateEvent& update_event);
     bool WritePropertiesToFile(const com::fyordo::cms::ServerInitEvent& init_event);

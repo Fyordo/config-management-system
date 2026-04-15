@@ -18,11 +18,12 @@
 #include "grpc_starter.h"
 
 using grpc::ClientContext;
-using grpc::ClientReader;
-using grpc::ClientReaderInterface;
+using grpc::ClientReaderWriter;
+using grpc::ClientReaderWriterInterface;
 using com::fyordo::cms::AgentChannelService;
+using com::fyordo::cms::AgentStreamEvent;
 using com::fyordo::cms::ServerStreamEvent;
-using com::fyordo::cms::AgentConnectRequest;
+using com::fyordo::cms::AgentConnectEvent;
 
 AgentChannelClient::AgentChannelClient(const AgentConfig& config, const std::string& server_address)
     : config_(config)
@@ -84,39 +85,64 @@ void AgentChannelClient::Run()
             }
 
             ClientContext context;
-            AgentConnectRequest request;
-            request.set_namespace_(config_.namespace_);
-            request.set_service(config_.service);
-            request.set_appid(config_.appId);
-
             std::cout << "AgentChannelClient: Connecting to server - "
                       << "namespace: " << config_.namespace_ << ", "
                       << "service: " << config_.service << ", "
                       << "appId: " << config_.appId << std::endl;
 
-            std::unique_ptr<ClientReader<ServerStreamEvent>> reader(
-                stub->WatchProperties(&context, request));
+            std::shared_ptr<ClientReaderWriter<AgentStreamEvent, ServerStreamEvent>> stream(
+                stub->WatchProperties(&context));
 
-            if (!reader) {
+            if (!stream) {
                 std::cerr << "AgentChannelClient: Failed to create stream" << std::endl;
+                std::this_thread::sleep_for(RECONNECT_DELAY);
+                continue;
+            }
+
+            AgentStreamEvent connect_message;
+            AgentConnectEvent* connect = connect_message.mutable_connectevent();
+            connect->set_namespace_(config_.namespace_);
+            connect->set_service(config_.service);
+            connect->set_appid(config_.appId);
+            if (!stream->Write(connect_message)) {
+                std::cerr << "AgentChannelClient: Failed to send connect event" << std::endl;
+                grpc::Status status = stream->Finish();
+                if (!status.ok()) {
+                    std::cerr << "AgentChannelClient: Stream failed after connect event: "
+                              << status.error_code() << " - " << status.error_message() << std::endl;
+                }
                 std::this_thread::sleep_for(RECONNECT_DELAY);
                 continue;
             }
             std::cout << "AgentChannelClient: Stream created successfully" << std::endl;
 
             std::atomic<bool> is_reading{true};
-            std::thread read_thread(&AgentChannelClient::RunStreamSession, this, reader.get(), std::ref(is_reading));
+            std::atomic<bool> is_writing{true};
+            std::thread read_thread(&AgentChannelClient::RunStreamSession, this, stream.get(), std::ref(is_reading));
+            std::thread ack_thread([this, stream, &is_reading, &is_writing]() {
+                while (running_.load() && is_reading.load() && is_writing.load()) {
+                    std::this_thread::sleep_for(ACK_INTERVAL);
+                    if (!running_.load() || !is_reading.load() || !is_writing.load()) {
+                        break;
+                    }
+                    SendAckToServer(stream.get(), current_revision_.load());
+                }
+            });
 
             while (running_.load() && is_reading.load()) {
                 std::this_thread::sleep_for(POLL_INTERVAL_MS);
             }
             is_reading.store(false);
+            is_writing.store(false);
             context.TryCancel();
             if (read_thread.joinable()) {
                 read_thread.join();
             }
+            if (ack_thread.joinable()) {
+                ack_thread.join();
+            }
 
-            grpc::Status status = reader->Finish();
+            grpc::Status status = stream->Finish();
             if (!status.ok()) {
                 std::cerr << "AgentChannelClient: Stream finished with error: "
                           << status.error_code() << " - " << status.error_message() << std::endl;
@@ -137,7 +163,7 @@ void AgentChannelClient::Run()
 
 void AgentChannelClient::RunStreamSession(void* stream_ptr, std::atomic<bool>& is_reading)
 {
-    auto* stream = static_cast<ClientReaderInterface<ServerStreamEvent>*>(stream_ptr);
+    auto* stream = static_cast<ClientReaderWriterInterface<AgentStreamEvent, ServerStreamEvent>*>(stream_ptr);
     ServerStreamEvent event;
 
     while (is_reading.load() && stream->Read(&event)) {
@@ -149,6 +175,18 @@ void AgentChannelClient::RunStreamSession(void* stream_ptr, std::atomic<bool>& i
     }
     is_reading.store(false);
     std::cout << "AgentChannelClient: Read loop finished" << std::endl;
+}
+
+void AgentChannelClient::SendAckToServer(void* stream_ptr, int64_t revision)
+{
+    auto* stream = static_cast<ClientReaderWriterInterface<AgentStreamEvent, ServerStreamEvent>*>(stream_ptr);
+    AgentStreamEvent ack_message;
+    ack_message.mutable_ackevent()->set_revision(revision);
+    if (!stream->Write(ack_message)) {
+        std::cerr << "AgentChannelClient: Failed to send ack to server for revision " << revision << std::endl;
+        return;
+    }
+    std::cout << "AgentChannelClient: Sent ack to server for revision " << revision << std::endl;
 }
 
 void AgentChannelClient::HandleInitEvent(const com::fyordo::cms::ServerInitEvent& init_event)
