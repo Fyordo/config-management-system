@@ -1,0 +1,276 @@
+openapi: 3.0.3
+info:
+  title: CMS Admin API
+  version: 1.0.0
+  description: API for audit history and cluster metadata/status used by the Admin UI.
+servers:
+  - url: http://localhost:8081
+tags:
+  - name: Audit
+  - name: Cluster
+
+paths:
+  /api/v1/audit:
+    get:
+      tags: [Audit]
+      summary: Search audit entries (paged)
+      parameters:
+        - in: query
+          name: namespaceRegex
+          schema: { type: string }
+        - in: query
+          name: serviceRegex
+          schema: { type: string }
+        - in: query
+          name: appIdRegex
+          schema: { type: string }
+        - in: query
+          name: keyRegex
+          schema: { type: string }
+        - in: query
+          name: userId
+          schema: { type: string }
+        - in: query
+          name: after
+          description: ISO-8601 timestamp
+          schema:
+            type: string
+            format: date-time
+        - in: query
+          name: before
+          description: ISO-8601 timestamp
+          schema:
+            type: string
+            format: date-time
+        - in: query
+          name: page
+          schema:
+            type: integer
+            default: 0
+            minimum: 0
+        - in: query
+          name: size
+          schema:
+            type: integer
+            default: 20
+            minimum: 1
+      responses:
+        "200":
+          description: Paged audit items
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuditPage"
+    post:
+      tags: [Audit]
+      summary: Create audit entry
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateUserAuditRequest"
+      responses:
+        "201":
+          description: Audit entry created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserAuditFull"
+        "400":
+          description: Validation error
+
+  /api/v1/audit/{id}:
+    get:
+      tags: [Audit]
+      summary: Get full audit entry by id
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        "200":
+          description: Full audit entry
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserAuditFull"
+        "404":
+          description: Entry not found
+
+  /api/v1/cluster/names:
+    get:
+      tags: [Cluster]
+      summary: Get configured clusters
+      responses:
+        "200":
+          description: Cluster list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Cluster"
+
+  /api/v1/cluster/status:
+    get:
+      tags: [Cluster]
+      summary: Get cluster statuses map by cluster id
+      responses:
+        "200":
+          description: Cluster statuses
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties:
+                  $ref: "#/components/schemas/ClusterFullStatus"
+
+components:
+  schemas:
+    CreateUserAuditRequest:
+      type: object
+      required: [userId, namespace, service, appId, key]
+      properties:
+        userId:
+          type: string
+        namespace:
+          type: string
+        service:
+          type: string
+        appId:
+          type: string
+        key:
+          type: string
+        prevValue:
+          type: string
+          nullable: true
+        newValue:
+          type: string
+          nullable: true
+
+    UserAuditNoValue:
+      type: object
+      required: [id, userId, namespace, service, appId, key, timestamp]
+      properties:
+        id:
+          type: integer
+          format: int64
+        userId:
+          type: string
+        namespace:
+          type: string
+        service:
+          type: string
+        appId:
+          type: string
+        key:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+
+    UserAuditFull:
+      type: object
+      required: [id, userId, namespace, service, appId, key, timestamp]
+      properties:
+        id:
+          type: integer
+          format: int64
+        userId:
+          type: string
+        namespace:
+          type: string
+        service:
+          type: string
+        appId:
+          type: string
+        key:
+          type: string
+        prevValue:
+          type: string
+          nullable: true
+        newValue:
+          type: string
+          nullable: true
+        timestamp:
+          type: string
+          format: date-time
+
+    AuditPage:
+      type: object
+      required: [content, number, size, totalElements, totalPages, first, last, empty]
+      properties:
+        content:
+          type: array
+          items:
+            $ref: "#/components/schemas/UserAuditNoValue"
+        number:
+          type: integer
+        size:
+          type: integer
+        totalElements:
+          type: integer
+          format: int64
+        totalPages:
+          type: integer
+        first:
+          type: boolean
+        last:
+          type: boolean
+        empty:
+          type: boolean
+
+    Cluster:
+      type: object
+      required: [id, title, color, raftAddress]
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        color:
+          type: string
+        raftAddress:
+          type: string
+
+    NodeStatus:
+      type: object
+      required: [nodeId, isLeader, reachable, connectedAgents]
+      properties:
+        nodeId:
+          type: string
+        isLeader:
+          type: boolean
+        groupId:
+          type: string
+          nullable: true
+        reachable:
+          type: boolean
+        error:
+          type: string
+          nullable: true
+        connectedAgents:
+          type: integer
+          format: int32
+
+    ClusterFullStatus:
+      type: object
+      required: [color, nodes]
+      properties:
+        groupId:
+          type: string
+          nullable: true
+        nodes:
+          type: array
+          items:
+            $ref: "#/components/schemas/NodeStatus"
+        error:
+          type: string
+          nullable: true
+        color:
+          type: string

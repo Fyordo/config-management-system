@@ -33,9 +33,9 @@ RUN chown appuser:appuser /app/go-example
 USER appuser
 
 # In Kubernetes, supply these via env vars / ConfigMap / volume mounts:
-#   CMS_CONFIG_PATH      — path to the JSON config file (mount a ConfigMap here)
-#   CMS_UNIX_SOCKET_PATH — path to the UNIX socket (shared emptyDir with the agent)
-#   HTTP_ADDR            — listen address (default :8080)
+#   CMS_CONFIG_PATH      - path to the JSON config file (mount a ConfigMap here)
+#   CMS_UNIX_SOCKET_PATH - path to the UNIX socket (shared emptyDir with the agent)
+#   HTTP_ADDR            - listen address (default :8080)
 EXPOSE 8080
 
 ENTRYPOINT ["/app/go-example"]

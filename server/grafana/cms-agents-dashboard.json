@@ -38,7 +38,7 @@
   "annotations": {
     "list": []
   },
-  "description": "CMS Server — Agent gRPC stream connections",
+  "description": "CMS Server - Agent gRPC stream connections",
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 1,
@@ -142,7 +142,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
           "expr": "sum(rate(cms_agent_connections_total[1m])) by (instance)",
-          "legendFormat": "connect — {{instance}}",
+          "legendFormat": "connect - {{instance}}",
           "refId": "A"
         }
       ],
@@ -168,7 +168,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
           "expr": "sum(rate(cms_agent_disconnections_total[1m])) by (instance)",
-          "legendFormat": "disconnect — {{instance}}",
+          "legendFormat": "disconnect - {{instance}}",
           "refId": "A"
         }
       ],
@@ -279,7 +279,7 @@
   "time": { "from": "now-1h", "to": "now" },
   "timepicker": {},
   "timezone": "browser",
-  "title": "CMS — Agent Connections",
+  "title": "CMS - Agent Connections",
   "uid": "cms-agent-connections",
   "version": 1
 }

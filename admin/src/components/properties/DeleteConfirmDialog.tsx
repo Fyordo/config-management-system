@@ -36,7 +36,7 @@ export function DeleteConfirmDialog({
       onOpenChange(false);
     },
     onError: (err: Error) => {
-      toast.error(err.message);
+      toast.error(`An error occured: ${err.message}`);
     },
   });
 

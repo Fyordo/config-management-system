@@ -88,7 +88,7 @@ export function Sidebar() {
       <div className="p-2">
         <Separator className="mb-2" />
         <div className={cn("flex items-center", expanded ? "justify-between" : "justify-center")}>
-          <p className="text-center text-[8px] text-muted-foreground font-mono pb-1">v0.1</p>
+          <p className="text-center text-[8px] text-muted-foreground font-mono pb-1">Version: 1.0.0</p>
           {!expanded && (
             <Button
               variant="ghost"

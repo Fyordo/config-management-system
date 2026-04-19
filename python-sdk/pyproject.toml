@@ -5,7 +5,7 @@ build-backend = "setuptools.backends.legacy:build"
 [project]
 name = "cms-sdk"
 version = "0.1.0"
-description = "Config Management System — Python client SDK"
+description = "Config Management System - Python client SDK"
 readme = "README.md"
 requires-python = ">=3.9"
 dependencies = []

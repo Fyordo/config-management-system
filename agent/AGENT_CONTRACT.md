@@ -1,4 +1,4 @@
-# AGENT_CONTRACT.md — UNIX-socket protocol for Property updates
+# AGENT_CONTRACT.md - UNIX-socket protocol for Property updates
 
 This contract describes how the agent (`agent/grpc/agent_channel_client.cpp`) sends configuration change information to a UNIX domain socket.
 
@@ -14,8 +14,8 @@ If `CMS_UNIX_SOCKET_PATH` is not set (empty string), the agent does not send any
 
 Each message consists of:
 
-1. `payload_len` — `uint32` in **big-endian** byte order (4 bytes), equal to the number of bytes in `payload`.
-2. `payload` — bytes of a protobuf-serialized `com.fyordo.cms.Property` message.
+1. `payload_len` - `uint32` in **big-endian** byte order (4 bytes), equal to the number of bytes in `payload`.
+2. `payload` - bytes of a protobuf-serialized `com.fyordo.cms.Property` message.
 
 Byte layout:
 
@@ -36,8 +36,8 @@ message Property {
 
 Field semantics:
 
-- `key` — configuration key (string).
-- `value` — configuration value as **opaque bytes** (`bytes`). The agent does not require this to be valid UTF‑8.
+- `key` - configuration key (string).
+- `value` - configuration value as **opaque bytes** (`bytes`). The agent does not require this to be valid UTF‑8.
 
 ## Receiver-side read order
 

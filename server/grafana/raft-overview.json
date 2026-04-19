@@ -38,7 +38,7 @@
   "annotations": {
     "list": []
   },
-  "description": "CMS Server — Raft cluster overview",
+  "description": "CMS Server - Raft cluster overview",
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 1,
@@ -69,7 +69,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
           "expr": "sum(rate(cms_raft_apply_total[1m])) by (node_id)",
-          "legendFormat": "apply rate — {{node_id}}",
+          "legendFormat": "apply rate - {{node_id}}",
           "refId": "A"
         }
       ],
@@ -92,7 +92,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
           "expr": "sum(rate(cms_raft_apply_error_total[1m])) by (node_id)",
-          "legendFormat": "errors — {{node_id}}",
+          "legendFormat": "errors - {{node_id}}",
           "refId": "A"
         }
       ],
@@ -115,19 +115,19 @@
         {
           "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
           "expr": "histogram_quantile(0.99, sum(rate(cms_raft_apply_duration_seconds_bucket[1m])) by (le, node_id))",
-          "legendFormat": "p99 — {{node_id}}",
+          "legendFormat": "p99 - {{node_id}}",
           "refId": "A"
         },
         {
           "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
           "expr": "histogram_quantile(0.95, sum(rate(cms_raft_apply_duration_seconds_bucket[1m])) by (le, node_id))",
-          "legendFormat": "p95 — {{node_id}}",
+          "legendFormat": "p95 - {{node_id}}",
           "refId": "B"
         },
         {
           "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
           "expr": "histogram_quantile(0.50, sum(rate(cms_raft_apply_duration_seconds_bucket[1m])) by (le, node_id))",
-          "legendFormat": "p50 — {{node_id}}",
+          "legendFormat": "p50 - {{node_id}}",
           "refId": "C"
         }
       ],
@@ -157,13 +157,13 @@
         {
           "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
           "expr": "sum(rate(cms_raft_put_total[1m])) by (node_id)",
-          "legendFormat": "PUT — {{node_id}}",
+          "legendFormat": "PUT - {{node_id}}",
           "refId": "A"
         },
         {
           "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
           "expr": "sum(rate(cms_raft_delete_total[1m])) by (node_id)",
-          "legendFormat": "DELETE — {{node_id}}",
+          "legendFormat": "DELETE - {{node_id}}",
           "refId": "B"
         }
       ],
@@ -186,13 +186,13 @@
         {
           "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
           "expr": "sum(rate(cms_raft_query_total[1m])) by (node_id)",
-          "legendFormat": "query — {{node_id}}",
+          "legendFormat": "query - {{node_id}}",
           "refId": "A"
         },
         {
           "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
           "expr": "sum(rate(cms_raft_query_error_total[1m])) by (node_id)",
-          "legendFormat": "errors — {{node_id}}",
+          "legendFormat": "errors - {{node_id}}",
           "refId": "B"
         }
       ],
@@ -331,7 +331,7 @@
   "time": { "from": "now-1h", "to": "now" },
   "timepicker": {},
   "timezone": "browser",
-  "title": "CMS — Raft Overview",
+  "title": "CMS - Raft Overview",
   "uid": "cms-raft-overview",
   "version": 1
 }
