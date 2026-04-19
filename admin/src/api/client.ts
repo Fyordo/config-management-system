@@ -10,6 +10,23 @@ class ApiError extends Error {
   }
 }
 
+type ErrorPayload = {
+  message?: string;
+};
+
+function parseErrorMessage(raw: string, fallbackStatus: number): string {
+  if (!raw) return `HTTP ${fallbackStatus}`;
+  try {
+    const payload = JSON.parse(raw) as ErrorPayload;
+    if (typeof payload.message === "string" && payload.message.trim()) {
+      return payload.message;
+    }
+  } catch {
+    // Non-JSON response body.
+  }
+  return raw;
+}
+
 async function request<T>(
   baseUrl: string,
   path: string,
@@ -21,8 +38,8 @@ async function request<T>(
   });
 
   if (!res.ok) {
-    const text = await res.text().catch(() => res.statusText);
-    throw new ApiError(res.status, text || `HTTP ${res.status}`);
+    const text = await res.text().catch(() => "");
+    throw new ApiError(res.status, parseErrorMessage(text || res.statusText, res.status));
   }
 
   const text = await res.text();

@@ -152,7 +152,7 @@ export function DashboardPage() {
                     <div>
                       <p className="text-xs text-muted-foreground">Leader</p>
                       <p className="text-sm font-mono mt-0.5 text-foreground">
-                        {group.nodes.find((n) => n.isLeader)?.nodeId ?? "—"}
+                        {group.nodes.find((n) => n.isLeader)?.nodeId ?? "-"}
                       </p>
                     </div>
                   </div>

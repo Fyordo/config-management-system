@@ -1,0 +1,343 @@
+openapi: 3.0.3
+info:
+  title: CMS Server API
+  version: 1.0.0
+  description: HTTP API for property query/modify operations and Raft status.
+servers:
+  - url: http://localhost:8080
+tags:
+  - name: Properties
+  - name: Raft
+
+paths:
+  /v1/property/modify/put:
+    post:
+      tags: [Properties]
+      summary: Put or update property value
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PutPropertyRequest"
+      responses:
+        "200":
+          description: Command committed in Raft
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PutPropertyResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /v1/property/modify/delete:
+    post:
+      tags: [Properties]
+      summary: Delete property by key
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PropertyKey"
+      responses:
+        "200":
+          description: Delete command result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeletePropertyResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /v1/property/query:
+    post:
+      tags: [Properties]
+      summary: Query properties by regex filters
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PropertyQueryFilter"
+      responses:
+        "200":
+          description: Matching properties
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Property"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+
+  /v1/property/query/get:
+    post:
+      tags: [Properties]
+      summary: Get single property by full key
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PropertyKey"
+      responses:
+        "200":
+          description: Property found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Property"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+
+  /v1/property/query/constants:
+    get:
+      tags: [Properties]
+      summary: Get available namespace/service/appId constants
+      description: Endpoint accepts an optional JSON body with regex filters.
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ConstantsQueryFilter"
+      responses:
+        "200":
+          description: Available constants
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Constants"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+
+  /raft/status/local:
+    get:
+      tags: [Raft]
+      summary: Get local node status
+      responses:
+        "200":
+          description: Local node status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NodeStatus"
+
+  /raft/status:
+    get:
+      tags: [Raft]
+      summary: Get full Raft cluster status
+      responses:
+        "200":
+          description: Cluster status snapshot
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ClusterStatus"
+
+components:
+  responses:
+    BadRequest:
+      description: Validation or request error
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    InternalError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+
+  schemas:
+    PropertyKey:
+      type: object
+      required: [version, namespace, service, appId, key]
+      properties:
+        version:
+          type: integer
+          format: int32
+        namespace:
+          type: string
+        service:
+          type: string
+        appId:
+          type: string
+        key:
+          type: string
+
+    PropertyValue:
+      type: object
+      required: [value, lastModifiedMs]
+      properties:
+        value:
+          type: string
+        lastModifiedMs:
+          type: integer
+          format: int64
+
+    Property:
+      type: object
+      required: [key, value]
+      properties:
+        key:
+          $ref: "#/components/schemas/PropertyKey"
+        value:
+          $ref: "#/components/schemas/PropertyValue"
+
+    PutPropertyRequest:
+      type: object
+      required: [key, value]
+      properties:
+        key:
+          $ref: "#/components/schemas/PropertyKey"
+        value:
+          type: string
+          description: Max size is limited by server config (default 1MB).
+
+    PutPropertyResponse:
+      type: object
+      required: [result, key]
+      properties:
+        result:
+          $ref: "#/components/schemas/RaftResultStatus"
+        key:
+          type: string
+
+    DeletePropertyResponse:
+      type: object
+      required: [result]
+      properties:
+        result:
+          $ref: "#/components/schemas/RaftResultStatus"
+
+    PropertyQueryFilter:
+      type: object
+      properties:
+        namespaceRegex:
+          type: string
+        serviceRegex:
+          type: string
+        appIdRegex:
+          type: string
+        keyRegex:
+          type: string
+        valueRegex:
+          type: string
+        limit:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 10
+
+    ConstantsQueryFilter:
+      type: object
+      properties:
+        namespaceRegex:
+          type: string
+        serviceRegex:
+          type: string
+        appIdRegex:
+          type: string
+
+    Constants:
+      type: object
+      required: [namespaces, services, appIds]
+      properties:
+        namespaces:
+          type: array
+          items:
+            type: string
+        services:
+          type: array
+          items:
+            type: string
+        appIds:
+          type: array
+          items:
+            type: string
+
+    NodeStatus:
+      type: object
+      required: [nodeId, isLeader, groupId, connectedAgents]
+      properties:
+        nodeId:
+          type: string
+        isLeader:
+          type: boolean
+        groupId:
+          type: string
+        connectedAgents:
+          type: integer
+          format: int32
+
+    NodeFullStatus:
+      type: object
+      required: [nodeId, isLeader, reachable, connectedAgents]
+      properties:
+        nodeId:
+          type: string
+        isLeader:
+          type: boolean
+        groupId:
+          type: string
+          nullable: true
+        reachable:
+          type: boolean
+        error:
+          type: string
+          nullable: true
+        connectedAgents:
+          type: integer
+          format: int32
+
+    ClusterStatus:
+      type: object
+      required: [groupId, nodes]
+      properties:
+        groupId:
+          type: string
+        nodes:
+          type: array
+          items:
+            $ref: "#/components/schemas/NodeFullStatus"
+
+    RaftResultStatus:
+      type: string
+      enum:
+        - RAFT_RESULT_STATUS_UNSPECIFIED
+        - RAFT_RESULT_STATUS_OK
+        - RAFT_RESULT_STATUS_NOT_FOUND
+        - RAFT_RESULT_STATUS_ERROR
+
+    ErrorResponse:
+      type: object
+      required: [timestamp, status]
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+        status:
+          type: integer
+          format: int32
+        message:
+          type: string
+          nullable: true
+        path:
+          type: string
+          nullable: true

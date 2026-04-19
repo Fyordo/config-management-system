@@ -38,7 +38,7 @@
   "annotations": {
     "list": []
   },
-  "description": "CMS Server — HTTP API metrics (get / query)",
+  "description": "CMS Server - HTTP API metrics (get / query)",
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 1,
@@ -68,7 +68,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
           "expr": "sum(rate(cms_property_get_total[1m])) by (node_id)",
-          "legendFormat": "get — {{node_id}}",
+          "legendFormat": "get - {{node_id}}",
           "refId": "A"
         }
       ],
@@ -91,7 +91,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
           "expr": "sum(rate(cms_property_query_total[1m])) by (node_id)",
-          "legendFormat": "query — {{node_id}}",
+          "legendFormat": "query - {{node_id}}",
           "refId": "A"
         }
       ],
@@ -121,19 +121,19 @@
         {
           "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
           "expr": "histogram_quantile(0.99, sum(rate(cms_property_get_duration_seconds_bucket[1m])) by (le, node_id))",
-          "legendFormat": "p99 — {{node_id}}",
+          "legendFormat": "p99 - {{node_id}}",
           "refId": "A"
         },
         {
           "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
           "expr": "histogram_quantile(0.95, sum(rate(cms_property_get_duration_seconds_bucket[1m])) by (le, node_id))",
-          "legendFormat": "p95 — {{node_id}}",
+          "legendFormat": "p95 - {{node_id}}",
           "refId": "B"
         },
         {
           "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
           "expr": "histogram_quantile(0.50, sum(rate(cms_property_get_duration_seconds_bucket[1m])) by (le, node_id))",
-          "legendFormat": "p50 — {{node_id}}",
+          "legendFormat": "p50 - {{node_id}}",
           "refId": "C"
         }
       ],
@@ -156,19 +156,19 @@
         {
           "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
           "expr": "histogram_quantile(0.99, sum(rate(cms_property_query_duration_seconds_bucket[1m])) by (le, node_id))",
-          "legendFormat": "p99 — {{node_id}}",
+          "legendFormat": "p99 - {{node_id}}",
           "refId": "A"
         },
         {
           "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
           "expr": "histogram_quantile(0.95, sum(rate(cms_property_query_duration_seconds_bucket[1m])) by (le, node_id))",
-          "legendFormat": "p95 — {{node_id}}",
+          "legendFormat": "p95 - {{node_id}}",
           "refId": "B"
         },
         {
           "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
           "expr": "histogram_quantile(0.50, sum(rate(cms_property_query_duration_seconds_bucket[1m])) by (le, node_id))",
-          "legendFormat": "p50 — {{node_id}}",
+          "legendFormat": "p50 - {{node_id}}",
           "refId": "C"
         }
       ],
@@ -198,7 +198,7 @@
         {
           "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
           "expr": "sum(rate(cms_property_get_not_found_total[1m])) by (node_id)",
-          "legendFormat": "404 — {{node_id}}",
+          "legendFormat": "404 - {{node_id}}",
           "refId": "A"
         }
       ],
@@ -339,7 +339,7 @@
   "time": { "from": "now-1h", "to": "now" },
   "timepicker": {},
   "timezone": "browser",
-  "title": "CMS — HTTP API",
+  "title": "CMS - HTTP API",
   "uid": "cms-http-api",
   "version": 1
 }

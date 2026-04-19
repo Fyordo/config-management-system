@@ -79,6 +79,7 @@ export function AuditPage() {
   const [detailsId, setDetailsId] = useState<number | null>(null);
   const [rollbackLoadingId, setRollbackLoadingId] = useState<number | null>(null);
   const [rollbackProperty, setRollbackProperty] = useState<PropertyDto | null>(null);
+  const [rollbackPrevValue, setRollbackPrevValue] = useState<string | null>(null);
 
   const activeFilter = useMemo<AuditSearchFilter>(
     () => ({
@@ -107,6 +108,33 @@ export function AuditPage() {
     queryFn: () => getAuditById(detailsId as number),
     enabled: isDetailsOpen,
   });
+
+  async function openRollbackDialog(auditId: number) {
+    setRollbackLoadingId(auditId);
+    try {
+      const audit = await queryClient.fetchQuery({
+        queryKey: ["audit", "details", auditId],
+        queryFn: () => getAuditById(auditId),
+      });
+      setRollbackProperty({
+        key: {
+          version: 1,
+          namespace: audit.namespace,
+          service: audit.service,
+          appId: audit.appId,
+          key: audit.key,
+        },
+        value: {
+          value: audit.prevValue ?? "",
+          lastModifiedMs: 0,
+          version: 1,
+        },
+      });
+      setRollbackPrevValue(audit.newValue ?? null);
+    } finally {
+      setRollbackLoadingId(null);
+    }
+  }
 
   const columns = useMemo(
     () => [
@@ -161,45 +189,6 @@ export function AuditPage() {
           <div className="flex items-center justify-end gap-1">
             <Button
               variant="ghost"
-              size="sm"
-              className="h-7 gap-1.5 px-2 text-xs"
-              title="Rollback to previous value"
-              disabled={rollbackLoadingId === row.original.id}
-              onClick={async () => {
-                setRollbackLoadingId(row.original.id);
-                try {
-                  const audit = await queryClient.fetchQuery({
-                    queryKey: ["audit", "details", row.original.id],
-                    queryFn: () => getAuditById(row.original.id),
-                  });
-                  setRollbackProperty({
-                    key: {
-                      version: 1,
-                      namespace: audit.namespace,
-                      service: audit.service,
-                      appId: audit.appId,
-                      key: audit.key,
-                    },
-                    value: {
-                      value: audit.prevValue ?? "",
-                      lastModifiedMs: 0,
-                      version: 1,
-                    },
-                  });
-                } finally {
-                  setRollbackLoadingId(null);
-                }
-              }}
-            >
-              {rollbackLoadingId === row.original.id ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              ) : (
-                <RotateCcw className="h-3.5 w-3.5" />
-              )}
-              Rollback
-            </Button>
-            <Button
-              variant="ghost"
               size="icon"
               className="h-7 w-7"
               title="View details"
@@ -211,7 +200,7 @@ export function AuditPage() {
         ),
       }),
     ],
-    [queryClient, rollbackLoadingId],
+    [],
   );
 
   const table = useReactTable({
@@ -443,11 +432,34 @@ export function AuditPage() {
 
       <Dialog open={isDetailsOpen} onOpenChange={(open) => !open && setDetailsId(null)}>
         <DialogContent className="w-[95vw] max-w-6xl max-h-[85vh] overflow-hidden p-0 gap-0">
-          <DialogHeader className="px-6 pt-6 pb-4 border-b border-border">
-            <DialogTitle>Audit entry details</DialogTitle>
-            <DialogDescription>
-              {detailsId !== null ? `Entry #${detailsId}` : "Selected entry"}
-            </DialogDescription>
+          <DialogHeader className="px-6 pt-6 pb-4 pr-14 border-b border-border">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <DialogTitle>Audit entry details</DialogTitle>
+                <DialogDescription>
+                  {detailsId !== null ? `Entry #${detailsId}` : "Selected entry"}
+                </DialogDescription>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="gap-2"
+                disabled={detailsId === null || isDetailsLoading || rollbackLoadingId === detailsId}
+                onClick={() => {
+                  if (detailsId !== null) {
+                    void openRollbackDialog(detailsId);
+                  }
+                }}
+              >
+                {rollbackLoadingId === detailsId ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <RotateCcw className="h-3.5 w-3.5" />
+                )}
+                Rollback
+              </Button>
+            </div>
           </DialogHeader>
           <div className="min-h-0 overflow-auto px-6 pb-6 pt-4">
             {isDetailsLoading ? (
@@ -501,8 +513,14 @@ export function AuditPage() {
       </Dialog>
       <PropertyDialog
         open={!!rollbackProperty}
-        onOpenChange={(open) => !open && setRollbackProperty(null)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setRollbackProperty(null);
+            setRollbackPrevValue(null);
+          }
+        }}
         editProperty={rollbackProperty}
+        forcePrevValue={rollbackPrevValue}
       />
     </div>
   );

@@ -6,16 +6,16 @@ CMS SDK for Java. Stores configuration as `Map<String, String>` in memory, loads
 
 ```
 PropertyManager.init()
-  ├── waitForConfigFile()   — polls up to 60 s for the JSON file to appear
-  ├── readFromFile()        — parses JSON, stores each key/value as String
-  └── listenSocket()        — starts a daemon thread with a UNIX socket server
+  ├── waitForConfigFile()   - polls up to 60 s for the JSON file to appear
+  ├── readFromFile()        - parses JSON, stores each key/value as String
+  └── listenSocket()        - starts a daemon thread with a UNIX socket server
 ```
 
 After `init()`, properties are available via `get(key)`. If the socket cannot be bound, the file-based config is still loaded.
 
 ## Socket protocol
 
-The SDK acts as a **server** — it binds a `AF_UNIX` socket and waits for the agent to connect as a client.
+The SDK acts as a **server** - it binds a `AF_UNIX` socket and waits for the agent to connect as a client.
 
 Each message on the wire:
 
@@ -26,7 +26,7 @@ Each message on the wire:
 
 The `value` bytes are decoded as UTF-8 and stored as `String`. Max payload size is 1 MB.
 
-Connections are processed sequentially — the next `accept()` happens only after the current connection is fully read. This guarantees that updates arriving in order are applied in the same order.
+Connections are processed sequentially - the next `accept()` happens only after the current connection is fully read. This guarantees that updates arriving in order are applied in the same order.
 
 ## Usage
 

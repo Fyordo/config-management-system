@@ -21,7 +21,6 @@ import {
   Filter,
   Loader2,
   Plus,
-  Search,
   Trash2,
   X,
 } from "lucide-react";
@@ -42,7 +41,7 @@ const EMPTY_FILTER: PropertyQueryFilter = {
   serviceRegex: "",
   appIdRegex: "",
   keyRegex: "",
-  limit: 50,
+  limit: 10,
 };
 
 function SortIcon({ state }: { state: false | "asc" | "desc" }) {
@@ -78,8 +77,7 @@ export function PropertiesPage() {
   const [filterDraft, setFilterDraft] = useState<PropertyQueryFilter>(EMPTY_FILTER);
   const [filter, setFilter] = useState<PropertyQueryFilter>(EMPTY_FILTER);
   const [showFilters, setShowFilters] = useState(false);
-  const [globalSearchDraft, setGlobalSearchDraft] = useState("");
-  const [globalSearch, setGlobalSearch] = useState("");
+  const [globalSearch] = useState("");
   const [sorting, setSorting] = useState<SortingState>([]);
   const [createOpen, setCreateOpen] = useState(false);
   const [editProperty, setEditProperty] = useState<PropertyDto | null>(null);
@@ -93,16 +91,6 @@ export function PropertiesPage() {
     keyRegex: filter.keyRegex || undefined,
     limit: filter.limit,
   };
-
-  function commitSearch() {
-    setGlobalSearch(globalSearchDraft);
-  }
-
-  function clearSearch() {
-    setGlobalSearchDraft("");
-    setGlobalSearch("");
-  }
-
   function commitFilter(field: keyof PropertyQueryFilter, value: string) {
     setFilter((prev) => ({ ...prev, [field]: value }));
   }
@@ -117,6 +105,10 @@ export function PropertiesPage() {
     queryFn: () => propertiesApi.query(activeFilter),
     placeholderData: (prev) => prev,
     enabled: !!currentCluster,
+    staleTime: Infinity,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+    refetchOnMount: false,
   });
 
   const columns = useMemo(() => [
@@ -163,7 +155,7 @@ export function PropertiesPage() {
       header: "Last Modified",
       cell: (info) => {
         const ms = info.getValue();
-        if (!ms) return <span className="text-xs text-muted-foreground">—</span>;
+        if (!ms) return <span className="text-xs text-muted-foreground">-</span>;
         return (
           <span className="text-xs text-muted-foreground font-mono">
             {format(new Date(ms), "MMM d, HH:mm:ss")}
@@ -251,7 +243,7 @@ export function PropertiesPage() {
               "Loading…"
             ) : (
               <>
-                {filteredData.length} of {data?.length ?? 0} properties
+                First {data?.length ?? 0} properties
                 {isFetching && !isLoading && (
                   <Loader2 className="inline h-3 w-3 ml-2 animate-spin" />
                 )}
@@ -283,26 +275,6 @@ export function PropertiesPage() {
 
       {/* Toolbar */}
       <div className="px-8 py-3 border-b border-border space-y-3">
-        {/* Global search */}
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
-          <Input
-            placeholder="Search across all fields… (Enter to apply)"
-            value={globalSearchDraft}
-            onChange={(e) => setGlobalSearchDraft(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && commitSearch()}
-            className="pl-9 pr-8"
-          />
-          {globalSearchDraft && (
-            <button
-              onClick={clearSearch}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-            >
-              <X className="h-3.5 w-3.5" />
-            </button>
-          )}
-        </div>
-
         {/* Regex filters */}
         {showFilters && (
           <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
@@ -339,7 +311,15 @@ export function PropertiesPage() {
       </div>
 
       {/* Table */}
-      <div className="flex-1 overflow-auto">
+      <div className="relative flex-1 overflow-auto">
+        {isFetching && (
+          <div className="absolute inset-0 z-20 flex items-center justify-center bg-background/60 backdrop-blur-[1px]">
+            <div className="inline-flex items-center gap-2 rounded-md border border-border bg-card px-3 py-2 text-sm text-muted-foreground shadow-sm">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Loading properties...
+            </div>
+          </div>
+        )}
         <table className="w-full text-sm">
           <thead className="sticky top-0 z-10 bg-card border-b border-border">
             {table.getHeaderGroups().map((hg) => (

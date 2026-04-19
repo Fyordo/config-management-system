@@ -149,7 +149,7 @@ def test_remove_callback(tmp_path):
     pm.add_update_callback("k", lambda k, o, n: events.append(n))
     pm.remove_update_callback("k")
     pm.init()
-    pm._store("k", "value")  # noqa: SLF001 — direct call for test isolation
+    pm._store("k", "value")  # noqa: SLF001 - direct call for test isolation
     assert events == [], "callback should not fire after removal"
 
 
