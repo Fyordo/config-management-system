@@ -21,7 +21,6 @@ import {
   Filter,
   Loader2,
   Plus,
-  Search,
   Trash2,
   X,
 } from "lucide-react";
@@ -78,8 +77,7 @@ export function PropertiesPage() {
   const [filterDraft, setFilterDraft] = useState<PropertyQueryFilter>(EMPTY_FILTER);
   const [filter, setFilter] = useState<PropertyQueryFilter>(EMPTY_FILTER);
   const [showFilters, setShowFilters] = useState(false);
-  const [globalSearchDraft, setGlobalSearchDraft] = useState("");
-  const [globalSearch, setGlobalSearch] = useState("");
+  const [globalSearch] = useState("");
   const [sorting, setSorting] = useState<SortingState>([]);
   const [createOpen, setCreateOpen] = useState(false);
   const [editProperty, setEditProperty] = useState<PropertyDto | null>(null);
