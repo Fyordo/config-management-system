@@ -66,7 +66,7 @@ class PropertyInMemoryStorageTest {
             lastModifiedMs = 123456789L
         )
 
-        storage[key] = value
+        storage.setWithRevision(key, value, 1)
         val retrieved = storage[key]
 
         assertEquals(value, retrieved)
@@ -107,8 +107,8 @@ class PropertyInMemoryStorageTest {
             lastModifiedMs = 200L
         )
 
-        storage[key] = value1
-        storage[key] = value2
+        storage.setWithRevision(key, value1, 1)
+        storage.setWithRevision(key, value2, 2)
         val retrieved = storage[key]
 
         assertEquals(value2, retrieved)
@@ -122,8 +122,8 @@ class PropertyInMemoryStorageTest {
         val value1 = PropertyValue(1, "value1".toByteArray(), 100L)
         val value2 = PropertyValue(1, "value2".toByteArray(), 200L)
 
-        storage[key1] = value1
-        storage[key2] = value2
+        storage.setWithRevision(key1, value1, 1)
+        storage.setWithRevision(key2, value2, 2)
 
         assertEquals(value1, storage[key1])
         assertEquals(value2, storage[key2])
@@ -134,7 +134,7 @@ class PropertyInMemoryStorageTest {
         val key = PropertyKey(1, "ns", "svc", "app", "key")
         val value = PropertyValue(1, "value".toByteArray(), 100L)
 
-        storage[key] = value
+        storage.setWithRevision(key, value, 1)
         assertNotNull(storage[key])
 
         val removed = storage.remove(key)
@@ -157,7 +157,7 @@ class PropertyInMemoryStorageTest {
         val key = PropertyKey(1, "ns", "svc", "app", "key")
         val value = PropertyValue(1, "value".toByteArray(), 100L)
 
-        storage[key] = value
+        storage.setWithRevision(key, value, 1)
 
         assertTrue(pathHolder.getNamespaces().contains("ns"))
         assertTrue(pathHolder.getServices().contains("svc"))
@@ -170,7 +170,7 @@ class PropertyInMemoryStorageTest {
         val key = PropertyKey(1, "ns", "svc", "app", "key")
         val value = PropertyValue(1, "value".toByteArray(), 100L)
 
-        storage[key] = value
+        storage.setWithRevision(key, value, 1)
         assertTrue(pathHolder.getKeys().contains("key"))
 
         storage.remove(key)
@@ -179,9 +179,21 @@ class PropertyInMemoryStorageTest {
 
     @Test
     fun `should filter by namespace regex`() {
-        storage[PropertyKey(1, "prod", "svc", "app", "key1")] = PropertyValue(1, "v1".toByteArray(), 100L)
-        storage[PropertyKey(1, "dev", "svc", "app", "key2")] = PropertyValue(1, "v2".toByteArray(), 100L)
-        storage[PropertyKey(1, "test", "svc", "app", "key3")] = PropertyValue(1, "v3".toByteArray(), 100L)
+        storage.setWithRevision(
+            PropertyKey(1, "prod", "svc", "app", "key1"),
+            PropertyValue(1, "v1".toByteArray(), 100L),
+            1
+        )
+        storage.setWithRevision(
+            PropertyKey(1, "dev", "svc", "app", "key2"),
+            PropertyValue(1, "v2".toByteArray(), 100L),
+            2
+        )
+        storage.setWithRevision(
+            PropertyKey(1, "test", "svc", "app", "key3"),
+            PropertyValue(1, "v3".toByteArray(), 100L),
+            3
+        )
 
         val filter = PropertyQueryFilter(
             namespaceRegex = "prod",
@@ -196,9 +208,21 @@ class PropertyInMemoryStorageTest {
 
     @Test
     fun `should filter by service regex`() {
-        storage[PropertyKey(1, "ns", "auth-service", "app", "key1")] = PropertyValue(1, "v1".toByteArray(), 100L)
-        storage[PropertyKey(1, "ns", "user-service", "app", "key2")] = PropertyValue(1, "v2".toByteArray(), 100L)
-        storage[PropertyKey(1, "ns", "payment-service", "app", "key3")] = PropertyValue(1, "v3".toByteArray(), 100L)
+        storage.setWithRevision(
+            PropertyKey(1, "ns", "auth-service", "app", "key1"),
+            PropertyValue(1, "v1".toByteArray(), 100L),
+            1
+        )
+        storage.setWithRevision(
+            PropertyKey(1, "ns", "user-service", "app", "key2"),
+            PropertyValue(1, "v2".toByteArray(), 100L),
+            2
+        )
+        storage.setWithRevision(
+            PropertyKey(1, "ns", "payment-service", "app", "key3"),
+            PropertyValue(1, "v3".toByteArray(), 100L),
+            3
+        )
 
         val filter = PropertyQueryFilter(
             serviceRegex = ".*-service",
@@ -212,9 +236,21 @@ class PropertyInMemoryStorageTest {
 
     @Test
     fun `should filter by appId regex`() {
-        storage[PropertyKey(1, "ns", "svc", "app-1", "key1")] = PropertyValue(1, "v1".toByteArray(), 100L)
-        storage[PropertyKey(1, "ns", "svc", "app-2", "key2")] = PropertyValue(1, "v2".toByteArray(), 100L)
-        storage[PropertyKey(1, "ns", "svc", "other", "key3")] = PropertyValue(1, "v3".toByteArray(), 100L)
+        storage.setWithRevision(
+            PropertyKey(1, "ns", "svc", "app-1", "key1"),
+            PropertyValue(1, "v1".toByteArray(), 100L),
+            1
+        )
+        storage.setWithRevision(
+            PropertyKey(1, "ns", "svc", "app-2", "key2"),
+            PropertyValue(1, "v2".toByteArray(), 100L),
+            2
+        )
+        storage.setWithRevision(
+            PropertyKey(1, "ns", "svc", "other", "key3"),
+            PropertyValue(1, "v3".toByteArray(), 100L),
+            3
+        )
 
         val filter = PropertyQueryFilter(
             appIdRegex = "app-.*",
@@ -229,9 +265,21 @@ class PropertyInMemoryStorageTest {
 
     @Test
     fun `should filter by key regex`() {
-        storage[PropertyKey(1, "ns", "svc", "app", "config.db.host")] = PropertyValue(1, "v1".toByteArray(), 100L)
-        storage[PropertyKey(1, "ns", "svc", "app", "config.db.port")] = PropertyValue(1, "v2".toByteArray(), 100L)
-        storage[PropertyKey(1, "ns", "svc", "app", "feature.flag")] = PropertyValue(1, "v3".toByteArray(), 100L)
+        storage.setWithRevision(
+            PropertyKey(1, "ns", "svc", "app", "config.db.host"),
+            PropertyValue(1, "v1".toByteArray(), 100L),
+            1
+        )
+        storage.setWithRevision(
+            PropertyKey(1, "ns", "svc", "app", "config.db.port"),
+            PropertyValue(1, "v2".toByteArray(), 100L),
+            2
+        )
+        storage.setWithRevision(
+            PropertyKey(1, "ns", "svc", "app", "feature.flag"),
+            PropertyValue(1, "v3".toByteArray(), 100L),
+            3
+        )
 
         val filter = PropertyQueryFilter(
             keyRegex = "config\\..*",
@@ -246,10 +294,26 @@ class PropertyInMemoryStorageTest {
 
     @Test
     fun `should filter by multiple criteria`() {
-        storage[PropertyKey(1, "prod", "auth-service", "app1", "key1")] = PropertyValue(1, "v1".toByteArray(), 100L)
-        storage[PropertyKey(1, "prod", "user-service", "app1", "key2")] = PropertyValue(1, "v2".toByteArray(), 100L)
-        storage[PropertyKey(1, "dev", "auth-service", "app1", "key3")] = PropertyValue(1, "v3".toByteArray(), 100L)
-        storage[PropertyKey(1, "prod", "auth-service", "app2", "key4")] = PropertyValue(1, "v4".toByteArray(), 100L)
+        storage.setWithRevision(
+            PropertyKey(1, "prod", "auth-service", "app1", "key1"),
+            PropertyValue(1, "v1".toByteArray(), 100L),
+            1
+        )
+        storage.setWithRevision(
+            PropertyKey(1, "prod", "user-service", "app1", "key2"),
+            PropertyValue(1, "v2".toByteArray(), 100L),
+            2
+        )
+        storage.setWithRevision(
+            PropertyKey(1, "dev", "auth-service", "app1", "key3"),
+            PropertyValue(1, "v3".toByteArray(), 100L),
+            3
+        )
+        storage.setWithRevision(
+            PropertyKey(1, "prod", "auth-service", "app2", "key4"),
+            PropertyValue(1, "v4".toByteArray(), 100L),
+            4
+        )
 
         val filter = PropertyQueryFilter(
             namespaceRegex = "prod",
@@ -269,7 +333,11 @@ class PropertyInMemoryStorageTest {
     @Test
     fun `should respect limit in filter`() {
         repeat(10) { i ->
-            storage[PropertyKey(1, "ns", "svc", "app", "key$i")] = PropertyValue(1, "v$i".toByteArray(), 100L)
+            storage.setWithRevision(
+                PropertyKey(1, "ns", "svc", "app", "key$i"),
+                PropertyValue(1, "v$i".toByteArray(), 100L),
+                i.toLong()
+            )
         }
 
         val filter = PropertyQueryFilter(
@@ -284,7 +352,11 @@ class PropertyInMemoryStorageTest {
 
     @Test
     fun `should return empty sequence when no matches found`() {
-        storage[PropertyKey(1, "ns1", "svc1", "app1", "key1")] = PropertyValue(1, "v1".toByteArray(), 100L)
+        storage.setWithRevision(
+            PropertyKey(1, "ns1", "svc1", "app1", "key1"),
+            PropertyValue(1, "v1".toByteArray(), 100L),
+            1
+        )
 
         val filter = PropertyQueryFilter(
             namespaceRegex = "non-existent",
@@ -298,9 +370,21 @@ class PropertyInMemoryStorageTest {
 
     @Test
     fun `should return all properties when filter has no regex patterns`() {
-        storage[PropertyKey(1, "ns1", "svc1", "app1", "key1")] = PropertyValue(1, "v1".toByteArray(), 100L)
-        storage[PropertyKey(1, "ns2", "svc2", "app2", "key2")] = PropertyValue(1, "v2".toByteArray(), 100L)
-        storage[PropertyKey(1, "ns3", "svc3", "app3", "key3")] = PropertyValue(1, "v3".toByteArray(), 100L)
+        storage.setWithRevision(
+            PropertyKey(1, "ns1", "svc1", "app1", "key1"),
+            PropertyValue(1, "v1".toByteArray(), 100L),
+            1
+        )
+        storage.setWithRevision(
+            PropertyKey(1, "ns2", "svc2", "app2", "key2"),
+            PropertyValue(1, "v2".toByteArray(), 100L),
+            2
+        )
+        storage.setWithRevision(
+            PropertyKey(1, "ns3", "svc3", "app3", "key3"),
+            PropertyValue(1, "v3".toByteArray(), 100L),
+            3
+        )
 
         val filter = PropertyQueryFilter(
             namespaceRegex = null,
@@ -318,9 +402,12 @@ class PropertyInMemoryStorageTest {
     @Test
     fun `should handle empty byte array values`() {
         val key = PropertyKey(1, "ns", "svc", "app", "key")
-        val value = PropertyValue(1, EMPTY_BYTES, 100L)
+        storage.setWithRevision(
+            key,
+            PropertyValue(1, EMPTY_BYTES, 100L),
+            1
+        )
 
-        storage[key] = value
         val retrieved = storage[key]
 
         assertNotNull(retrieved)
@@ -332,8 +419,12 @@ class PropertyInMemoryStorageTest {
         val key = PropertyKey(1, "ns", "svc", "app", "key")
         val largeArray = ByteArray(100000) { it.toByte() }
         val value = PropertyValue(1, largeArray, 100L)
+        storage.setWithRevision(
+            key,
+            value,
+            1
+        )
 
-        storage[key] = value
         val retrieved = storage[key]
 
         assertNotNull(retrieved)
@@ -345,7 +436,12 @@ class PropertyInMemoryStorageTest {
         val key = PropertyKey(1, "命名空间", "сервис", "アプリ", "مفتاح")
         val value = PropertyValue(1, "значение 🎉".toByteArray(Charsets.UTF_8), 100L)
 
-        storage[key] = value
+        storage.setWithRevision(
+            key,
+            value,
+            1
+        )
+
         val retrieved = storage[key]
 
         assertNotNull(retrieved)
@@ -357,7 +453,12 @@ class PropertyInMemoryStorageTest {
         val key = PropertyKey(1, "ns/with/slashes", "svc\\with\\backslashes", "app:with:colons", "key.with.dots")
         val value = PropertyValue(1, "value".toByteArray(), 100L)
 
-        storage[key] = value
+        storage.setWithRevision(
+            key,
+            value,
+            1
+        )
+
         val retrieved = storage[key]
 
         assertNotNull(retrieved)
@@ -374,7 +475,11 @@ class PropertyInMemoryStorageTest {
         }
 
         keys.zip(values).forEach { (key, value) ->
-            storage[key] = value
+            storage.setWithRevision(
+                key,
+                value,
+                1
+            )
         }
 
         keys.zip(values).forEach { (key, value) ->
@@ -392,9 +497,21 @@ class PropertyInMemoryStorageTest {
         val value2 = PropertyValue(1, "v2".toByteArray(), 0L)
         val value3 = PropertyValue(1, "v3".toByteArray(), Long.MAX_VALUE)
 
-        storage[key1] = value1
-        storage[key2] = value2
-        storage[key3] = value3
+        storage.setWithRevision(
+            key1,
+            value1,
+            1
+        )
+        storage.setWithRevision(
+            key2,
+            value2,
+            2
+        )
+        storage.setWithRevision(
+            key3,
+            value3,
+            3
+        )
 
         assertEquals(Long.MIN_VALUE, storage[key1]?.lastModifiedMs)
         assertEquals(0L, storage[key2]?.lastModifiedMs)
@@ -403,9 +520,21 @@ class PropertyInMemoryStorageTest {
 
     @Test
     fun `should handle complex regex patterns in filter`() {
-        storage[PropertyKey(1, "prod-eu-west-1", "svc", "app", "key1")] = PropertyValue(1, "v1".toByteArray(), 100L)
-        storage[PropertyKey(1, "prod-us-east-1", "svc", "app", "key2")] = PropertyValue(1, "v2".toByteArray(), 100L)
-        storage[PropertyKey(1, "dev-eu-west-1", "svc", "app", "key3")] = PropertyValue(1, "v3".toByteArray(), 100L)
+        storage.setWithRevision(
+            PropertyKey(1, "prod-eu-west-1", "svc", "app", "key1"),
+            PropertyValue(1, "v1".toByteArray(), 100L),
+            1
+        )
+        storage.setWithRevision(
+            PropertyKey(1, "prod-us-east-1", "svc", "app", "key2"),
+            PropertyValue(1, "v2".toByteArray(), 100L),
+            2
+        )
+        storage.setWithRevision(
+            PropertyKey(1, "dev-eu-west-1", "svc", "app", "key3"),
+            PropertyValue(1, "v3".toByteArray(), 100L),
+            3
+        )
 
         val filter = PropertyQueryFilter(
             namespaceRegex = "^prod-.*-1$",
@@ -421,7 +550,11 @@ class PropertyInMemoryStorageTest {
     @Test
     fun `should return results as sequence for lazy evaluation`() {
         repeat(1000) { i ->
-            storage[PropertyKey(1, "ns", "svc", "app", "key$i")] = PropertyValue(1, "v$i".toByteArray(), 100L)
+            storage.setWithRevision(
+                PropertyKey(1, "ns", "svc", "app", "key$i"),
+                PropertyValue(1, "v$i".toByteArray(), 100L),
+                3
+            )
         }
 
         val filter = PropertyQueryFilter(
@@ -445,20 +578,36 @@ class PropertyInMemoryStorageTest {
         val value1 = PropertyValue(1, "value1".toByteArray(), 100L)
         val value2 = PropertyValue(1, "value2".toByteArray(), 200L)
 
-        storage[key] = value1
+        storage.setWithRevision(
+            key,
+            value1,
+            1
+        )
         assertEquals(value1, storage[key])
 
         storage.remove(key)
         assertNull(storage[key])
 
-        storage[key] = value2
+        storage.setWithRevision(
+            key,
+            value2,
+            2
+        )
         assertEquals(value2, storage[key])
     }
 
     @Test
     fun `should handle zero limit in filter`() {
-        storage[PropertyKey(1, "ns", "svc", "app", "key1")] = PropertyValue(1, "v1".toByteArray(), 100L)
-        storage[PropertyKey(1, "ns", "svc", "app", "key2")] = PropertyValue(1, "v2".toByteArray(), 100L)
+        storage.setWithRevision(
+            PropertyKey(1, "ns", "svc", "app", "key1"),
+            PropertyValue(1, "v1".toByteArray(), 100L),
+            1
+        )
+        storage.setWithRevision(
+            PropertyKey(1, "ns", "svc", "app", "key2"),
+            PropertyValue(1, "v2".toByteArray(), 100L),
+            2
+        )
 
         val filter = PropertyQueryFilter(
             namespaceRegex = "ns",
@@ -511,14 +660,6 @@ class PropertyInMemoryStorageTest {
             assertTrue(pathHolder.getServices().contains("svc"))
             assertTrue(pathHolder.getAppIds().contains("app"))
             assertTrue(pathHolder.getKeys().contains("key"))
-        }
-
-        @Test
-        fun `set operator should NOT change currentRevision`() {
-            val key = PropertyKey(1, "ns", "svc", "app", "key")
-            storage[key] = PropertyValue(1, "v".toByteArray(), 1L)
-
-            assertEquals(0L, storage.currentRevision.get())
         }
     }
 

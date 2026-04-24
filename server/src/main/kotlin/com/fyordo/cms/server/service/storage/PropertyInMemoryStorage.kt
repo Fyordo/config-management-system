@@ -17,12 +17,6 @@ class PropertyInMemoryStorage(
 
     val currentRevision = AtomicLong(0L)
 
-    operator fun set(key: CmsProto.PropertyKey, value: CmsProto.PropertyValue) {
-        storage[key] = value
-        partsHolder.addProperty(key)
-        logger.debug { "Stored value $key -> $value" }
-    }
-
     operator fun get(key: CmsProto.PropertyKey): CmsProto.PropertyValue? = storage[key]
 
     fun getByFilter(filter: PropertyQueryFilter): Sequence<CmsProto.PropertyInternalDto> {
@@ -40,12 +34,10 @@ class PropertyInMemoryStorage(
         }
 
         return storage.asSequence()
-            .filter { entry ->
-                namespaces.contains(entry.key.namespace) &&
-                        services.contains(entry.key.service) &&
-                        appIds.contains(entry.key.appId) &&
-                        keys.contains(entry.key.key)
-            }
+            .filter { entry -> namespaces.contains(entry.key.namespace) }
+            .filter { entry -> services.contains(entry.key.service) }
+            .filter { entry -> appIds.contains(entry.key.appId) }
+            .filter { entry -> keys.contains(entry.key.key) }
             .map { (key, value) ->
                 CmsProto.PropertyInternalDto.newBuilder()
                     .setKey(key)
@@ -85,7 +77,7 @@ class PropertyInMemoryStorage(
                 hasOtherWithAppId,
                 hasOtherWithKey
             )
-            logger.debug { "Removed key $key" }
+            logger.debug { "Removed key=[$key]" }
         }
 
         return removed
@@ -95,7 +87,7 @@ class PropertyInMemoryStorage(
         storage[key] = value
         partsHolder.addProperty(key)
         currentRevision.set(revision)
-        logger.debug { "Stored value $key -> $value revision=$revision" }
+        logger.debug { "Stored property=[$key -> $value] revision=[$revision]" }
     }
 
     @Synchronized
@@ -116,7 +108,7 @@ class PropertyInMemoryStorage(
                 hasOtherWithKey
             )
             currentRevision.set(revision)
-            logger.debug { "Removed key $key revision=$revision" }
+            logger.debug { "Removed key=[$key] revision=[$revision]" }
         }
 
         return removed
@@ -141,6 +133,6 @@ class PropertyInMemoryStorage(
             partsHolder.addProperty(entry.key)
         }
         currentRevision.set(revision)
-        logger.info { "Storage restored from snapshot: ${entries.size} entries, revision=$revision" }
+        logger.info { "Storage restored from snapshot: [${entries.size}] entries, revision=[$revision]" }
     }
 }

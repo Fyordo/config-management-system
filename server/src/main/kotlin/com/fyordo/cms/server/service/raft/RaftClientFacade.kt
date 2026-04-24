@@ -75,7 +75,7 @@ class RaftClientFacade(
     private fun isClosedError(e: Throwable): Boolean {
         val msg = e.message ?: ""
         return msg.contains("already CLOSED", ignoreCase = true) ||
-            msg.contains("is CLOSED", ignoreCase = true)
+                msg.contains("is CLOSED", ignoreCase = true)
     }
 
     private fun validatePeerConfiguration() {
@@ -122,8 +122,6 @@ class RaftClientFacade(
             parsePeers(
                 peerConfig,
                 raftProps.nodeId,
-                raftProps.host,
-                raftProps.port,
             )?.let { add(it) }
         }
     }

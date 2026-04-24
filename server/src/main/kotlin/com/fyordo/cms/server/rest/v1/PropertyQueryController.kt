@@ -25,7 +25,7 @@ class PropertyQueryController(
 ) {
     @PostMapping("/get")
     suspend fun get(@Valid @RequestBody key: PropertyKeyDto): PropertyDto {
-        val sample = Timer.start()
+        val timer = Timer.start()
         metrics.propertyGetTotal.increment()
         try {
             val value: CmsProto.PropertyValue =
@@ -39,7 +39,7 @@ class PropertyQueryController(
                 value = PropertyValueDto(value),
             )
         } finally {
-            sample.stop(metrics.propertyGetTimer)
+            timer.stop(metrics.propertyGetTimer)
         }
     }
 
@@ -50,13 +50,13 @@ class PropertyQueryController(
 
     @PostMapping("")
     suspend fun query(@Valid @RequestBody filter: PropertyQueryFilter): List<PropertyDto> {
-        val sample = Timer.start()
+        val timer = Timer.start()
         metrics.propertyQueryTotal.increment()
         try {
             return inMemoryStorage.getByFilter(filter).toList()
                 .map { PropertyDto(it) }
         } finally {
-            sample.stop(metrics.propertyQueryTimer)
+            timer.stop(metrics.propertyQueryTimer)
         }
     }
 }

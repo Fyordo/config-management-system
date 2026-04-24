@@ -1,8 +1,6 @@
 package com.fyordo.cms.server.serialization.raft
 
 import com.fyordo.cms.CmsProto
-import com.fyordo.cms.server.dto.query.PropertyQueryFilter
-import com.fyordo.cms.server.serialization.query.toPropertyQueryFilterProto
 import com.google.protobuf.ByteString
 
 fun serializeRaftCommand(command: CmsProto.RaftCommand): ByteArray {

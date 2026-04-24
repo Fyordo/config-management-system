@@ -1,7 +1,6 @@
 package com.fyordo.cms.server.dto.raft
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties
-import com.fyordo.cms.server.dto.grpc.AgentId
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 data class NodeStatus(

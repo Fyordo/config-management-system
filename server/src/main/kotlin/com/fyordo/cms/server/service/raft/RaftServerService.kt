@@ -90,8 +90,6 @@ class RaftServerService(
                 parsePeers(
                     peerConfig,
                     raftProps.nodeId,
-                    raftProps.host,
-                    raftProps.port,
                 )?.let { allPeers.add(it) }
             }
 

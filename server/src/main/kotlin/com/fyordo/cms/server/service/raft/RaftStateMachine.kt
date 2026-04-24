@@ -38,7 +38,9 @@ class RaftStateMachine(
     private val propertyUpdatePublisher: PropertyUpdatePublisher,
     private val metrics: CmsMetrics
 ) : BaseStateMachine() {
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default + CoroutineName("RaftStateMachine"))
+    private val scope = CoroutineScope(
+        SupervisorJob() + Dispatchers.Default + CoroutineName("RaftStateMachine")
+    )
     private val snapshotStorage = SimpleStateMachineStorage()
 
     override fun initialize(
@@ -49,7 +51,7 @@ class RaftStateMachine(
         super.initialize(server, groupId, storage)
         snapshotStorage.init(storage)
         loadSnapshotIfExists()
-        logger.info { "RaftStateMachine initialized for group: ${groupId.uuid}" }
+        logger.info { "RaftStateMachine initialized for group=[${groupId.uuid}]" }
     }
 
     override fun takeSnapshot(): Long {
@@ -64,7 +66,7 @@ class RaftStateMachine(
         val targetFile: File = snapshotStorage.getSnapshotFile(termIndex.term, index)
         val tmpFile = File(targetFile.parent, "${targetFile.name}.tmp")
 
-        return try {
+        return runCatching {
             val (revision, entries) = store.getSnapshotData()
 
             DataOutputStream(BufferedOutputStream(tmpFile.outputStream())).use { out ->
@@ -89,22 +91,19 @@ class RaftStateMachine(
             )
 
             metrics.raftSnapshotTotal.increment()
-            logger.info { "Snapshot taken: logIndex=$index revision=$revision entries=${entries.size}" }
+            logger.info { "Snapshot taken: logIndex=[$index] revision=[$revision] entriesCount=[${entries.size}]" }
             index
-        } catch (e: Exception) {
+        }.onFailure { e ->
             tmpFile.delete()
-            logger.error(e) { "Failed to take snapshot at logIndex=$index" }
-            RaftLog.INVALID_LOG_INDEX
-        }
+            logger.error(e) { "Failed to take snapshot at logIndex=[$index]" }
+        }.getOrDefault(RaftLog.INVALID_LOG_INDEX)
     }
 
-    override fun getLatestSnapshot(): SnapshotInfo? =
-        try {
-            snapshotStorage.latestSnapshot
-        } catch (e: Exception) {
-            logger.warn(e) { "Failed to locate latest snapshot" }
-            null
-        }
+    override fun getLatestSnapshot(): SnapshotInfo? = runCatching {
+        snapshotStorage.latestSnapshot
+    }.onFailure { e ->
+        logger.warn(e) { "Failed to locate latest snapshot" }
+    }.getOrNull()
 
     private fun loadSnapshotIfExists() {
         val snapshot = snapshotStorage.latestSnapshot ?: run {
@@ -114,7 +113,7 @@ class RaftStateMachine(
 
         val file = snapshot.file.path.toFile()
         if (!file.exists()) {
-            logger.warn { "Snapshot file not found at $file - falling back to log replay" }
+            logger.warn { "Snapshot file not found at [$file] - falling back to log replay" }
             return
         }
 
@@ -185,11 +184,11 @@ class RaftStateMachine(
                 val command = try {
                     deserializeRaftCommand(logData)
                 } catch (e: Exception) {
-                    logger.error(e) { "Failed to deserialize Raft command. Log data length: ${logData.size}" }
+                    logger.error(e) { "Failed to deserialize Raft command with length=[${logData.size}]" }
                     throw e
                 }
 
-                logger.debug { "Applying: ${command.operation} ${command.key} logIndex=$logIndex" }
+                logger.debug { "Applying: [${command.operation}] [${command.key}] logIndex=[$logIndex]" }
                 processCommand(command, logIndex)
                     .let(::serializeRaftResult)
                     .let { Message.valueOf(ByteString.copyFrom(it)) }
@@ -197,7 +196,7 @@ class RaftStateMachine(
                 sample.stop(metrics.raftApplyTimer)
             }.getOrElse { e ->
                 metrics.raftApplyErrorTotal.increment()
-                logger.error(e) { "Error applying transaction at logIndex=$logIndex: ${e.javaClass.simpleName}: ${e.message}" }
+                logger.error(e) { "Error applying transaction at logIndex=[$logIndex]" }
                 Message.valueOf(
                     ByteString.copyFrom(
                         serializeRaftResult(raftErrorResult())
@@ -215,7 +214,7 @@ class RaftStateMachine(
                 val command = try {
                     deserializeRaftCommand(requestContent)
                 } catch (e: Exception) {
-                    logger.error(e) { "Failed to deserialize Raft query command. Content length: ${requestContent.size}" }
+                    logger.error(e) { "Failed to deserialize Raft query command with length=[${requestContent.size}]" }
                     throw e
                 }
 
@@ -225,7 +224,7 @@ class RaftStateMachine(
                     .let { Message.valueOf(ByteString.copyFrom(it)) }
             }.getOrElse { e ->
                 metrics.raftQueryErrorTotal.increment()
-                logger.error(e) { "Error processing query: ${e.javaClass.simpleName}: ${e.message}" }
+                logger.error(e) { "Error processing query" }
                 Message.valueOf(
                     ByteString.copyFrom(
                         serializeRaftResult(raftErrorResult())
@@ -239,6 +238,7 @@ class RaftStateMachine(
         logIndex: Long = 0L
     ): CmsProto.RaftResult {
         val commandKey = command.key
+
         return when (command.operation) {
             CmsProto.RaftOp.RAFT_OP_PUT -> {
                 val key = requireNotNull(commandKey) { "Command PUT should contain a key" }
@@ -258,7 +258,6 @@ class RaftStateMachine(
                 } ?: raftNotFoundResult()
             }
 
-            CmsProto.RaftOp.RAFT_OP_UNSPECIFIED -> raftErrorResult()
             else -> raftErrorResult()
         }
     }

@@ -1,20 +1,19 @@
 package com.fyordo.cms.server.rest.v1
 
+import com.fasterxml.jackson.annotation.JsonCreator
+import com.fasterxml.jackson.annotation.JsonProperty
 import com.fyordo.cms.CmsProto
-import com.fyordo.cms.server.config.PropertyVersionConfig
+import com.fyordo.cms.server.config.props.PropertyValueProperties
 import com.fyordo.cms.server.dto.property.PropertyKeyDto
 import com.fyordo.cms.server.dto.raft.RaftOperationResult
 import com.fyordo.cms.server.serialization.raft.deserializeRaftResult
 import com.fyordo.cms.server.serialization.raft.raftDeleteCommand
 import com.fyordo.cms.server.serialization.raft.raftPutCommand
 import com.fyordo.cms.server.service.raft.RaftClientFacade
-import com.fyordo.cms.server.service.raft.RaftServerService
 import com.google.protobuf.ByteString
 import jakarta.validation.Valid
 import jakarta.validation.constraints.NotBlank
 import jakarta.validation.constraints.Size
-import com.fasterxml.jackson.annotation.JsonCreator
-import com.fasterxml.jackson.annotation.JsonProperty
 import org.springframework.http.HttpStatus
 import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestBody
@@ -26,8 +25,7 @@ import org.springframework.web.server.ResponseStatusException
 @RequestMapping("/v1/property/modify")
 class PropertyModificationController(
     private val clientFacade: RaftClientFacade,
-    private val versionConfig: PropertyVersionConfig,
-    private val raftServerService: RaftServerService,
+    private val versionConfig: PropertyValueProperties
 ) {
     @PostMapping("/put")
     suspend fun put(@Valid @RequestBody data: PutPropertyRequest): Map<String, String> {
@@ -88,8 +86,11 @@ class PropertyModificationController(
 }
 
 data class PutPropertyRequest @JsonCreator constructor(
-    @param:JsonProperty("key") val key: PropertyKeyDto,
+    @field:JsonProperty("key")
+    val key: PropertyKeyDto,
+
     @field:NotBlank(message = "Value cannot be blank")
     @field:Size(max = 1024 * 1024, message = "Value size cannot exceed 1MB")
-    @param:JsonProperty("value") val value: String
+    @field:JsonProperty("value")
+    val value: String
 )

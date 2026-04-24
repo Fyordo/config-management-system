@@ -11,9 +11,7 @@ private const val PEERS_PARTS_DELIMITER = ':'
 
 fun parsePeers(
     peerConfig: String,
-    currentNodeId: String,
-    currentNodeHost: String,
-    currentNodePort: Int,
+    currentNodeId: String
 ): RaftPeer? {
     if (peerConfig.isBlank()) {
         return null
@@ -56,11 +54,13 @@ fun parsePeerHosts(
     val result = mutableListOf<PeerConfig>()
     val seen = mutableSetOf<String>()
 
-    result.add(PeerConfig(
-        currentNodeId,
-        currentNodeHost,
-        currentNodeApiPort
-    ))
+    result.add(
+        PeerConfig(
+            currentNodeId,
+            currentNodeHost,
+            currentNodeApiPort
+        )
+    )
     seen.add(currentNodeId)
 
     peers.forEach { peerConfig ->
@@ -72,11 +72,13 @@ fun parsePeerHosts(
         val apiPort = parts[3].toInt()
         if (nodeId !in seen) {
             seen.add(nodeId)
-            result.add(PeerConfig(
-                nodeId,
-                host,
-                apiPort
-            ))
+            result.add(
+                PeerConfig(
+                    nodeId,
+                    host,
+                    apiPort
+                )
+            )
         }
     }
     return result

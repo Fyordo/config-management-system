@@ -94,7 +94,7 @@ func (pm *PropertyManager) Get(key string) *string {
 }
 
 func (pm *PropertyManager) Set(key, value string) {
-	pm.Store(key, StringRef(value))
+	pm.Store(key, &value)
 }
 
 func (pm *PropertyManager) Delete(key string) {

@@ -92,7 +92,7 @@ class AgentConnectionManager(
     }
 
     fun register(agentId: AgentId, streamObserver: StreamObserver<AgentChannelServiceOuterClass.ServerStreamEvent>) {
-        logger.info { "Registering stream event: $agentId" }
+        logger.info { "Registering stream event [$agentId]" }
         connections[agentId] = Connection(streamObserver)
         metrics.agentConnectionsTotal.increment()
     }
@@ -103,13 +103,13 @@ class AgentConnectionManager(
                 try {
                     val streamObserver = connection.streamObserver
                     if (streamObserver is ServerCallStreamObserver && streamObserver.isCancelled) {
-                        logger.warn { "Stream is cancelled for agent: $agentId, removing connection" }
+                        logger.warn { "Stream is cancelled for agent [$agentId], removing connection" }
                         closeStream(agentId)
                         return
                     }
                     streamObserver.onNext(result)
                 } catch (e: Exception) {
-                    logger.error(e) { "Error sending message to agent: $agentId, removing connection" }
+                    logger.error(e) { "Error sending message to agent [$agentId], removing connection" }
                     closeStream(agentId)
                 }
             }
@@ -117,56 +117,57 @@ class AgentConnectionManager(
     }
 
     fun sendInitToAgent(agentId: AgentId) {
-        connections[agentId]?.let { connection ->
-            connection.lock.withLock {
-                try {
-                    val streamObserver = connection.streamObserver
-                    if (streamObserver is ServerCallStreamObserver && streamObserver.isCancelled) {
-                        logger.warn { "Stream is cancelled for agent: $agentId, removing connection" }
-                        closeStream(agentId)
-                        return
-                    }
+        val connection = connections[agentId] ?: run {
+            logger.error { "AgentConnectionFacade.sendInitToAgent failed, no stream found for agentId [$agentId]" }
+            return
+        }
 
-                    val result = AgentChannelServiceOuterClass.ServerStreamEvent.newBuilder()
-                    val properties = AgentChannelServiceOuterClass.ServerInitEvent.newBuilder()
-                    val propertiesList = propertyInMemoryStorage.getInitForApp(
-                        agentId.namespace,
-                        agentId.service,
-                        agentId.appId
+        connection.lock.withLock {
+            try {
+                val streamObserver = connection.streamObserver
+                if (streamObserver is ServerCallStreamObserver && streamObserver.isCancelled) {
+                    logger.warn { "Stream is cancelled for agent [$agentId], removing connection" }
+                    closeStream(agentId)
+                    return
+                }
+
+                val propertiesList = propertyInMemoryStorage.getInitForApp(
+                    agentId.namespace,
+                    agentId.service,
+                    agentId.appId
+                )
+
+                val properties = AgentChannelServiceOuterClass.ServerInitEvent.newBuilder()
+                val lastModifiedMs = propertiesList.fold(0L) { maxTime, property ->
+                    val key = property.key
+                    val value = property.value
+                    properties.addProperties(
+                        AgentChannelServiceOuterClass.Property.newBuilder()
+                            .setKey(key.key)
+                            .setValue(value.value)
                     )
+                    maxOf(maxTime, value.lastModifiedMs)
+                }
 
-                    val lastModifiedMs = propertiesList.fold(0L) { maxTime, property ->
-                        val key = property.key
-                        val value = property.value
-                        properties.addProperties(
-                            AgentChannelServiceOuterClass.Property.newBuilder()
-                                .setKey(key.key)
-                                .setValue(value.value)
-                        )
-                        maxOf(maxTime, value.lastModifiedMs)
-                    }
-
-                    result.setInitEvent(
+                val result = AgentChannelServiceOuterClass.ServerStreamEvent.newBuilder()
+                    .setInitEvent(
                         properties
                             .setLastModifiedMs(lastModifiedMs)
                             .setRevision(propertyInMemoryStorage.currentRevision.get())
                             .build()
                     )
 
-                    streamObserver.onNext(result.build())
-                    logger.info { "Sent init config to agent: [$agentId] with lastModifiedMs = [$lastModifiedMs]" }
-                } catch (e: Exception) {
-                    logger.error(e) { "Error sending init config to agent: [$agentId], removing connection" }
-                    closeStream(agentId)
-                }
+                streamObserver.onNext(result.build())
+                logger.info { "Sent init config to agent [$agentId] with lastModifiedMs=[$lastModifiedMs]" }
+            } catch (e: Exception) {
+                logger.error(e) { "Error sending init config to agent [$agentId], removing connection" }
+                closeStream(agentId)
             }
-        } ?: run {
-            logger.error { "AgentConnectionFacade.sendInitToAgent failed, no stream found for agentId=[$agentId]" }
         }
     }
 
     fun checkAgentRevision(agentId: AgentId, revision: Long) {
-        logger.debug { "Received ack from agent: agentId=$agentId, revision=$revision" }
+        logger.debug { "Received ack from agent: agentId=[$agentId], revision=[$revision]" }
 
         if (revision < propertyInMemoryStorage.currentRevision.get()) {
             logger.info { "Agent [$agentId] has old revision [$revision], sending init" }
@@ -175,16 +176,19 @@ class AgentConnectionManager(
     }
 
     fun closeStream(agentId: AgentId) {
-        connections.remove(agentId)?.let { connection ->
-            logger.info { "Closed connection with agentId: $agentId" }
-            metrics.agentDisconnectionsTotal.increment()
-            connection.lock.withLock {
-                try {
-                    connection.streamObserver.onCompleted()
-                } catch (e: Exception) {
-                    logger.warn(e) { "Error completing stream for agent: $agentId" }
-                }
+        val connection = connections.remove(agentId) ?: run {
+            logger.error { "Stream for agent [$agentId] doesn't exist, skip closing stream" }
+            return
+        }
+
+        connection.lock.withLock {
+            try {
+                connection.streamObserver.onCompleted()
+            } catch (e: Exception) {
+                logger.warn(e) { "Error completing stream for agent [$agentId]" }
             }
         }
+            .also { logger.info { "Closed connection with agentId [$agentId]" } }
+            .also { metrics.agentDisconnectionsTotal.increment() }
     }
 }
