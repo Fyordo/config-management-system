@@ -39,6 +39,7 @@ namespace {
         std::cout << "  CMS_SERVICE: " << config.service << std::endl;
         std::cout << "  CMS_APPID: " << config.appId << std::endl;
         std::cout << "  CMS_SERVER_HOST: " << config.cmsServerHost << std::endl;
+        PrintTlsConfig(config.tls);
         if (!config.propertiesJsonPath.empty()) {
             std::cout << "  CMS_PROPERTIES_FILE: " << config.propertiesJsonPath << std::endl;
         }
@@ -47,6 +48,15 @@ namespace {
         }
     }
 
+}
+
+void SignalHandler(int /*signum*/)
+{
+    g_shutdown_requested.store(true);
+    if (g_shutdown_pipe[1] != -1) {
+        const char dummy = 1;
+        ::write(g_shutdown_pipe[1], &dummy, 1);
+    }
 }
 
 void GrpcServerStarter::SetupSignalHandlers()
@@ -98,6 +108,7 @@ AgentConfig GrpcServerStarter::BuildConfig()
     config.propertiesJsonPath = GetEnvOrDefault("CMS_PROPERTIES_FILE", "");
     config.unixSocketPath = GetEnvOrDefault("CMS_UNIX_SOCKET_PATH", "");
     config.cmsRevisionFilePath = GetEnvOrDefault("CMS_REVISION_FILE", "");
+    config.tls = BuildTlsConfigFromEnv();
 
     if (!config.isValid()) {
         PrintMissingEnvErrors(config);
@@ -106,16 +117,9 @@ AgentConfig GrpcServerStarter::BuildConfig()
     return config;
 }
 
-bool AgentConfig::isValid()
+bool AgentConfig::isValid() const
 {
-    return !ns.empty() && !service.empty() && !appId.empty();
-}
-
-void SignalHandler(int /*signum*/)
-{
-    g_shutdown_requested.store(true);
-    if (g_shutdown_pipe[1] != -1) {
-        const char dummy = 1;
-        ::write(g_shutdown_pipe[1], &dummy, 1);
-    }
+    if (ns.empty() || service.empty() || appId.empty()) return false;
+    if (!tls.isValid()) return false;
+    return true;
 }

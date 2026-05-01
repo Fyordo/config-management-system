@@ -1,12 +1,9 @@
 #include <iostream>
-#include <memory>
-#include <stdexcept>
-#include <string>
 
 #include <grpcpp/grpcpp.h>
 #include "grpc_starter.h"
 
-int main(int argc, char** argv) {
+int main() {
     try {
         std::unique_ptr<GrpcServerStarter> starter = std::make_unique<GrpcServerStarter>();
         starter->RunServer();

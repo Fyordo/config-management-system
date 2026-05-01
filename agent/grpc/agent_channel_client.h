@@ -1,17 +1,23 @@
 #pragma once
 
 #include <chrono>
-#include <condition_variable>
-#include <memory>
-#include <mutex>
-#include <string>
-#include <thread>
-#include <atomic>
-
+#include <cstdio>
+#include <fstream>
+#include <iostream>
 #include <grpcpp/grpcpp.h>
 #include <nlohmann/json.hpp>
+#include <thread>
+#include <condition_variable>
+
+#include <sys/socket.h>
+#include <sys/un.h>
+#include <unistd.h>
+#include <arpa/inet.h>
+#include <cstring>
+#include <cerrno>
+
+#include "AgentChannelService.grpc.pb.h"
 #include "grpc_starter.h"
-#include "AgentChannelService.pb.h"
 
 class AgentChannelClient {
 public:
@@ -36,8 +42,8 @@ private:
     static constexpr int KEEPALIVE_TIMEOUT_MS    =  5'000;
 
     void Run();
-    void RunStreamSession(ClientReaderWriterInterface<AgentStreamEvent, ServerStreamEvent>* stream, std::atomic<bool>& is_reading);
-    void SendAck(ClientReaderWriterInterface<AgentStreamEvent, ServerStreamEvent>* stream, std::atomic<bool>& is_reading, std::atomic<bool>& is_writing);
+    void RunStreamSession(grpc::ClientReaderWriterInterface<com::fyordo::cms::AgentStreamEvent, com::fyordo::cms::ServerStreamEvent>* stream, std::atomic<bool>& is_reading);
+    void SendAck(grpc::ClientReaderWriterInterface<com::fyordo::cms::AgentStreamEvent, com::fyordo::cms::ServerStreamEvent>* stream, std::atomic<bool>& is_reading, std::atomic<bool>& is_writing);
     void HandleInitEvent(const com::fyordo::cms::ServerInitEvent& init_event);
     void HandlePropertyUpdate(const com::fyordo::cms::ServerPropertyUpdateEvent& update_event);
     bool WritePropertiesToFile(const com::fyordo::cms::ServerInitEvent& init_event);

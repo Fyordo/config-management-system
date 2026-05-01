@@ -41,7 +41,6 @@ file(MAKE_DIRECTORY "${GENERATED_PROTO_DIR}")
 
 set(PROTO_FILES
     "${PROTO_DIR}/AgentChannelService.proto"
-    # "${PROTO_DIR}/AgentCoordinationService.proto"
 )
 
 set(PROTO_SRCS)
@@ -74,6 +73,7 @@ add_executable(cmsagent
     main.cpp
     grpc/agent_channel_client.cpp
     grpc/grpc_starter.cpp
+    grpc/config/tls_config.cpp
     ${PROTO_SRCS}
 )
 
@@ -84,6 +84,7 @@ target_include_directories(cmsagent
         ${Protobuf_INCLUDE_DIRS}
         ${GENERATED_PROTO_DIR}
         ${CMAKE_CURRENT_SOURCE_DIR}/grpc
+        ${CMAKE_CURRENT_SOURCE_DIR}/grpc/config
 )
 
 target_link_libraries(cmsagent

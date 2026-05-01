@@ -3,6 +3,8 @@
 #include <string>
 #include <atomic>
 
+#include "tls_config.h"
+
 struct AgentConfig {
     std::string ns;
     std::string service;
@@ -11,8 +13,9 @@ struct AgentConfig {
     std::string propertiesJsonPath;
     std::string unixSocketPath;
     std::string cmsRevisionFilePath;
+    TlsConfig tls;
 
-    bool isValid();
+    bool isValid() const;
 };
 
 class GrpcServerStarter {

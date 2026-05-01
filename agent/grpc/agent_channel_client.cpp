@@ -6,6 +6,8 @@
 #include <iostream>
 #include <grpcpp/grpcpp.h>
 #include <nlohmann/json.hpp>
+#include <thread>
+#include <condition_variable>
 
 #include <sys/socket.h>
 #include <sys/un.h>
@@ -76,7 +78,7 @@ void AgentChannelClient::Run()
             channel_args.SetInt(GRPC_ARG_KEEPALIVE_PERMIT_WITHOUT_CALLS, 1);
             channel_args.SetInt(GRPC_ARG_HTTP2_MAX_PINGS_WITHOUT_DATA,   0);
             auto channel = grpc::CreateCustomChannel(
-                server_address_, grpc::InsecureChannelCredentials(), channel_args
+                server_address_, CreateChannelCredentials(config_.tls), channel_args
             );
             auto stub = AgentChannelService::NewStub(channel);
 
