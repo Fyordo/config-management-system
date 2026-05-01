@@ -1,11 +1,16 @@
 package com.fyordo.cms.server.config
 
-import com.fyordo.cms.server.config.props.CorsProperties
+import org.springframework.boot.context.properties.ConfigurationProperties
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.web.cors.CorsConfiguration
 import org.springframework.web.cors.reactive.CorsWebFilter
 import org.springframework.web.cors.reactive.UrlBasedCorsConfigurationSource
+
+@ConfigurationProperties(prefix = "app.server.web")
+data class CorsProperties(
+    val noCorsUrls: List<String> = emptyList()
+)
 
 @Configuration
 class CorsConfig(private val corsProperties: CorsProperties) {
