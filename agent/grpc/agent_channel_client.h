@@ -62,4 +62,7 @@ private:
     std::mutex file_write_mutex_;
     std::mutex stream_mutex_;
     std::condition_variable stream_cv_;
+
+    std::shared_ptr<grpc::Channel> channel_;
+    std::unique_ptr<com::fyordo::cms::AgentChannelService::Stub> stub_;
 };

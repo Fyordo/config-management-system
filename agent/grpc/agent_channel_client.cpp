@@ -68,21 +68,22 @@ void AgentChannelClient::Stop()
 
 void AgentChannelClient::Run()
 {
+    {
+        grpc::ChannelArguments channel_args;
+        channel_args.SetServiceConfigJSON(R"({"loadBalancingConfig": [{"round_robin": {}}]})");
+        channel_args.SetInt(GRPC_ARG_KEEPALIVE_TIME_MS,              KEEPALIVE_TIME_MS);
+        channel_args.SetInt(GRPC_ARG_KEEPALIVE_TIMEOUT_MS,           KEEPALIVE_TIMEOUT_MS);
+        channel_args.SetInt(GRPC_ARG_KEEPALIVE_PERMIT_WITHOUT_CALLS, 1);
+        channel_args.SetInt(GRPC_ARG_HTTP2_MAX_PINGS_WITHOUT_DATA,   0);
+        channel_ = grpc::CreateCustomChannel(
+            server_address_, CreateChannelCredentials(config_.tls), channel_args
+        );
+        stub_ = AgentChannelService::NewStub(channel_);
+    }
+
     while (running_.load()) {
         try {
-            grpc::ChannelArguments channel_args;
-            channel_args.SetServiceConfigJSON(
-                R"({"loadBalancingConfig": [{"round_robin": {}}]})");
-            channel_args.SetInt(GRPC_ARG_KEEPALIVE_TIME_MS,              KEEPALIVE_TIME_MS);
-            channel_args.SetInt(GRPC_ARG_KEEPALIVE_TIMEOUT_MS,           KEEPALIVE_TIMEOUT_MS);
-            channel_args.SetInt(GRPC_ARG_KEEPALIVE_PERMIT_WITHOUT_CALLS, 1);
-            channel_args.SetInt(GRPC_ARG_HTTP2_MAX_PINGS_WITHOUT_DATA,   0);
-            auto channel = grpc::CreateCustomChannel(
-                server_address_, CreateChannelCredentials(config_.tls), channel_args
-            );
-            auto stub = AgentChannelService::NewStub(channel);
-
-            if (!WaitForConnected(channel.get())) {
+            if (!WaitForConnected(channel_.get())) {
                 std::this_thread::sleep_for(RECONNECT_DELAY);
                 continue;
             }
@@ -94,7 +95,7 @@ void AgentChannelClient::Run()
                       << "appId: " << config_.appId << std::endl;
 
             std::shared_ptr<ClientReaderWriter<AgentStreamEvent, ServerStreamEvent>> stream(
-                stub->WatchProperties(&context)
+                stub_->WatchProperties(&context)
             );
 
             if (!stream) {
