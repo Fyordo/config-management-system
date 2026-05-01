@@ -1,18 +1,18 @@
 #include <chrono>
-#include <condition_variable>
 #include <csignal>
+#include <cerrno>
 #include <cstdlib>
 #include <iostream>
 #include <stdexcept>
 #include <string>
 #include <thread>
+#include <unistd.h>
 
 #include "agent_channel_client.h"
 #include "grpc_starter.h"
 
 std::atomic<bool> g_shutdown_requested{false};
-std::mutex g_shutdown_mutex;
-std::condition_variable g_shutdown_cv;
+int g_shutdown_pipe[2] = {-1, -1};
 
 namespace {
 
@@ -51,6 +51,9 @@ namespace {
 
 void GrpcServerStarter::SetupSignalHandlers()
 {
+    if (::pipe(g_shutdown_pipe) != 0) {
+        std::cerr << "Failed to create shutdown pipe, falling back to polling" << std::endl;
+    }
     std::signal(SIGINT, SignalHandler);
     std::signal(SIGTERM, SignalHandler);
 }
@@ -66,9 +69,18 @@ void GrpcServerStarter::RunServer()
     std::cout << "AgentChannelClient: Started, connecting to " << config.cmsServerHost << std::endl;
     std::cout << "Agent running, press Ctrl+C to stop..." << std::endl;
 
-    {
-        std::unique_lock<std::mutex> lock(g_shutdown_mutex);
-        g_shutdown_cv.wait(lock, [] { return g_shutdown_requested.load(); });
+    if (g_shutdown_pipe[0] != -1) {
+        char dummy;
+        while (::read(g_shutdown_pipe[0], &dummy, 1) == -1 && errno == EINTR) {
+        }
+        ::close(g_shutdown_pipe[0]);
+        ::close(g_shutdown_pipe[1]);
+        g_shutdown_pipe[0] = -1;
+        g_shutdown_pipe[1] = -1;
+    } else {
+        while (!g_shutdown_requested.load()) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        }
     }
 
     std::cout << "Shutting down agent..." << std::endl;
@@ -99,8 +111,11 @@ bool AgentConfig::isValid()
     return !ns.empty() && !service.empty() && !appId.empty();
 }
 
-void SignalHandler(int signal)
+void SignalHandler(int /*signum*/)
 {
     g_shutdown_requested.store(true);
-    g_shutdown_cv.notify_one();
+    if (g_shutdown_pipe[1] != -1) {
+        const char dummy = 1;
+        ::write(g_shutdown_pipe[1], &dummy, 1);
+    }
 }
