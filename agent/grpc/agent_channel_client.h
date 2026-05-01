@@ -1,6 +1,7 @@
 #pragma once
 
 #include <chrono>
+#include <condition_variable>
 #include <memory>
 #include <mutex>
 #include <string>
@@ -28,15 +29,15 @@ public:
 private:
     static constexpr std::chrono::seconds RECONNECT_DELAY{5};
     static constexpr std::chrono::seconds CONNECTION_TIMEOUT{5};
-    static constexpr std::chrono::milliseconds POLL_INTERVAL_MS{100};
+
     static constexpr std::chrono::seconds ACK_INTERVAL{10};
 
     static constexpr int KEEPALIVE_TIME_MS       = 10'000;
     static constexpr int KEEPALIVE_TIMEOUT_MS    =  5'000;
 
     void Run();
-    void RunStreamSession(void* stream, std::atomic<bool>& is_reading);
-    void SendAckToServer(void* stream, int64_t revision);
+    void RunStreamSession(ClientReaderWriterInterface<AgentStreamEvent, ServerStreamEvent>* stream, std::atomic<bool>& is_reading);
+    void SendAck(ClientReaderWriterInterface<AgentStreamEvent, ServerStreamEvent>* stream, std::atomic<bool>& is_reading, std::atomic<bool>& is_writing);
     void HandleInitEvent(const com::fyordo::cms::ServerInitEvent& init_event);
     void HandlePropertyUpdate(const com::fyordo::cms::ServerPropertyUpdateEvent& update_event);
     bool WritePropertiesToFile(const com::fyordo::cms::ServerInitEvent& init_event);
@@ -53,4 +54,6 @@ private:
     std::atomic<int64_t> current_revision_;
     std::thread client_thread_;
     std::mutex file_write_mutex_;
+    std::mutex stream_mutex_;
+    std::condition_variable stream_cv_;
 };

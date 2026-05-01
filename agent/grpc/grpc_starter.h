@@ -3,12 +3,8 @@
 #include <string>
 #include <atomic>
 
-enum class AgentState { CONNECT, LISTENING, WRITING };
-
-extern std::atomic<AgentState> AGENT_STATE;
-
 struct AgentConfig {
-    std::string namespace_;
+    std::string ns;
     std::string service;
     std::string appId;
     std::string cmsServerHost;
@@ -16,14 +12,13 @@ struct AgentConfig {
     std::string unixSocketPath;
     std::string cmsRevisionFilePath;
 
-    bool IsValid() const
-    {
-        return !namespace_.empty() && !service.empty() && !appId.empty() && !cmsServerHost.empty();
-    }
+    bool isValid();
 };
 
-extern std::atomic<bool> g_shutdown_requested;
-
-void RunServer(int argc, char** argv);
-AgentConfig GetAndValidateConfigFromEnv();
-void SetupSignalHandlers();
+class GrpcServerStarter {
+public:
+    void RunServer();
+private:
+    AgentConfig BuildConfig();
+    void SetupSignalHandlers();
+};

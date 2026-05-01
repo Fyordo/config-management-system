@@ -1,4 +1,5 @@
 #include <chrono>
+#include <condition_variable>
 #include <csignal>
 #include <cstdlib>
 #include <iostream>
@@ -10,11 +11,10 @@
 #include "grpc_starter.h"
 
 std::atomic<bool> g_shutdown_requested{false};
-std::atomic<AgentState> AGENT_STATE{AgentState::CONNECT};
+std::mutex g_shutdown_mutex;
+std::condition_variable g_shutdown_cv;
 
 namespace {
-
-    constexpr std::chrono::milliseconds MAIN_LOOP_POLL_MS{100};
 
     std::string GetEnvOrDefault(const char* name, const std::string& default_value)
     {
@@ -25,7 +25,7 @@ namespace {
     void PrintMissingEnvErrors(const AgentConfig& config)
     {
         std::cerr << "Error: Required environment variables are not set:" << std::endl;
-        if (config.namespace_.empty()) std::cerr << "  - CMS_NAMESPACE" << std::endl;
+        if (config.ns.empty()) std::cerr << "  - CMS_NAMESPACE" << std::endl;
         if (config.service.empty()) std::cerr << "  - CMS_SERVICE" << std::endl;
         if (config.appId.empty()) std::cerr << "  - CMS_APPID" << std::endl;
         if (config.cmsServerHost.empty()) std::cerr << "  - CMS_SERVER_HOST" << std::endl;
@@ -35,7 +35,7 @@ namespace {
     void PrintAgentConfig(const AgentConfig& config)
     {
         std::cout << "Agent configuration:" << std::endl;
-        std::cout << "  CMS_NAMESPACE: " << config.namespace_ << std::endl;
+        std::cout << "  CMS_NAMESPACE: " << config.ns << std::endl;
         std::cout << "  CMS_SERVICE: " << config.service << std::endl;
         std::cout << "  CMS_APPID: " << config.appId << std::endl;
         std::cout << "  CMS_SERVER_HOST: " << config.cmsServerHost << std::endl;
@@ -49,24 +49,15 @@ namespace {
 
 }
 
-void SignalHandler(int signal)
-{
-    std::cout << "\nReceived signal " << signal << ", initiating shutdown..." << std::endl;
-    g_shutdown_requested.store(true);
-}
-
-void SetupSignalHandlers()
+void GrpcServerStarter::SetupSignalHandlers()
 {
     std::signal(SIGINT, SignalHandler);
     std::signal(SIGTERM, SignalHandler);
 }
 
-void RunServer(int argc, char** argv)
+void GrpcServerStarter::RunServer()
 {
-    (void)argc;
-    (void)argv;
-    AGENT_STATE.store(AgentState::CONNECT);
-    AgentConfig config = GetAndValidateConfigFromEnv();
+    AgentConfig config = BuildConfig();
     PrintAgentConfig(config);
     SetupSignalHandlers();
 
@@ -75,8 +66,9 @@ void RunServer(int argc, char** argv)
     std::cout << "AgentChannelClient: Started, connecting to " << config.cmsServerHost << std::endl;
     std::cout << "Agent running, press Ctrl+C to stop..." << std::endl;
 
-    while (!g_shutdown_requested.load()) {
-        std::this_thread::sleep_for(MAIN_LOOP_POLL_MS);
+    {
+        std::unique_lock<std::mutex> lock(g_shutdown_mutex);
+        g_shutdown_cv.wait(lock, [] { return g_shutdown_requested.load(); });
     }
 
     std::cout << "Shutting down agent..." << std::endl;
@@ -84,10 +76,10 @@ void RunServer(int argc, char** argv)
     std::cout << "Agent stopped successfully" << std::endl;
 }
 
-AgentConfig GetAndValidateConfigFromEnv()
+AgentConfig GrpcServerStarter::BuildConfig()
 {
     AgentConfig config;
-    config.namespace_ = GetEnvOrDefault("CMS_NAMESPACE", "");
+    config.ns = GetEnvOrDefault("CMS_NAMESPACE", "");
     config.service = GetEnvOrDefault("CMS_SERVICE", "");
     config.appId = GetEnvOrDefault("CMS_APPID", "");
     config.cmsServerHost = GetEnvOrDefault("CMS_SERVER_HOST", "");
@@ -95,9 +87,20 @@ AgentConfig GetAndValidateConfigFromEnv()
     config.unixSocketPath = GetEnvOrDefault("CMS_UNIX_SOCKET_PATH", "");
     config.cmsRevisionFilePath = GetEnvOrDefault("CMS_REVISION_FILE", "");
 
-    if (!config.IsValid()) {
+    if (!config.isValid()) {
         PrintMissingEnvErrors(config);
         throw std::runtime_error("Invalid configuration");
     }
     return config;
+}
+
+bool AgentConfig::isValid()
+{
+    return !ns.empty() && !service.empty() && !appId.empty();
+}
+
+void SignalHandler(int signal)
+{
+    g_shutdown_requested.store(true);
+    g_shutdown_cv.notify_one();
 }

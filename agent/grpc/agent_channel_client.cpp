@@ -58,6 +58,7 @@ void AgentChannelClient::Stop()
     if (!running_.compare_exchange_strong(was_running, false)) {
         return;
     }
+    stream_cv_.notify_one();
     if (client_thread_.joinable()) {
         client_thread_.join();
     }
@@ -67,7 +68,6 @@ void AgentChannelClient::Run()
 {
     while (running_.load()) {
         try {
-            AGENT_STATE.store(AgentState::CONNECT);
             grpc::ChannelArguments channel_args;
             channel_args.SetServiceConfigJSON(
                 R"({"loadBalancingConfig": [{"round_robin": {}}]})");
@@ -76,7 +76,8 @@ void AgentChannelClient::Run()
             channel_args.SetInt(GRPC_ARG_KEEPALIVE_PERMIT_WITHOUT_CALLS, 1);
             channel_args.SetInt(GRPC_ARG_HTTP2_MAX_PINGS_WITHOUT_DATA,   0);
             auto channel = grpc::CreateCustomChannel(
-                server_address_, grpc::InsecureChannelCredentials(), channel_args);
+                server_address_, grpc::InsecureChannelCredentials(), channel_args
+            );
             auto stub = AgentChannelService::NewStub(channel);
 
             if (!WaitForConnected(channel.get())) {
@@ -86,12 +87,13 @@ void AgentChannelClient::Run()
 
             ClientContext context;
             std::cout << "AgentChannelClient: Connecting to server - "
-                      << "namespace: " << config_.namespace_ << ", "
+                      << "namespace: " << config_.ns << ", "
                       << "service: " << config_.service << ", "
                       << "appId: " << config_.appId << std::endl;
 
             std::shared_ptr<ClientReaderWriter<AgentStreamEvent, ServerStreamEvent>> stream(
-                stub->WatchProperties(&context));
+                stub->WatchProperties(&context)
+            );
 
             if (!stream) {
                 std::cerr << "AgentChannelClient: Failed to create stream" << std::endl;
@@ -101,7 +103,7 @@ void AgentChannelClient::Run()
 
             AgentStreamEvent connect_message;
             AgentConnectEvent* connect = connect_message.mutable_connectevent();
-            connect->set_namespace_(config_.namespace_);
+            connect->set_namespace_(config_.ns);
             connect->set_service(config_.service);
             connect->set_appid(config_.appId);
             if (!stream->Write(connect_message)) {
@@ -118,23 +120,26 @@ void AgentChannelClient::Run()
 
             std::atomic<bool> is_reading{true};
             std::atomic<bool> is_writing{true};
-            std::thread read_thread(&AgentChannelClient::RunStreamSession, this, stream.get(), std::ref(is_reading));
-            std::thread ack_thread([this, stream, &is_reading, &is_writing]() {
-                while (running_.load() && is_reading.load() && is_writing.load()) {
-                    std::this_thread::sleep_for(ACK_INTERVAL);
-                    if (!running_.load() || !is_reading.load() || !is_writing.load()) {
-                        break;
-                    }
-                    SendAckToServer(stream.get(), current_revision_.load());
-                }
-            });
 
-            while (running_.load() && is_reading.load()) {
-                std::this_thread::sleep_for(POLL_INTERVAL_MS);
+            std::thread read_thread(
+                &AgentChannelClient::RunStreamSession, this,
+                stream.get(), std::ref(is_reading)
+            );
+            std::thread ack_thread(
+                &AgentChannelClient::SendAck, this,
+                stream.get(), std::ref(is_reading), std::ref(is_writing)
+            );
+
+            {
+                std::unique_lock<std::mutex> lock(stream_mutex_);
+                stream_cv_.wait(lock, [&] { return !running_.load() || !is_reading.load(); });
             }
+
             is_reading.store(false);
             is_writing.store(false);
+
             context.TryCancel();
+
             if (read_thread.joinable()) {
                 read_thread.join();
             }
@@ -161,9 +166,8 @@ void AgentChannelClient::Run()
     }
 }
 
-void AgentChannelClient::RunStreamSession(void* stream_ptr, std::atomic<bool>& is_reading)
+void AgentChannelClient::RunStreamSession(ClientReaderWriterInterface<AgentStreamEvent, ServerStreamEvent>* stream, std::atomic<bool>& is_reading)
 {
-    auto* stream = static_cast<ClientReaderWriterInterface<AgentStreamEvent, ServerStreamEvent>*>(stream_ptr);
     ServerStreamEvent event;
 
     while (is_reading.load() && stream->Read(&event)) {
@@ -174,19 +178,26 @@ void AgentChannelClient::RunStreamSession(void* stream_ptr, std::atomic<bool>& i
         }
     }
     is_reading.store(false);
+    stream_cv_.notify_one();
     std::cout << "AgentChannelClient: Read loop finished" << std::endl;
 }
 
-void AgentChannelClient::SendAckToServer(void* stream_ptr, int64_t revision)
+void AgentChannelClient::SendAck(ClientReaderWriterInterface<AgentStreamEvent, ServerStreamEvent>* stream, std::atomic<bool>& is_reading, std::atomic<bool>& is_writing)
 {
-    auto* stream = static_cast<ClientReaderWriterInterface<AgentStreamEvent, ServerStreamEvent>*>(stream_ptr);
-    AgentStreamEvent ack_message;
-    ack_message.mutable_ackevent()->set_revision(revision);
-    if (!stream->Write(ack_message)) {
-        std::cerr << "AgentChannelClient: Failed to send ack to server for revision " << revision << std::endl;
-        return;
+    while (running_.load() && is_reading.load() && is_writing.load()) {
+        std::this_thread::sleep_for(ACK_INTERVAL);
+        if (!running_.load() || !is_reading.load() || !is_writing.load()) {
+            break;
+        }
+        AgentStreamEvent ack_message;
+        long revision = current_revision_.load();
+        ack_message.mutable_ackevent()->set_revision(revision);
+        if (!stream->Write(ack_message)) {
+            std::cerr << "AgentChannelClient: Failed to send ack to server for revision " << revision << std::endl;
+            return;
+        }
+        std::cout << "AgentChannelClient: Sent ack to server for revision " << revision << std::endl;
     }
-    std::cout << "AgentChannelClient: Sent ack to server for revision " << revision << std::endl;
 }
 
 void AgentChannelClient::HandleInitEvent(const com::fyordo::cms::ServerInitEvent& init_event)
@@ -295,7 +306,6 @@ bool AgentChannelClient::WritePropertiesToFile(const com::fyordo::cms::ServerIni
 bool AgentChannelClient::WriteJsonToPath(const nlohmann::json& j)
 {
     std::lock_guard<std::mutex> lock(file_write_mutex_);
-    AGENT_STATE.store(AgentState::WRITING);
 
     const std::string tmp_path = config_.propertiesJsonPath + ".tmp";
     {
@@ -303,14 +313,12 @@ bool AgentChannelClient::WriteJsonToPath(const nlohmann::json& j)
         if (!file) {
             std::cerr << "AgentChannelClient: Failed to open file for writing: " << config_.propertiesJsonPath
                       << std::endl;
-            AGENT_STATE.store(AgentState::LISTENING);
             return false;
         }
         file << j.dump();
         file.flush();
         if (!file.good()) {
             std::cerr << "AgentChannelClient: Write or flush failed: " << tmp_path << std::endl;
-            AGENT_STATE.store(AgentState::LISTENING);
             return false;
         }
     }
@@ -318,10 +326,8 @@ bool AgentChannelClient::WriteJsonToPath(const nlohmann::json& j)
         std::cerr << "AgentChannelClient: Failed to rename temp file to " << config_.propertiesJsonPath
                   << std::endl;
         std::remove(tmp_path.c_str());
-        AGENT_STATE.store(AgentState::LISTENING);
         return false;
     }
-    AGENT_STATE.store(AgentState::LISTENING);
     return true;
 }
 
@@ -450,7 +456,6 @@ bool AgentChannelClient::WaitForConnected(grpc::Channel* channel)
 {
     auto deadline = std::chrono::system_clock::now() + CONNECTION_TIMEOUT;
     if (channel->WaitForConnected(deadline)) {
-        AGENT_STATE.store(AgentState::LISTENING);
         std::cout << "AgentChannelClient: Connected to server at " << server_address_ << std::endl;
         return true;
     }
