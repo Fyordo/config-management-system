@@ -13,6 +13,7 @@
 #include <sys/un.h>
 #include <unistd.h>
 #include <arpa/inet.h>
+#include <fcntl.h>
 #include <cstring>
 #include <cerrno>
 
@@ -268,21 +269,15 @@ void AgentChannelClient::HandlePropertyUpdate(const com::fyordo::cms::ServerProp
 
 bool AgentChannelClient::ApplyPropertyUpdateToFile(const std::string& key, const std::string& value)
 {
-    nlohmann::json properties_json;
-    {
-        std::ifstream in(config_.propertiesJsonPath);
-        if (in.good()) {
-            try {
-                in >> properties_json;
-            } catch (const nlohmann::json::exception&) {
-                properties_json = nlohmann::json::object();
-            }
-        }
-    }
-    // Property.value is bytes in proto; we store as string. For valid UTF-8 the JSON is correct.
-    properties_json[key] = value;
+    std::lock_guard<std::mutex> lock(properties_write_mutex_);
 
-    if (!WriteJsonToPath(properties_json)) {
+    // Use in-memory cache instead of re-reading from disk — avoids TOCTOU race
+    if (!properties_cache_.is_object()) {
+        properties_cache_ = nlohmann::json::object();
+    }
+    properties_cache_[key] = value;
+
+    if (!WriteJsonToPath(properties_cache_)) {
         return false;
     }
     std::cout << "AgentChannelClient: Updated key " << key << " in " << config_.propertiesJsonPath << std::endl;
@@ -291,12 +286,14 @@ bool AgentChannelClient::ApplyPropertyUpdateToFile(const std::string& key, const
 
 bool AgentChannelClient::WritePropertiesToFile(const com::fyordo::cms::ServerInitEvent& init_event)
 {
-    nlohmann::json properties_json;
+    std::lock_guard<std::mutex> lock(properties_write_mutex_);
+
+    properties_cache_ = nlohmann::json::object();
     for (const com::fyordo::cms::Property& prop : init_event.properties()) {
-        properties_json[prop.key()] = prop.value();
+        properties_cache_[prop.key()] = prop.value();
         SendUpdateToUnixSocket(prop);
     }
-    if (!WriteJsonToPath(properties_json)) {
+    if (!WriteJsonToPath(properties_cache_)) {
         std::cerr << "AgentChannelClient: Failed to write properties (use a path writable by the process, e.g. /app/application.json)"
                   << std::endl;
         return false;
@@ -308,23 +305,31 @@ bool AgentChannelClient::WritePropertiesToFile(const com::fyordo::cms::ServerIni
 
 bool AgentChannelClient::WriteJsonToPath(const nlohmann::json& j)
 {
-    std::lock_guard<std::mutex> lock(file_write_mutex_);
-
     const std::string tmp_path = config_.propertiesJsonPath + ".tmp";
-    {
-        std::ofstream file(tmp_path);
-        if (!file) {
-            std::cerr << "AgentChannelClient: Failed to open file for writing: " << config_.propertiesJsonPath
-                      << std::endl;
-            return false;
-        }
-        file << j.dump();
-        file.flush();
-        if (!file.good()) {
-            std::cerr << "AgentChannelClient: Write or flush failed: " << tmp_path << std::endl;
-            return false;
-        }
+    const std::string content = j.dump();
+
+    int fd = ::open(tmp_path.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0644);
+    if (fd == -1) {
+        std::cerr << "AgentChannelClient: Failed to open file for writing: " << config_.propertiesJsonPath
+                  << std::endl;
+        return false;
     }
+
+    ssize_t written = ::write(fd, content.data(), content.size());
+    if (written != static_cast<ssize_t>(content.size())) {
+        std::cerr << "AgentChannelClient: Write failed: " << tmp_path << std::endl;
+        ::close(fd);
+        return false;
+    }
+
+    if (::fsync(fd) != 0) {
+        std::cerr << "AgentChannelClient: fsync failed: " << tmp_path << std::endl;
+        ::close(fd);
+        return false;
+    }
+
+    ::close(fd);
+
     if (std::rename(tmp_path.c_str(), config_.propertiesJsonPath.c_str()) != 0) {
         std::cerr << "AgentChannelClient: Failed to rename temp file to " << config_.propertiesJsonPath
                   << std::endl;
@@ -429,23 +434,34 @@ bool AgentChannelClient::WriteRevisionToFile(int64_t revision)
     if (config_.cmsRevisionFilePath.empty()) {
         return true;
     }
-    std::lock_guard<std::mutex> lock(file_write_mutex_);
+    std::lock_guard<std::mutex> lock(revision_write_mutex_);
     const std::string tmp_path = config_.cmsRevisionFilePath + ".tmp";
-    {
-        std::ofstream file(tmp_path);
-        if (!file) {
-            std::cerr << "AgentChannelClient: Failed to open revision file for writing: "
-                      << tmp_path << std::endl;
-            return false;
-        }
-        file << revision;
-        file.flush();
-        if (!file.good()) {
-            std::cerr << "AgentChannelClient: Write or flush failed for revision file: "
-                      << tmp_path << std::endl;
-            return false;
-        }
+    const std::string content = std::to_string(revision);
+
+    int fd = ::open(tmp_path.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0644);
+    if (fd == -1) {
+        std::cerr << "AgentChannelClient: Failed to open revision file for writing: "
+                  << tmp_path << std::endl;
+        return false;
     }
+
+    ssize_t written = ::write(fd, content.data(), content.size());
+    if (written != static_cast<ssize_t>(content.size())) {
+        std::cerr << "AgentChannelClient: Write failed for revision file: "
+                  << tmp_path << std::endl;
+        ::close(fd);
+        return false;
+    }
+
+    if (::fsync(fd) != 0) {
+        std::cerr << "AgentChannelClient: fsync failed for revision file: "
+                  << tmp_path << std::endl;
+        ::close(fd);
+        return false;
+    }
+
+    ::close(fd);
+
     if (std::rename(tmp_path.c_str(), config_.cmsRevisionFilePath.c_str()) != 0) {
         std::cerr << "AgentChannelClient: Failed to rename revision temp file to "
                   << config_.cmsRevisionFilePath << std::endl;

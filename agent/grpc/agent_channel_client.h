@@ -59,7 +59,9 @@ private:
     std::atomic<bool> running_;
     std::atomic<int64_t> current_revision_;
     std::thread client_thread_;
-    std::mutex file_write_mutex_;
+    nlohmann::json properties_cache_;
+    std::mutex properties_write_mutex_;
+    std::mutex revision_write_mutex_;
     std::mutex stream_mutex_;
     std::condition_variable stream_cv_;
 
