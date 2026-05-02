@@ -1,6 +1,6 @@
 package com.fyordo.cms.server.service.raft
 
-import com.fyordo.cms.CmsProto
+import com.fyordo.cms.CmsDtos
 import com.fyordo.cms.server.config.props.RaftConfiguration
 import com.fyordo.cms.server.serialization.property.serializePropertyValue
 import com.fyordo.cms.server.serialization.raft.deserializeRaftResult
@@ -45,7 +45,7 @@ class RaftFailoverIntegrationTest {
         service: String,
         appId: String,
         key: String
-    ): CmsProto.PropertyKey = CmsProto.PropertyKey.newBuilder()
+    ): CmsDtos.PropertyKey = CmsDtos.PropertyKey.newBuilder()
         .setVersion(version)
         .setNamespace(namespace)
         .setService(service)
@@ -57,39 +57,39 @@ class RaftFailoverIntegrationTest {
         version: Int,
         value: ByteArray,
         lastModifiedMs: Long
-    ): CmsProto.PropertyValue = CmsProto.PropertyValue.newBuilder()
+    ): CmsDtos.PropertyValue = CmsDtos.PropertyValue.newBuilder()
         .setVersion(version)
         .setValue(ByteString.copyFrom(value))
         .setLastModifiedMs(lastModifiedMs)
         .build()
 
     private object RaftOp {
-        val PUT: CmsProto.RaftOp = CmsProto.RaftOp.RAFT_OP_PUT
-        val DELETE: CmsProto.RaftOp = CmsProto.RaftOp.RAFT_OP_DELETE
+        val PUT: CmsDtos.RaftOp = CmsDtos.RaftOp.RAFT_OP_PUT
+        val DELETE: CmsDtos.RaftOp = CmsDtos.RaftOp.RAFT_OP_DELETE
     }
 
     private object RaftResultStatus {
-        val OK: CmsProto.RaftResultStatus = CmsProto.RaftResultStatus.RAFT_RESULT_STATUS_OK
-        val NOT_FOUND: CmsProto.RaftResultStatus = CmsProto.RaftResultStatus.RAFT_RESULT_STATUS_NOT_FOUND
-        val ERROR: CmsProto.RaftResultStatus = CmsProto.RaftResultStatus.RAFT_RESULT_STATUS_ERROR
+        val OK: CmsDtos.RaftResultStatus = CmsDtos.RaftResultStatus.RAFT_RESULT_STATUS_OK
+        val NOT_FOUND: CmsDtos.RaftResultStatus = CmsDtos.RaftResultStatus.RAFT_RESULT_STATUS_NOT_FOUND
+        val ERROR: CmsDtos.RaftResultStatus = CmsDtos.RaftResultStatus.RAFT_RESULT_STATUS_ERROR
     }
 
     private fun RaftCommand(
         version: Int,
-        operation: CmsProto.RaftOp,
-        key: CmsProto.PropertyKey?,
+        operation: CmsDtos.RaftOp,
+        key: CmsDtos.PropertyKey?,
         value: ByteArray
-    ): CmsProto.RaftCommand = CmsProto.RaftCommand.newBuilder()
+    ): CmsDtos.RaftCommand = CmsDtos.RaftCommand.newBuilder()
         .setVersion(version)
         .setOperation(operation)
         .apply { if (key != null) setKey(key) }
         .setValue(ByteString.copyFrom(value))
         .build()
 
-    private fun serializeRaftCommand(command: CmsProto.RaftCommand): RatisByteString =
+    private fun serializeRaftCommand(command: CmsDtos.RaftCommand): RatisByteString =
         RatisByteString.copyFrom(serializeRaftCommandBytes(command))
 
-    private fun deserializePropertyValue(propertyValue: ByteString): CmsProto.PropertyValue =
+    private fun deserializePropertyValue(propertyValue: ByteString): CmsDtos.PropertyValue =
         deserializePropertyValueBytes(propertyValue.toByteArray())
 
     private val testGroupId = "failover-test-raft-group-${UUID.randomUUID()}"
