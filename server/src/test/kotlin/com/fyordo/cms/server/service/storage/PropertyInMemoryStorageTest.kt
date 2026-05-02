@@ -1,6 +1,6 @@
 package com.fyordo.cms.server.service.storage
 
-import com.fyordo.cms.CmsProto
+import com.fyordo.cms.CmsDtos
 import com.google.protobuf.ByteString
 import com.fyordo.cms.server.dto.query.PropertyQueryFilter
 import com.fyordo.cms.server.utils.EMPTY_BYTES
@@ -16,7 +16,7 @@ class PropertyInMemoryStorageTest {
         service: String,
         appId: String,
         key: String
-    ): CmsProto.PropertyKey = CmsProto.PropertyKey.newBuilder()
+    ): CmsDtos.PropertyKey = CmsDtos.PropertyKey.newBuilder()
         .setVersion(version)
         .setNamespace(namespace)
         .setService(service)
@@ -28,16 +28,16 @@ class PropertyInMemoryStorageTest {
         version: Int,
         value: ByteArray,
         lastModifiedMs: Long
-    ): CmsProto.PropertyValue = CmsProto.PropertyValue.newBuilder()
+    ): CmsDtos.PropertyValue = CmsDtos.PropertyValue.newBuilder()
         .setVersion(version)
         .setValue(ByteString.copyFrom(value))
         .setLastModifiedMs(lastModifiedMs)
         .build()
 
     private fun PropertyInternalDto(
-        key: CmsProto.PropertyKey,
-        value: CmsProto.PropertyValue
-    ): CmsProto.PropertyInternalDto = CmsProto.PropertyInternalDto.newBuilder()
+        key: CmsDtos.PropertyKey,
+        value: CmsDtos.PropertyValue
+    ): CmsDtos.PropertyInternalDto = CmsDtos.PropertyInternalDto.newBuilder()
         .setKey(key)
         .setValue(value)
         .build()

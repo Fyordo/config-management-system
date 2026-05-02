@@ -1,6 +1,6 @@
 package com.fyordo.cms.server.service.storage
 
-import com.fyordo.cms.CmsProto
+import com.fyordo.cms.CmsDtos
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
@@ -16,7 +16,7 @@ class PropertyPathHolderTest {
         service: String,
         appId: String,
         key: String
-    ): CmsProto.PropertyKey = CmsProto.PropertyKey.newBuilder()
+    ): CmsDtos.PropertyKey = CmsDtos.PropertyKey.newBuilder()
         .setVersion(version)
         .setNamespace(namespace)
         .setService(service)
