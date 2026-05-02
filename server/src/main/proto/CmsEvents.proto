@@ -2,6 +2,9 @@ syntax = "proto3";
 
 package com.fyordo.cms;
 
+option java_package = "com.fyordo.cms";
+option java_outer_classname = "CmsEvents";
+
 service AgentChannelService {
   rpc WatchProperties (stream AgentStreamEvent) returns (stream ServerStreamEvent);
 }
@@ -33,16 +36,15 @@ message ServerStreamEvent {
 message Property {
   string key = 1;
   bytes value = 2;
+  int64 modifiedMs = 3;
 }
 
 message ServerInitEvent {
-  int64 lastModifiedMs = 1;
-  repeated Property properties = 2;
-  int64 revision = 3;
+  repeated Property properties = 1;
+  int64 revision = 2;
 }
 
 message ServerPropertyUpdateEvent {
   Property property = 1;
-  int64 lastModifiedMs = 2;
-  int64 revision = 3;
+  int64 revision = 2;
 }

@@ -1,6 +1,6 @@
 package com.fyordo.cms.server.service.storage
 
-import com.fyordo.cms.CmsProto
+import com.fyordo.cms.CmsDtos
 import com.fyordo.cms.server.dto.query.PropertyQueryFilter
 import mu.KotlinLogging
 import org.springframework.stereotype.Component
@@ -13,19 +13,13 @@ private val logger = KotlinLogging.logger {}
 class PropertyInMemoryStorage(
     private val partsHolder: PropertyPartsHolder
 ) {
-    private val storage = ConcurrentHashMap<CmsProto.PropertyKey, CmsProto.PropertyValue>()
+    private val storage = ConcurrentHashMap<CmsDtos.PropertyKey, CmsDtos.PropertyValue>()
 
     val currentRevision = AtomicLong(0L)
 
-    operator fun set(key: CmsProto.PropertyKey, value: CmsProto.PropertyValue) {
-        storage[key] = value
-        partsHolder.addProperty(key)
-        logger.debug { "Stored value $key -> $value" }
-    }
+    operator fun get(key: CmsDtos.PropertyKey): CmsDtos.PropertyValue? = storage[key]
 
-    operator fun get(key: CmsProto.PropertyKey): CmsProto.PropertyValue? = storage[key]
-
-    fun getByFilter(filter: PropertyQueryFilter): Sequence<CmsProto.PropertyInternalDto> {
+    fun getByFilter(filter: PropertyQueryFilter): Sequence<CmsDtos.PropertyInternalDto> {
         val namespaces = partsHolder.getNamespaces().filter {
             filter.namespaceRegex?.toRegex()?.matches(it) ?: true
         }
@@ -40,14 +34,12 @@ class PropertyInMemoryStorage(
         }
 
         return storage.asSequence()
-            .filter { entry ->
-                namespaces.contains(entry.key.namespace) &&
-                        services.contains(entry.key.service) &&
-                        appIds.contains(entry.key.appId) &&
-                        keys.contains(entry.key.key)
-            }
+            .filter { entry -> namespaces.contains(entry.key.namespace) }
+            .filter { entry -> services.contains(entry.key.service) }
+            .filter { entry -> appIds.contains(entry.key.appId) }
+            .filter { entry -> keys.contains(entry.key.key) }
             .map { (key, value) ->
-                CmsProto.PropertyInternalDto.newBuilder()
+                CmsDtos.PropertyInternalDto.newBuilder()
                     .setKey(key)
                     .setValue(value)
                     .build()
@@ -55,21 +47,21 @@ class PropertyInMemoryStorage(
             .take(filter.limit)
     }
 
-    fun getInitForApp(namespace: String, service: String, appId: String): List<CmsProto.PropertyInternalDto> =
+    fun getInitForApp(namespace: String, service: String, appId: String): List<CmsDtos.PropertyInternalDto> =
         storage.filter { (key, _) ->
             key.namespace == namespace &&
                     key.service == service &&
                     key.appId == appId
         }
             .map { (key, value) ->
-                CmsProto.PropertyInternalDto.newBuilder()
+                CmsDtos.PropertyInternalDto.newBuilder()
                     .setKey(key)
                     .setValue(value)
                     .build()
             }
 
     @Synchronized
-    fun remove(key: CmsProto.PropertyKey): CmsProto.PropertyValue? {
+    fun remove(key: CmsDtos.PropertyKey): CmsDtos.PropertyValue? {
         val removed = storage.remove(key)
 
         if (removed != null) {
@@ -85,21 +77,21 @@ class PropertyInMemoryStorage(
                 hasOtherWithAppId,
                 hasOtherWithKey
             )
-            logger.debug { "Removed key $key" }
+            logger.debug { "Removed key=[$key]" }
         }
 
         return removed
     }
 
-    fun setWithRevision(key: CmsProto.PropertyKey, value: CmsProto.PropertyValue, revision: Long) {
+    fun setWithRevision(key: CmsDtos.PropertyKey, value: CmsDtos.PropertyValue, revision: Long) {
         storage[key] = value
         partsHolder.addProperty(key)
         currentRevision.set(revision)
-        logger.debug { "Stored value $key -> $value revision=$revision" }
+        logger.debug { "Stored property=[$key -> $value] revision=[$revision]" }
     }
 
     @Synchronized
-    fun removeWithRevision(key: CmsProto.PropertyKey, revision: Long): CmsProto.PropertyValue? {
+    fun removeWithRevision(key: CmsDtos.PropertyKey, revision: Long): CmsDtos.PropertyValue? {
         val removed = storage.remove(key)
 
         if (removed != null) {
@@ -116,16 +108,16 @@ class PropertyInMemoryStorage(
                 hasOtherWithKey
             )
             currentRevision.set(revision)
-            logger.debug { "Removed key $key revision=$revision" }
+            logger.debug { "Removed key=[$key] revision=[$revision]" }
         }
 
         return removed
     }
 
     @Synchronized
-    fun getSnapshotData(): Pair<Long, List<CmsProto.PropertyInternalDto>> {
+    fun getSnapshotData(): Pair<Long, List<CmsDtos.PropertyInternalDto>> {
         return currentRevision.get() to storage.map { (key, value) ->
-            CmsProto.PropertyInternalDto.newBuilder()
+            CmsDtos.PropertyInternalDto.newBuilder()
                 .setKey(key)
                 .setValue(value)
                 .build()
@@ -133,7 +125,7 @@ class PropertyInMemoryStorage(
     }
 
     @Synchronized
-    fun restoreFromSnapshot(entries: List<CmsProto.PropertyInternalDto>, revision: Long) {
+    fun restoreFromSnapshot(entries: List<CmsDtos.PropertyInternalDto>, revision: Long) {
         storage.clear()
         partsHolder.clear()
         entries.forEach { entry ->
@@ -141,6 +133,6 @@ class PropertyInMemoryStorage(
             partsHolder.addProperty(entry.key)
         }
         currentRevision.set(revision)
-        logger.info { "Storage restored from snapshot: ${entries.size} entries, revision=$revision" }
+        logger.info { "Storage restored from snapshot: [${entries.size}] entries, revision=[$revision]" }
     }
 }

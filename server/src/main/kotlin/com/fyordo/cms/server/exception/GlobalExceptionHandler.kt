@@ -7,8 +7,8 @@ import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.MethodArgumentNotValidException
 import org.springframework.web.bind.annotation.ExceptionHandler
 import org.springframework.web.bind.annotation.RestControllerAdvice
-import org.springframework.web.context.request.WebRequest
 import org.springframework.web.server.ResponseStatusException
+import java.time.Instant
 
 private val logger = KotlinLogging.logger {}
 
@@ -18,6 +18,7 @@ class GlobalExceptionHandler {
     @ExceptionHandler(IllegalArgumentException::class)
     fun handleIllegalArgument(ex: IllegalArgumentException): ResponseEntity<ErrorResponse> {
         logger.warn(ex) { "Illegal argument: ${ex.message}" }
+
         return ResponseEntity
             .status(HttpStatus.BAD_REQUEST)
             .body(
@@ -34,6 +35,7 @@ class GlobalExceptionHandler {
             "${error.field}: ${error.defaultMessage}"
         }
         logger.warn { "Validation failed: $errors" }
+
         return ResponseEntity
             .status(HttpStatus.BAD_REQUEST)
             .body(
@@ -50,6 +52,7 @@ class GlobalExceptionHandler {
             "${violation.propertyPath}: ${violation.message}"
         }
         logger.warn { "Constraint violation: $errors" }
+
         return ResponseEntity
             .status(HttpStatus.BAD_REQUEST)
             .body(
@@ -63,6 +66,7 @@ class GlobalExceptionHandler {
     @ExceptionHandler(ResponseStatusException::class)
     fun handleResponseStatusException(ex: ResponseStatusException): ResponseEntity<ErrorResponse> {
         logger.warn(ex) { "Response status exception: ${ex.reason}" }
+
         return ResponseEntity
             .status(ex.statusCode)
             .body(
@@ -76,6 +80,7 @@ class GlobalExceptionHandler {
     @ExceptionHandler(Exception::class)
     fun handleGenericException(ex: Exception): ResponseEntity<ErrorResponse> {
         logger.error(ex) { "Unhandled exception: ${ex.message}" }
+
         return ResponseEntity
             .status(HttpStatus.INTERNAL_SERVER_ERROR)
             .body(
@@ -86,3 +91,10 @@ class GlobalExceptionHandler {
             )
     }
 }
+
+data class ErrorResponse(
+    val timestamp: Instant = Instant.now(),
+    val status: Int,
+    val message: String? = null,
+    val path: String? = null
+)

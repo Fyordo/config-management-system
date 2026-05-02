@@ -3,7 +3,7 @@ syntax = "proto3";
 package com.fyordo.cms;
 
 option java_package = "com.fyordo.cms";
-option java_outer_classname = "CmsProto";
+option java_outer_classname = "CmsDtos";
 
 enum RaftOp {
   RAFT_OP_UNSPECIFIED = 0;

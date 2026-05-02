@@ -1,20 +1,16 @@
 package com.fyordo.cms.server.service.raft
 
-import tools.jackson.core.type.TypeReference
-import tools.jackson.databind.ObjectMapper
 import com.fyordo.cms.server.config.props.RaftConfiguration
 import com.fyordo.cms.server.dto.raft.ClusterStatus
 import com.fyordo.cms.server.dto.raft.NodeFullStatus
 import com.fyordo.cms.server.dto.raft.NodeStatus
 import com.fyordo.cms.server.dto.raft.PeerConfig
 import com.fyordo.cms.server.utils.raft.parsePeerHosts
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
-import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.withContext
+import kotlinx.coroutines.*
 import mu.KotlinLogging
 import org.springframework.stereotype.Service
+import tools.jackson.core.type.TypeReference
+import tools.jackson.databind.ObjectMapper
 import java.net.URI
 import java.net.http.HttpClient
 import java.net.http.HttpRequest
@@ -33,16 +29,18 @@ class RaftClusterStatusService(
         .connectTimeout(Duration.ofSeconds(2))
         .build()
 
-    suspend fun getClusterStatus(): ClusterStatus {
-        val localStatus = raftServer.getLocalNodeStatus()
-        val groupId = localStatus.groupId
-
-        val peerHosts = parsePeerHosts(
+    private val peerHosts: List<PeerConfig> by lazy {
+        parsePeerHosts(
             peers = raftProps.peers,
             currentNodeId = raftProps.nodeId,
             currentNodeHost = raftProps.host,
             currentNodeApiPort = raftProps.peerHttpPort,
         )
+    }
+
+    suspend fun getClusterStatus(): ClusterStatus {
+        val localStatus = raftServer.getLocalNodeStatus()
+        val groupId = localStatus.groupId
 
         val nodes = coroutineScope {
             peerHosts.map { peer ->

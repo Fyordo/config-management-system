@@ -1,27 +1,27 @@
 package com.fyordo.cms.server.dto.property
 
-import com.fyordo.cms.CmsProto
 import com.fasterxml.jackson.annotation.JsonCreator
 import com.fasterxml.jackson.annotation.JsonProperty
+import com.fyordo.cms.CmsDtos
 
 data class PropertyDto(
     val key: PropertyKeyDto,
     val value: PropertyValueDto,
 ) {
-    constructor(entry: CmsProto.PropertyInternalDto) : this(
+    constructor(entry: CmsDtos.PropertyInternalDto) : this(
         key = PropertyKeyDto(entry.key),
         value = PropertyValueDto(entry.value)
     )
 }
 
 data class PropertyKeyDto @JsonCreator constructor(
-    @param:JsonProperty("version") val version: Int,
-    @param:JsonProperty("namespace") val namespace: String,
-    @param:JsonProperty("service") val service: String,
-    @param:JsonProperty("appId") val appId: String,
-    @param:JsonProperty("key") val key: String
+    @field:JsonProperty("version") val version: Int,
+    @field:JsonProperty("namespace") val namespace: String,
+    @field:JsonProperty("service") val service: String,
+    @field:JsonProperty("appId") val appId: String,
+    @field:JsonProperty("key") val key: String
 ) {
-    constructor(propertyKey: CmsProto.PropertyKey) : this(
+    constructor(propertyKey: CmsDtos.PropertyKey) : this(
         version = propertyKey.version,
         namespace = propertyKey.namespace,
         service = propertyKey.service,
@@ -29,8 +29,8 @@ data class PropertyKeyDto @JsonCreator constructor(
         key = propertyKey.key
     )
 
-    fun toProto(): CmsProto.PropertyKey =
-        CmsProto.PropertyKey.newBuilder()
+    fun toProto(): CmsDtos.PropertyKey =
+        CmsDtos.PropertyKey.newBuilder()
             .setVersion(version)
             .setNamespace(namespace)
             .setService(service)
@@ -40,10 +40,10 @@ data class PropertyKeyDto @JsonCreator constructor(
 }
 
 data class PropertyValueDto @JsonCreator constructor(
-    @param:JsonProperty("value") val value: String,
-    @param:JsonProperty("lastModifiedMs") val lastModifiedMs: Long
+    @field:JsonProperty("value") val value: String,
+    @field:JsonProperty("lastModifiedMs") val lastModifiedMs: Long
 ) {
-    constructor(propertyValue: CmsProto.PropertyValue) : this(
+    constructor(propertyValue: CmsDtos.PropertyValue) : this(
         value = String(propertyValue.value.toByteArray(), Charsets.UTF_8),
         lastModifiedMs = propertyValue.lastModifiedMs
     )

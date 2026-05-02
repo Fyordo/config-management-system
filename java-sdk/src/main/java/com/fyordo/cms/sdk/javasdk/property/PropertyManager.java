@@ -133,7 +133,7 @@ public class PropertyManager {
         }
 
         LOG.info("Starting socket-listening virtual thread");
-        Thread t = Thread.ofVirtual()
+        Thread t = Thread.ofPlatform()
                 .name("property-manager-socket-listener")
                 .unstarted(() -> {
                     try {

@@ -1,11 +1,11 @@
 package com.fyordo.cms.server.serialization.property
 
-import com.fyordo.cms.CmsProto
+import com.fyordo.cms.CmsDtos
 
-fun serializePropertyKey(propertyKey: CmsProto.PropertyKey): ByteArray {
+fun serializePropertyKey(propertyKey: CmsDtos.PropertyKey): ByteArray {
     return propertyKey.toByteArray()
 }
 
-fun deserializePropertyKey(propertyKey: ByteArray): CmsProto.PropertyKey {
-    return CmsProto.PropertyKey.parseFrom(propertyKey)
+fun deserializePropertyKey(propertyKey: ByteArray): CmsDtos.PropertyKey {
+    return CmsDtos.PropertyKey.parseFrom(propertyKey)
 }

@@ -1,20 +1,23 @@
 #include <chrono>
 #include <csignal>
+#include <cerrno>
 #include <cstdlib>
+#include <fcntl.h>
 #include <iostream>
 #include <stdexcept>
 #include <string>
 #include <thread>
+#include <unistd.h>
 
 #include "agent_channel_client.h"
 #include "grpc_starter.h"
+#include "tls_config.h"
 
 std::atomic<bool> g_shutdown_requested{false};
-std::atomic<AgentState> AGENT_STATE{AgentState::CONNECT};
+int g_shutdown_pipe[2] = {-1, -1};
+void SignalHandler(int);
 
 namespace {
-
-    constexpr std::chrono::milliseconds MAIN_LOOP_POLL_MS{100};
 
     std::string GetEnvOrDefault(const char* name, const std::string& default_value)
     {
@@ -25,7 +28,7 @@ namespace {
     void PrintMissingEnvErrors(const AgentConfig& config)
     {
         std::cerr << "Error: Required environment variables are not set:" << std::endl;
-        if (config.namespace_.empty()) std::cerr << "  - CMS_NAMESPACE" << std::endl;
+        if (config.ns.empty()) std::cerr << "  - CMS_NAMESPACE" << std::endl;
         if (config.service.empty()) std::cerr << "  - CMS_SERVICE" << std::endl;
         if (config.appId.empty()) std::cerr << "  - CMS_APPID" << std::endl;
         if (config.cmsServerHost.empty()) std::cerr << "  - CMS_SERVER_HOST" << std::endl;
@@ -35,10 +38,11 @@ namespace {
     void PrintAgentConfig(const AgentConfig& config)
     {
         std::cout << "Agent configuration:" << std::endl;
-        std::cout << "  CMS_NAMESPACE: " << config.namespace_ << std::endl;
+        std::cout << "  CMS_NAMESPACE: " << config.ns << std::endl;
         std::cout << "  CMS_SERVICE: " << config.service << std::endl;
         std::cout << "  CMS_APPID: " << config.appId << std::endl;
         std::cout << "  CMS_SERVER_HOST: " << config.cmsServerHost << std::endl;
+        PrintTlsConfig(config.tls);
         if (!config.propertiesJsonPath.empty()) {
             std::cout << "  CMS_PROPERTIES_FILE: " << config.propertiesJsonPath << std::endl;
         }
@@ -47,26 +51,55 @@ namespace {
         }
     }
 
+    void RegisterSignalOrThrow(int signo)
+    {
+        struct sigaction sa {};
+        sa.sa_handler = SignalHandler;
+        sigemptyset(&sa.sa_mask);
+        sigaddset(&sa.sa_mask, SIGINT);
+        sigaddset(&sa.sa_mask, SIGTERM);
+        sa.sa_flags = SA_RESTART;
+
+        if (::sigaction(signo, &sa, nullptr) != 0) {
+            throw std::runtime_error("Failed to register signal handler via sigaction");
+        }
+    }
+
 }
 
-void SignalHandler(int signal)
+void SignalHandler(int)
 {
-    std::cout << "\nReceived signal " << signal << ", initiating shutdown..." << std::endl;
     g_shutdown_requested.store(true);
+    if (g_shutdown_pipe[1] != -1) {
+        const char dummy = 1;
+        if (::write(g_shutdown_pipe[1], &dummy, 1) == -1 && errno != EAGAIN && errno != EWOULDBLOCK) {
+            // Non-blocking write end: EAGAIN means buffer full; shutdown flag is already set.
+        }
+    }
 }
 
-void SetupSignalHandlers()
+void GrpcServerStarter::SetupSignalHandlers()
 {
-    std::signal(SIGINT, SignalHandler);
-    std::signal(SIGTERM, SignalHandler);
+    if (::pipe(g_shutdown_pipe) != 0) {
+        std::cerr << "Failed to create shutdown pipe, falling back to polling" << std::endl;
+    } else {
+        const int wfd = g_shutdown_pipe[1];
+        int flags = ::fcntl(wfd, F_GETFL, 0);
+        if (flags == -1 || ::fcntl(wfd, F_SETFL, flags | O_NONBLOCK) == -1) {
+            std::cerr << "Failed to set shutdown pipe write end non-blocking, closing pipe" << std::endl;
+            ::close(g_shutdown_pipe[0]);
+            ::close(g_shutdown_pipe[1]);
+            g_shutdown_pipe[0] = -1;
+            g_shutdown_pipe[1] = -1;
+        }
+    }
+    RegisterSignalOrThrow(SIGINT);
+    RegisterSignalOrThrow(SIGTERM);
 }
 
-void RunServer(int argc, char** argv)
+void GrpcServerStarter::RunServer()
 {
-    (void)argc;
-    (void)argv;
-    AGENT_STATE.store(AgentState::CONNECT);
-    AgentConfig config = GetAndValidateConfigFromEnv();
+    AgentConfig config = BuildConfig();
     PrintAgentConfig(config);
     SetupSignalHandlers();
 
@@ -75,8 +108,18 @@ void RunServer(int argc, char** argv)
     std::cout << "AgentChannelClient: Started, connecting to " << config.cmsServerHost << std::endl;
     std::cout << "Agent running, press Ctrl+C to stop..." << std::endl;
 
-    while (!g_shutdown_requested.load()) {
-        std::this_thread::sleep_for(MAIN_LOOP_POLL_MS);
+    if (g_shutdown_pipe[0] != -1) {
+        char dummy;
+        while (::read(g_shutdown_pipe[0], &dummy, 1) == -1 && errno == EINTR) {
+        }
+        ::close(g_shutdown_pipe[0]);
+        ::close(g_shutdown_pipe[1]);
+        g_shutdown_pipe[0] = -1;
+        g_shutdown_pipe[1] = -1;
+    } else {
+        while (!g_shutdown_requested.load()) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        }
     }
 
     std::cout << "Shutting down agent..." << std::endl;
@@ -84,20 +127,32 @@ void RunServer(int argc, char** argv)
     std::cout << "Agent stopped successfully" << std::endl;
 }
 
-AgentConfig GetAndValidateConfigFromEnv()
+AgentConfig GrpcServerStarter::BuildConfig()
 {
     AgentConfig config;
-    config.namespace_ = GetEnvOrDefault("CMS_NAMESPACE", "");
+    config.ns = GetEnvOrDefault("CMS_NAMESPACE", "");
     config.service = GetEnvOrDefault("CMS_SERVICE", "");
     config.appId = GetEnvOrDefault("CMS_APPID", "");
     config.cmsServerHost = GetEnvOrDefault("CMS_SERVER_HOST", "");
     config.propertiesJsonPath = GetEnvOrDefault("CMS_PROPERTIES_FILE", "");
     config.unixSocketPath = GetEnvOrDefault("CMS_UNIX_SOCKET_PATH", "");
     config.cmsRevisionFilePath = GetEnvOrDefault("CMS_REVISION_FILE", "");
+    config.tls = BuildTlsConfigFromEnv();
 
-    if (!config.IsValid()) {
+    if (!config.isValid()) {
         PrintMissingEnvErrors(config);
         throw std::runtime_error("Invalid configuration");
     }
+    if (config.tls.enabled) {
+        (void)CreateChannelCredentials(config.tls);
+    }
     return config;
+}
+
+bool AgentConfig::isValid() const
+{
+    if (ns.empty() || service.empty() || appId.empty()) return false;
+    if (cmsServerHost.empty()) return false;
+    if (!tls.isValid()) return false;
+    return true;
 }

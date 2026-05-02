@@ -6,15 +6,18 @@
 #include <iostream>
 #include <grpcpp/grpcpp.h>
 #include <nlohmann/json.hpp>
+#include <thread>
+#include <condition_variable>
 
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <unistd.h>
 #include <arpa/inet.h>
+#include <fcntl.h>
 #include <cstring>
 #include <cerrno>
 
-#include "AgentChannelService.grpc.pb.h"
+#include "CmsEvents.grpc.pb.h"
 #include "grpc_starter.h"
 
 using grpc::ClientContext;
@@ -58,6 +61,8 @@ void AgentChannelClient::Stop()
     if (!running_.compare_exchange_strong(was_running, false)) {
         return;
     }
+    stream_cv_.notify_one();
+    stream_writer_cv_.notify_all();
     if (client_thread_.joinable()) {
         client_thread_.join();
     }
@@ -65,33 +70,35 @@ void AgentChannelClient::Stop()
 
 void AgentChannelClient::Run()
 {
+    {
+        grpc::ChannelArguments channel_args;
+        channel_args.SetServiceConfigJSON(R"({"loadBalancingConfig": [{"round_robin": {}}]})");
+        channel_args.SetInt(GRPC_ARG_KEEPALIVE_TIME_MS,              KEEPALIVE_TIME_MS);
+        channel_args.SetInt(GRPC_ARG_KEEPALIVE_TIMEOUT_MS,           KEEPALIVE_TIMEOUT_MS);
+        channel_args.SetInt(GRPC_ARG_KEEPALIVE_PERMIT_WITHOUT_CALLS, 1);
+        channel_args.SetInt(GRPC_ARG_HTTP2_MAX_PINGS_WITHOUT_DATA,   0);
+        channel_ = grpc::CreateCustomChannel(
+            server_address_, CreateChannelCredentials(config_.tls), channel_args
+        );
+        stub_ = AgentChannelService::NewStub(channel_);
+    }
+
     while (running_.load()) {
         try {
-            AGENT_STATE.store(AgentState::CONNECT);
-            grpc::ChannelArguments channel_args;
-            channel_args.SetServiceConfigJSON(
-                R"({"loadBalancingConfig": [{"round_robin": {}}]})");
-            channel_args.SetInt(GRPC_ARG_KEEPALIVE_TIME_MS,              KEEPALIVE_TIME_MS);
-            channel_args.SetInt(GRPC_ARG_KEEPALIVE_TIMEOUT_MS,           KEEPALIVE_TIMEOUT_MS);
-            channel_args.SetInt(GRPC_ARG_KEEPALIVE_PERMIT_WITHOUT_CALLS, 1);
-            channel_args.SetInt(GRPC_ARG_HTTP2_MAX_PINGS_WITHOUT_DATA,   0);
-            auto channel = grpc::CreateCustomChannel(
-                server_address_, grpc::InsecureChannelCredentials(), channel_args);
-            auto stub = AgentChannelService::NewStub(channel);
-
-            if (!WaitForConnected(channel.get())) {
+            if (!WaitForConnected(channel_.get())) {
                 std::this_thread::sleep_for(RECONNECT_DELAY);
                 continue;
             }
 
             ClientContext context;
             std::cout << "AgentChannelClient: Connecting to server - "
-                      << "namespace: " << config_.namespace_ << ", "
+                      << "namespace: " << config_.ns << ", "
                       << "service: " << config_.service << ", "
                       << "appId: " << config_.appId << std::endl;
 
             std::shared_ptr<ClientReaderWriter<AgentStreamEvent, ServerStreamEvent>> stream(
-                stub->WatchProperties(&context));
+                stub_->WatchProperties(&context)
+            );
 
             if (!stream) {
                 std::cerr << "AgentChannelClient: Failed to create stream" << std::endl;
@@ -101,7 +108,7 @@ void AgentChannelClient::Run()
 
             AgentStreamEvent connect_message;
             AgentConnectEvent* connect = connect_message.mutable_connectevent();
-            connect->set_namespace_(config_.namespace_);
+            connect->set_namespace_(config_.ns);
             connect->set_service(config_.service);
             connect->set_appid(config_.appId);
             if (!stream->Write(connect_message)) {
@@ -118,28 +125,31 @@ void AgentChannelClient::Run()
 
             std::atomic<bool> is_reading{true};
             std::atomic<bool> is_writing{true};
-            std::thread read_thread(&AgentChannelClient::RunStreamSession, this, stream.get(), std::ref(is_reading));
-            std::thread ack_thread([this, stream, &is_reading, &is_writing]() {
-                while (running_.load() && is_reading.load() && is_writing.load()) {
-                    std::this_thread::sleep_for(ACK_INTERVAL);
-                    if (!running_.load() || !is_reading.load() || !is_writing.load()) {
-                        break;
-                    }
-                    SendAckToServer(stream.get(), current_revision_.load());
-                }
-            });
 
-            while (running_.load() && is_reading.load()) {
-                std::this_thread::sleep_for(POLL_INTERVAL_MS);
+            std::thread read_thread(
+                &AgentChannelClient::RunStreamSession, this,
+                stream.get(), std::ref(is_reading), std::ref(is_writing)
+            );
+            std::thread writer_thread(
+                &AgentChannelClient::RunStreamWriter, this,
+                stream.get(), std::ref(is_reading), std::ref(is_writing)
+            );
+
+            {
+                std::unique_lock<std::mutex> lock(stream_mutex_);
+                stream_cv_.wait(lock, [&] { return !running_.load() || !is_reading.load(); });
             }
+
             is_reading.store(false);
             is_writing.store(false);
+
             context.TryCancel();
+
             if (read_thread.joinable()) {
                 read_thread.join();
             }
-            if (ack_thread.joinable()) {
-                ack_thread.join();
+            if (writer_thread.joinable()) {
+                writer_thread.join();
             }
 
             grpc::Status status = stream->Finish();
@@ -161,9 +171,8 @@ void AgentChannelClient::Run()
     }
 }
 
-void AgentChannelClient::RunStreamSession(void* stream_ptr, std::atomic<bool>& is_reading)
+void AgentChannelClient::RunStreamSession(ClientReaderWriterInterface<AgentStreamEvent, ServerStreamEvent>* stream, std::atomic<bool>& is_reading, std::atomic<bool>& is_writing)
 {
-    auto* stream = static_cast<ClientReaderWriterInterface<AgentStreamEvent, ServerStreamEvent>*>(stream_ptr);
     ServerStreamEvent event;
 
     while (is_reading.load() && stream->Read(&event)) {
@@ -174,19 +183,47 @@ void AgentChannelClient::RunStreamSession(void* stream_ptr, std::atomic<bool>& i
         }
     }
     is_reading.store(false);
+    stream_cv_.notify_one();
     std::cout << "AgentChannelClient: Read loop finished" << std::endl;
 }
 
-void AgentChannelClient::SendAckToServer(void* stream_ptr, int64_t revision)
+void AgentChannelClient::RequestAckFlush()
 {
-    auto* stream = static_cast<ClientReaderWriterInterface<AgentStreamEvent, ServerStreamEvent>*>(stream_ptr);
-    AgentStreamEvent ack_message;
-    ack_message.mutable_ackevent()->set_revision(revision);
-    if (!stream->Write(ack_message)) {
-        std::cerr << "AgentChannelClient: Failed to send ack to server for revision " << revision << std::endl;
-        return;
+    ack_flush_pending_.store(true);
+    stream_writer_cv_.notify_one();
+}
+
+void AgentChannelClient::RunStreamWriter(
+    ClientReaderWriterInterface<AgentStreamEvent, ServerStreamEvent>* stream,
+    std::atomic<bool>& is_reading,
+    std::atomic<bool>& is_writing)
+{
+    using clock = std::chrono::steady_clock;
+    auto next_ack = clock::now() + ACK_INTERVAL;
+
+    while (running_.load() && is_reading.load() && is_writing.load()) {
+        {
+            std::unique_lock<std::mutex> lock(stream_writer_mutex_);
+            stream_writer_cv_.wait_until(lock, next_ack, [&] {
+                return !running_.load() || !is_reading.load() || !is_writing.load() ||
+                       ack_flush_pending_.load();
+            });
+        }
+        if (!running_.load() || !is_reading.load() || !is_writing.load()) {
+            break;
+        }
+        ack_flush_pending_.store(false);
+
+        AgentStreamEvent ack_message;
+        const int64_t revision = current_revision_.load();
+        ack_message.mutable_ackevent()->set_revision(revision);
+        if (!stream->Write(ack_message)) {
+            std::cerr << "AgentChannelClient: Failed to send ack to server for revision " << revision << std::endl;
+            return;
+        }
+        std::cout << "AgentChannelClient: Sent ack to server for revision " << revision << std::endl;
+        next_ack = clock::now() + ACK_INTERVAL;
     }
-    std::cout << "AgentChannelClient: Sent ack to server for revision " << revision << std::endl;
 }
 
 void AgentChannelClient::HandleInitEvent(const com::fyordo::cms::ServerInitEvent& init_event)
@@ -195,7 +232,6 @@ void AgentChannelClient::HandleInitEvent(const com::fyordo::cms::ServerInitEvent
     const int64_t stored_revision = current_revision_.load();
 
     std::cout << "AgentChannelClient: Received ServerInitEvent - "
-              << "lastModifiedMs: " << init_event.lastmodifiedms() << ", "
               << "revision: " << new_revision << ", "
               << "properties count: " << init_event.properties_size() << std::endl;
 
@@ -217,14 +253,15 @@ void AgentChannelClient::HandleInitEvent(const com::fyordo::cms::ServerInitEvent
     }
 }
 
-void AgentChannelClient::HandlePropertyUpdate(const com::fyordo::cms::ServerPropertyUpdateEvent& update_event)
+void AgentChannelClient::HandlePropertyUpdate(
+    const com::fyordo::cms::ServerPropertyUpdateEvent& update_event)
 {
     const int64_t new_revision = update_event.revision();
     const int64_t stored_revision = current_revision_.load();
 
     std::cout << "AgentChannelClient: Received ServerPropertyUpdateEvent - "
               << "key: " << update_event.property().key() << ", "
-              << "lastModifiedMs: " << update_event.lastmodifiedms() << ", "
+              << "lastModifiedMs: " << update_event.property().modifiedms() << ", "
               << "revision: " << new_revision << std::endl;
 
     if (stored_revision >= 0 && new_revision < stored_revision) {
@@ -238,37 +275,37 @@ void AgentChannelClient::HandlePropertyUpdate(const com::fyordo::cms::ServerProp
         std::cerr << "AgentChannelClient: Skipping property update (CMS_PROPERTIES_FILE not set)" << std::endl;
         return;
     }
-    if (!ApplyPropertyUpdateToFile(update_event.property().key(), update_event.property().value())) {
-        std::cerr << "AgentChannelClient: Failed to apply property update for key "
-                  << update_event.property().key() << std::endl;
+    try {
+        if (!ApplyPropertyUpdateToFile(update_event.property().key(), update_event.property().value())) {
+            std::cerr << "AgentChannelClient: Failed to apply property update for key "
+                      << update_event.property().key() << std::endl;
+            return;
+        }
+    
+        SendUpdateToUnixSocket(update_event.property());
+    
+        if (WriteRevisionToFile(new_revision)) {
+            current_revision_.store(new_revision);
+            std::cout << "AgentChannelClient: Revision updated to " << new_revision << std::endl;
+        }
+    } catch (const std::exception& e) {
+        std::cerr << "AgentChannelClient: Exception: " << e.what() << std::endl;
+        RequestAckFlush();
         return;
-    }
-
-    SendUpdateToUnixSocket(update_event.property());
-
-    if (WriteRevisionToFile(new_revision)) {
-        current_revision_.store(new_revision);
-        std::cout << "AgentChannelClient: Revision updated to " << new_revision << std::endl;
     }
 }
 
 bool AgentChannelClient::ApplyPropertyUpdateToFile(const std::string& key, const std::string& value)
 {
-    nlohmann::json properties_json;
-    {
-        std::ifstream in(config_.propertiesJsonPath);
-        if (in.good()) {
-            try {
-                in >> properties_json;
-            } catch (const nlohmann::json::exception&) {
-                properties_json = nlohmann::json::object();
-            }
-        }
-    }
-    // Property.value is bytes in proto; we store as string. For valid UTF-8 the JSON is correct.
-    properties_json[key] = value;
+    std::lock_guard<std::mutex> lock(properties_write_mutex_);
 
-    if (!WriteJsonToPath(properties_json)) {
+    // Use in-memory cache instead of re-reading from disk — avoids TOCTOU race
+    if (!properties_cache_.is_object()) {
+        properties_cache_ = nlohmann::json::object();
+    }
+    properties_cache_[key] = value;
+
+    if (!WriteJsonToPath(properties_cache_)) {
         return false;
     }
     std::cout << "AgentChannelClient: Updated key " << key << " in " << config_.propertiesJsonPath << std::endl;
@@ -277,12 +314,14 @@ bool AgentChannelClient::ApplyPropertyUpdateToFile(const std::string& key, const
 
 bool AgentChannelClient::WritePropertiesToFile(const com::fyordo::cms::ServerInitEvent& init_event)
 {
-    nlohmann::json properties_json;
+    std::lock_guard<std::mutex> lock(properties_write_mutex_);
+
+    properties_cache_ = nlohmann::json::object();
     for (const com::fyordo::cms::Property& prop : init_event.properties()) {
-        properties_json[prop.key()] = prop.value();
+        properties_cache_[prop.key()] = prop.value();
         SendUpdateToUnixSocket(prop);
     }
-    if (!WriteJsonToPath(properties_json)) {
+    if (!WriteJsonToPath(properties_cache_)) {
         std::cerr << "AgentChannelClient: Failed to write properties (use a path writable by the process, e.g. /app/application.json)"
                   << std::endl;
         return false;
@@ -294,34 +333,37 @@ bool AgentChannelClient::WritePropertiesToFile(const com::fyordo::cms::ServerIni
 
 bool AgentChannelClient::WriteJsonToPath(const nlohmann::json& j)
 {
-    std::lock_guard<std::mutex> lock(file_write_mutex_);
-    AGENT_STATE.store(AgentState::WRITING);
-
     const std::string tmp_path = config_.propertiesJsonPath + ".tmp";
-    {
-        std::ofstream file(tmp_path);
-        if (!file) {
-            std::cerr << "AgentChannelClient: Failed to open file for writing: " << config_.propertiesJsonPath
-                      << std::endl;
-            AGENT_STATE.store(AgentState::LISTENING);
-            return false;
-        }
-        file << j.dump();
-        file.flush();
-        if (!file.good()) {
-            std::cerr << "AgentChannelClient: Write or flush failed: " << tmp_path << std::endl;
-            AGENT_STATE.store(AgentState::LISTENING);
-            return false;
-        }
+    const std::string content = j.dump();
+
+    int fd = ::open(tmp_path.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0644);
+    if (fd == -1) {
+        std::cerr << "AgentChannelClient: Failed to open file for writing: " << config_.propertiesJsonPath
+                  << std::endl;
+        return false;
     }
+
+    ssize_t written = ::write(fd, content.data(), content.size());
+    if (written != static_cast<ssize_t>(content.size())) {
+        std::cerr << "AgentChannelClient: Write failed: " << tmp_path << std::endl;
+        ::close(fd);
+        return false;
+    }
+
+    if (::fsync(fd) != 0) {
+        std::cerr << "AgentChannelClient: fsync failed: " << tmp_path << std::endl;
+        ::close(fd);
+        return false;
+    }
+
+    ::close(fd);
+
     if (std::rename(tmp_path.c_str(), config_.propertiesJsonPath.c_str()) != 0) {
         std::cerr << "AgentChannelClient: Failed to rename temp file to " << config_.propertiesJsonPath
                   << std::endl;
         std::remove(tmp_path.c_str());
-        AGENT_STATE.store(AgentState::LISTENING);
         return false;
     }
-    AGENT_STATE.store(AgentState::LISTENING);
     return true;
 }
 
@@ -420,23 +462,34 @@ bool AgentChannelClient::WriteRevisionToFile(int64_t revision)
     if (config_.cmsRevisionFilePath.empty()) {
         return true;
     }
-    std::lock_guard<std::mutex> lock(file_write_mutex_);
+    std::lock_guard<std::mutex> lock(revision_write_mutex_);
     const std::string tmp_path = config_.cmsRevisionFilePath + ".tmp";
-    {
-        std::ofstream file(tmp_path);
-        if (!file) {
-            std::cerr << "AgentChannelClient: Failed to open revision file for writing: "
-                      << tmp_path << std::endl;
-            return false;
-        }
-        file << revision;
-        file.flush();
-        if (!file.good()) {
-            std::cerr << "AgentChannelClient: Write or flush failed for revision file: "
-                      << tmp_path << std::endl;
-            return false;
-        }
+    const std::string content = std::to_string(revision);
+
+    int fd = ::open(tmp_path.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0644);
+    if (fd == -1) {
+        std::cerr << "AgentChannelClient: Failed to open revision file for writing: "
+                  << tmp_path << std::endl;
+        return false;
     }
+
+    ssize_t written = ::write(fd, content.data(), content.size());
+    if (written != static_cast<ssize_t>(content.size())) {
+        std::cerr << "AgentChannelClient: Write failed for revision file: "
+                  << tmp_path << std::endl;
+        ::close(fd);
+        return false;
+    }
+
+    if (::fsync(fd) != 0) {
+        std::cerr << "AgentChannelClient: fsync failed for revision file: "
+                  << tmp_path << std::endl;
+        ::close(fd);
+        return false;
+    }
+
+    ::close(fd);
+
     if (std::rename(tmp_path.c_str(), config_.cmsRevisionFilePath.c_str()) != 0) {
         std::cerr << "AgentChannelClient: Failed to rename revision temp file to "
                   << config_.cmsRevisionFilePath << std::endl;
@@ -450,7 +503,6 @@ bool AgentChannelClient::WaitForConnected(grpc::Channel* channel)
 {
     auto deadline = std::chrono::system_clock::now() + CONNECTION_TIMEOUT;
     if (channel->WaitForConnected(deadline)) {
-        AGENT_STATE.store(AgentState::LISTENING);
         std::cout << "AgentChannelClient: Connected to server at " << server_address_ << std::endl;
         return true;
     }

@@ -1,6 +1,6 @@
 package com.fyordo.cms.server.service.storage
 
-import com.fyordo.cms.CmsProto
+import com.fyordo.cms.CmsDtos
 import com.fyordo.cms.server.dto.query.ConstantsDto
 import com.fyordo.cms.server.dto.query.ConstantsQueryFilter
 import org.springframework.stereotype.Component
@@ -39,7 +39,7 @@ class PropertyPartsHolder {
         )
     }
 
-    fun addProperty(key: CmsProto.PropertyKey) {
+    fun addProperty(key: CmsDtos.PropertyKey) {
         namespaces.add(key.namespace)
         services.add(key.service)
         appIds.add(key.appId)
@@ -47,7 +47,7 @@ class PropertyPartsHolder {
     }
 
     fun removeProperty(
-        key: CmsProto.PropertyKey,
+        key: CmsDtos.PropertyKey,
         hasOtherWithNamespace: Boolean,
         hasOtherWithService: Boolean,
         hasOtherWithAppId: Boolean,

@@ -3,27 +3,25 @@
 #include <string>
 #include <atomic>
 
-enum class AgentState { CONNECT, LISTENING, WRITING };
-
-extern std::atomic<AgentState> AGENT_STATE;
+#include "tls_config.h"
 
 struct AgentConfig {
-    std::string namespace_;
+    std::string ns;
     std::string service;
     std::string appId;
     std::string cmsServerHost;
     std::string propertiesJsonPath;
     std::string unixSocketPath;
     std::string cmsRevisionFilePath;
+    TlsConfig tls;
 
-    bool IsValid() const
-    {
-        return !namespace_.empty() && !service.empty() && !appId.empty() && !cmsServerHost.empty();
-    }
+    bool isValid() const;
 };
 
-extern std::atomic<bool> g_shutdown_requested;
-
-void RunServer(int argc, char** argv);
-AgentConfig GetAndValidateConfigFromEnv();
-void SetupSignalHandlers();
+class GrpcServerStarter {
+public:
+    void RunServer();
+private:
+    AgentConfig BuildConfig();
+    void SetupSignalHandlers();
+};

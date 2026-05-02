@@ -2,6 +2,7 @@ package com.fyordo.cms.sdk.javasdk.sock;
 
 import com.fyordo.cms.CmsProto;
 import com.google.protobuf.ByteString;
+import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.Test;
 
 import java.io.ByteArrayInputStream;
@@ -14,43 +15,52 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class PropertyUpdateStreamReaderTest {
 
+    @NotNull
+    private CmsProto.Property property(@NotNull String key, @NotNull byte[] value) {
+        return CmsProto.Property.newBuilder()
+                .setKey(key)
+                .setValue(ByteString.copyFrom(value))
+                .setModifiedMs(System.currentTimeMillis())
+                .build();
+    }
+
     @Test
     void readsSingleMessageAndThenEof() throws IOException {
         byte[] stream = buildStream(
-                new PropertyUpdateMessage("key", new byte[]{10, 20, 30})
+                property("key", new byte[]{10, 20, 30})
         );
 
         PropertyUpdateStreamReader reader = new PropertyUpdateStreamReader(new ByteArrayInputStream(stream));
 
-        Optional<PropertyUpdateMessage> first = reader.readMessage();
+        Optional<CmsProto.Property> first = reader.readMessage();
         assertTrue(first.isPresent());
         assertEquals("key", first.get().getKey());
-        assertArrayEquals(new byte[]{10, 20, 30}, first.get().getValue());
+        assertArrayEquals(new byte[]{10, 20, 30}, first.get().getValue().toByteArray());
 
-        Optional<PropertyUpdateMessage> second = reader.readMessage();
+        Optional<CmsProto.Property> second = reader.readMessage();
         assertTrue(second.isEmpty());
     }
 
     @Test
     void readsMultipleMessagesSequentially() throws IOException {
         byte[] stream = buildStream(
-                new PropertyUpdateMessage("k1", new byte[]{1}),
-                new PropertyUpdateMessage("k2", new byte[]{2, 3})
+                property("k1", new byte[]{1}),
+                property("k2", new byte[]{2, 3})
         );
 
         PropertyUpdateStreamReader reader = new PropertyUpdateStreamReader(new ByteArrayInputStream(stream));
 
-        Optional<PropertyUpdateMessage> m1 = reader.readMessage();
-        Optional<PropertyUpdateMessage> m2 = reader.readMessage();
-        Optional<PropertyUpdateMessage> m3 = reader.readMessage();
+        Optional<CmsProto.Property> m1 = reader.readMessage();
+        Optional<CmsProto.Property> m2 = reader.readMessage();
+        Optional<CmsProto.Property> m3 = reader.readMessage();
 
         assertTrue(m1.isPresent());
         assertEquals("k1", m1.get().getKey());
-        assertArrayEquals(new byte[]{1}, m1.get().getValue());
+        assertArrayEquals(new byte[]{1}, m1.get().getValue().toByteArray());
 
         assertTrue(m2.isPresent());
         assertEquals("k2", m2.get().getKey());
-        assertArrayEquals(new byte[]{2, 3}, m2.get().getValue());
+        assertArrayEquals(new byte[]{2, 3}, m2.get().getValue().toByteArray());
 
         assertTrue(m3.isEmpty());
     }
@@ -58,7 +68,7 @@ class PropertyUpdateStreamReaderTest {
     @Test
     void eofInMiddleOfKeyBytesThrowsEofException() throws IOException {
         byte[] goodStream = buildStream(
-                new PropertyUpdateMessage("abc", new byte[]{1})
+                property("abc", new byte[]{1})
         );
 
         // Truncate so that we cut inside protobuf payload (after length header)
@@ -74,7 +84,7 @@ class PropertyUpdateStreamReaderTest {
     @Test
     void invalidProtobufPayloadThrowsIOException() throws IOException {
         byte[] goodStream = buildStream(
-                new PropertyUpdateMessage("abc", new byte[]{1, 2})
+                property("abc", new byte[]{1, 2})
         );
 
         // Keep full frame length, but corrupt payload bytes so parseFrom fails
@@ -90,12 +100,12 @@ class PropertyUpdateStreamReaderTest {
         assertTrue(ex.getMessage().contains("Failed to parse protobuf Property payload"));
     }
 
-    private static byte[] buildStream(PropertyUpdateMessage... messages) throws IOException {
+    private static byte[] buildStream(CmsProto.Property... messages) throws IOException {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
-        for (PropertyUpdateMessage msg : messages) {
+        for (CmsProto.Property msg : messages) {
             byte[] payload = CmsProto.Property.newBuilder()
                     .setKey(msg.getKey())
-                    .setValue(ByteString.copyFrom(msg.getValue()))
+                    .setValue(ByteString.copyFrom(msg.getValue().toByteArray()))
                     .build()
                     .toByteArray();
             writeInt(out, payload.length);

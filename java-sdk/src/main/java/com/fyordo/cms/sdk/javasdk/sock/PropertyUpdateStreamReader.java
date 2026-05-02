@@ -34,7 +34,7 @@ public final class PropertyUpdateStreamReader {
     }
 
     @NotNull
-    public Optional<PropertyUpdateMessage> readMessage() throws IOException {
+    public Optional<CmsProto.Property> readMessage() throws IOException {
         int payloadLen = readLength();
         if (payloadLen < 0) {
             return Optional.empty();
@@ -49,10 +49,7 @@ public final class PropertyUpdateStreamReader {
             throw new IOException("Failed to parse protobuf Property payload", e);
         }
 
-        return Optional.of(new PropertyUpdateMessage(
-                property.getKey(),
-                property.getValue().toByteArray()
-        ));
+        return Optional.of(property);
     }
 
     private int readFully(byte[] buf, int count) throws IOException {

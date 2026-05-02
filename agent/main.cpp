@@ -1,14 +1,12 @@
 #include <iostream>
-#include <memory>
-#include <stdexcept>
-#include <string>
 
 #include <grpcpp/grpcpp.h>
 #include "grpc_starter.h"
 
-int main(int argc, char** argv) {
+int main() {
     try {
-        RunServer(argc, argv);
+        std::unique_ptr<GrpcServerStarter> starter = std::make_unique<GrpcServerStarter>();
+        starter->RunServer();
         return 0;
     } catch (const std::exception& e) {
         std::cerr << "Fatal error: " << e.what() << std::endl;
