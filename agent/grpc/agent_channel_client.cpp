@@ -62,6 +62,7 @@ void AgentChannelClient::Stop()
         return;
     }
     stream_cv_.notify_one();
+    stream_writer_cv_.notify_all();
     if (client_thread_.joinable()) {
         client_thread_.join();
     }
@@ -129,8 +130,8 @@ void AgentChannelClient::Run()
                 &AgentChannelClient::RunStreamSession, this,
                 stream.get(), std::ref(is_reading), std::ref(is_writing)
             );
-            std::thread ack_thread(
-                &AgentChannelClient::SendAck, this,
+            std::thread writer_thread(
+                &AgentChannelClient::RunStreamWriter, this,
                 stream.get(), std::ref(is_reading), std::ref(is_writing)
             );
 
@@ -147,8 +148,8 @@ void AgentChannelClient::Run()
             if (read_thread.joinable()) {
                 read_thread.join();
             }
-            if (ack_thread.joinable()) {
-                ack_thread.join();
+            if (writer_thread.joinable()) {
+                writer_thread.join();
             }
 
             grpc::Status status = stream->Finish();
@@ -178,7 +179,7 @@ void AgentChannelClient::RunStreamSession(ClientReaderWriterInterface<AgentStrea
         if (event.has_initevent()) {
             HandleInitEvent(event.initevent());
         } else if (event.has_updateevent()) {
-            HandlePropertyUpdate(event.updateevent(), stream, is_reading, is_writing);
+            HandlePropertyUpdate(event.updateevent());
         }
     }
     is_reading.store(false);
@@ -186,21 +187,42 @@ void AgentChannelClient::RunStreamSession(ClientReaderWriterInterface<AgentStrea
     std::cout << "AgentChannelClient: Read loop finished" << std::endl;
 }
 
-void AgentChannelClient::SendAck(ClientReaderWriterInterface<AgentStreamEvent, ServerStreamEvent>* stream, std::atomic<bool>& is_reading, std::atomic<bool>& is_writing)
+void AgentChannelClient::RequestAckFlush()
 {
+    ack_flush_pending_.store(true);
+    stream_writer_cv_.notify_one();
+}
+
+void AgentChannelClient::RunStreamWriter(
+    ClientReaderWriterInterface<AgentStreamEvent, ServerStreamEvent>* stream,
+    std::atomic<bool>& is_reading,
+    std::atomic<bool>& is_writing)
+{
+    using clock = std::chrono::steady_clock;
+    auto next_ack = clock::now() + ACK_INTERVAL;
+
     while (running_.load() && is_reading.load() && is_writing.load()) {
-        std::this_thread::sleep_for(ACK_INTERVAL);
+        {
+            std::unique_lock<std::mutex> lock(stream_writer_mutex_);
+            stream_writer_cv_.wait_until(lock, next_ack, [&] {
+                return !running_.load() || !is_reading.load() || !is_writing.load() ||
+                       ack_flush_pending_.load();
+            });
+        }
         if (!running_.load() || !is_reading.load() || !is_writing.load()) {
             break;
         }
+        ack_flush_pending_.store(false);
+
         AgentStreamEvent ack_message;
-        long revision = current_revision_.load();
+        const int64_t revision = current_revision_.load();
         ack_message.mutable_ackevent()->set_revision(revision);
         if (!stream->Write(ack_message)) {
             std::cerr << "AgentChannelClient: Failed to send ack to server for revision " << revision << std::endl;
             return;
         }
         std::cout << "AgentChannelClient: Sent ack to server for revision " << revision << std::endl;
+        next_ack = clock::now() + ACK_INTERVAL;
     }
 }
 
@@ -232,11 +254,7 @@ void AgentChannelClient::HandleInitEvent(const com::fyordo::cms::ServerInitEvent
 }
 
 void AgentChannelClient::HandlePropertyUpdate(
-    const com::fyordo::cms::ServerPropertyUpdateEvent& update_event,
-    ClientReaderWriterInterface<AgentStreamEvent, ServerStreamEvent>* stream,
-    std::atomic<bool>& is_reading,
-    std::atomic<bool>& is_writing
-)
+    const com::fyordo::cms::ServerPropertyUpdateEvent& update_event)
 {
     const int64_t new_revision = update_event.revision();
     const int64_t stored_revision = current_revision_.load();
@@ -272,7 +290,7 @@ void AgentChannelClient::HandlePropertyUpdate(
         }
     } catch (const std::exception& e) {
         std::cerr << "AgentChannelClient: Exception: " << e.what() << std::endl;
-        SendAck(stream, is_reading, is_writing);
+        RequestAckFlush();
         return;
     }
 }

@@ -3,6 +3,7 @@
 #include <cstdlib>
 #include <fstream>
 #include <iostream>
+#include <stdexcept>
 
 namespace {
 
@@ -26,6 +27,40 @@ namespace {
         if (!file.good()) return {};
         return std::string(std::istreambuf_iterator<char>(file),
                         std::istreambuf_iterator<char>());
+    }
+
+    grpc::SslCredentialsOptions BuildSslOptionsOrThrow(const TlsConfig& config)
+    {
+        grpc::SslCredentialsOptions ssl_options;
+
+        if (!config.caCertPath.empty()) {
+            std::string ca_pem = ReadFileContent(config.caCertPath);
+            if (ca_pem.empty()) {
+                throw std::runtime_error(
+                    "TLS enabled: failed to read CA certificate file: " + config.caCertPath
+                );
+            }
+            ssl_options.pem_root_certs = std::move(ca_pem);
+        }
+
+        if (!config.clientCertPath.empty() && !config.clientKeyPath.empty()) {
+            std::string cert_pem = ReadFileContent(config.clientCertPath);
+            std::string key_pem = ReadFileContent(config.clientKeyPath);
+            if (cert_pem.empty()) {
+                throw std::runtime_error(
+                    "TLS enabled: failed to read client certificate file: " + config.clientCertPath
+                );
+            }
+            if (key_pem.empty()) {
+                throw std::runtime_error(
+                    "TLS enabled: failed to read client private key file: " + config.clientKeyPath
+                );
+            }
+            ssl_options.pem_cert_chain = std::move(cert_pem);
+            ssl_options.pem_private_key = std::move(key_pem);
+        }
+
+        return ssl_options;
     }
 
 }
@@ -67,34 +102,7 @@ std::shared_ptr<grpc::ChannelCredentials> CreateChannelCredentials(const TlsConf
         return grpc::InsecureChannelCredentials();
     }
 
-    grpc::SslCredentialsOptions ssl_options;
-
-    if (!config.caCertPath.empty()) {
-        std::string ca_pem = ReadFileContent(config.caCertPath);
-        if (ca_pem.empty()) {
-            std::cerr << "CreateChannelCredentials: Failed to read CA cert file: "
-                      << config.caCertPath << std::endl;
-            return grpc::InsecureChannelCredentials();
-        }
-        ssl_options.pem_root_certs = std::move(ca_pem);
-    }
-
-    if (!config.clientCertPath.empty() && !config.clientKeyPath.empty()) {
-        std::string cert_pem = ReadFileContent(config.clientCertPath);
-        std::string key_pem = ReadFileContent(config.clientKeyPath);
-        if (cert_pem.empty()) {
-            std::cerr << "CreateChannelCredentials: Failed to read client cert file: "
-                      << config.clientCertPath << std::endl;
-            return grpc::InsecureChannelCredentials();
-        }
-        if (key_pem.empty()) {
-            std::cerr << "CreateChannelCredentials: Failed to read client key file: "
-                      << config.clientKeyPath << std::endl;
-            return grpc::InsecureChannelCredentials();
-        }
-        ssl_options.pem_cert_chain = std::move(cert_pem);
-        ssl_options.pem_private_key = std::move(key_pem);
-    }
+    grpc::SslCredentialsOptions ssl_options = BuildSslOptionsOrThrow(config);
 
     std::cout << "CreateChannelCredentials: Using TLS"
               << (ssl_options.pem_cert_chain.empty() ? "" : " with client certificate (mTLS)")

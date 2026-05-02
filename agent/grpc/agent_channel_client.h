@@ -1,20 +1,13 @@
 #pragma once
 
+#include <atomic>
 #include <chrono>
-#include <cstdio>
-#include <fstream>
-#include <iostream>
+#include <condition_variable>
 #include <grpcpp/grpcpp.h>
 #include <nlohmann/json.hpp>
+#include <mutex>
+#include <string>
 #include <thread>
-#include <condition_variable>
-
-#include <sys/socket.h>
-#include <sys/un.h>
-#include <unistd.h>
-#include <arpa/inet.h>
-#include <cstring>
-#include <cerrno>
 
 #include "CmsEvents.grpc.pb.h"
 #include "grpc_starter.h"
@@ -43,10 +36,11 @@ private:
 
     void Run();
     void RunStreamSession(grpc::ClientReaderWriterInterface<com::fyordo::cms::AgentStreamEvent, com::fyordo::cms::ServerStreamEvent>* stream, std::atomic<bool>& is_reading, std::atomic<bool>& is_writing);
-    void SendAck(grpc::ClientReaderWriterInterface<com::fyordo::cms::AgentStreamEvent, com::fyordo::cms::ServerStreamEvent>* stream, std::atomic<bool>& is_reading, std::atomic<bool>& is_writing);
+    void RunStreamWriter(grpc::ClientReaderWriterInterface<com::fyordo::cms::AgentStreamEvent, com::fyordo::cms::ServerStreamEvent>* stream, std::atomic<bool>& is_reading, std::atomic<bool>& is_writing);
+    void RequestAckFlush();
 
     void HandleInitEvent(const com::fyordo::cms::ServerInitEvent& init_event);
-    void HandlePropertyUpdate(const com::fyordo::cms::ServerPropertyUpdateEvent& update_event, grpc::ClientReaderWriterInterface<com::fyordo::cms::AgentStreamEvent, com::fyordo::cms::ServerStreamEvent>* stream, std::atomic<bool>& is_reading, std::atomic<bool>& is_writing);
+    void HandlePropertyUpdate(const com::fyordo::cms::ServerPropertyUpdateEvent& update_event);
 
     bool WritePropertiesToFile(const com::fyordo::cms::ServerInitEvent& init_event);
     bool ApplyPropertyUpdateToFile(const std::string& key, const std::string& value);
@@ -66,6 +60,9 @@ private:
     std::mutex revision_write_mutex_;
     std::mutex stream_mutex_;
     std::condition_variable stream_cv_;
+    std::mutex stream_writer_mutex_;
+    std::condition_variable stream_writer_cv_;
+    std::atomic<bool> ack_flush_pending_{false};
 
     std::shared_ptr<grpc::Channel> channel_;
     std::unique_ptr<com::fyordo::cms::AgentChannelService::Stub> stub_;

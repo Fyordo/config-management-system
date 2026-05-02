@@ -2,6 +2,7 @@
 #include <csignal>
 #include <cerrno>
 #include <cstdlib>
+#include <fcntl.h>
 #include <iostream>
 #include <stdexcept>
 #include <string>
@@ -10,9 +11,11 @@
 
 #include "agent_channel_client.h"
 #include "grpc_starter.h"
+#include "tls_config.h"
 
 std::atomic<bool> g_shutdown_requested{false};
 int g_shutdown_pipe[2] = {-1, -1};
+void SignalHandler(int);
 
 namespace {
 
@@ -48,6 +51,20 @@ namespace {
         }
     }
 
+    void RegisterSignalOrThrow(int signo)
+    {
+        struct sigaction sa {};
+        sa.sa_handler = SignalHandler;
+        sigemptyset(&sa.sa_mask);
+        sigaddset(&sa.sa_mask, SIGINT);
+        sigaddset(&sa.sa_mask, SIGTERM);
+        sa.sa_flags = SA_RESTART;
+
+        if (::sigaction(signo, &sa, nullptr) != 0) {
+            throw std::runtime_error("Failed to register signal handler via sigaction");
+        }
+    }
+
 }
 
 void SignalHandler(int)
@@ -55,7 +72,9 @@ void SignalHandler(int)
     g_shutdown_requested.store(true);
     if (g_shutdown_pipe[1] != -1) {
         const char dummy = 1;
-        ::write(g_shutdown_pipe[1], &dummy, 1);
+        if (::write(g_shutdown_pipe[1], &dummy, 1) == -1 && errno != EAGAIN && errno != EWOULDBLOCK) {
+            // Non-blocking write end: EAGAIN means buffer full; shutdown flag is already set.
+        }
     }
 }
 
@@ -63,9 +82,19 @@ void GrpcServerStarter::SetupSignalHandlers()
 {
     if (::pipe(g_shutdown_pipe) != 0) {
         std::cerr << "Failed to create shutdown pipe, falling back to polling" << std::endl;
+    } else {
+        const int wfd = g_shutdown_pipe[1];
+        int flags = ::fcntl(wfd, F_GETFL, 0);
+        if (flags == -1 || ::fcntl(wfd, F_SETFL, flags | O_NONBLOCK) == -1) {
+            std::cerr << "Failed to set shutdown pipe write end non-blocking, closing pipe" << std::endl;
+            ::close(g_shutdown_pipe[0]);
+            ::close(g_shutdown_pipe[1]);
+            g_shutdown_pipe[0] = -1;
+            g_shutdown_pipe[1] = -1;
+        }
     }
-    std::signal(SIGINT, SignalHandler);
-    std::signal(SIGTERM, SignalHandler);
+    RegisterSignalOrThrow(SIGINT);
+    RegisterSignalOrThrow(SIGTERM);
 }
 
 void GrpcServerStarter::RunServer()
@@ -114,12 +143,16 @@ AgentConfig GrpcServerStarter::BuildConfig()
         PrintMissingEnvErrors(config);
         throw std::runtime_error("Invalid configuration");
     }
+    if (config.tls.enabled) {
+        (void)CreateChannelCredentials(config.tls);
+    }
     return config;
 }
 
 bool AgentConfig::isValid() const
 {
     if (ns.empty() || service.empty() || appId.empty()) return false;
+    if (cmsServerHost.empty()) return false;
     if (!tls.isValid()) return false;
     return true;
 }
