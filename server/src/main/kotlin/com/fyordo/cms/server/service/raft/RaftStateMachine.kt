@@ -1,6 +1,6 @@
 package com.fyordo.cms.server.service.raft
 
-import com.fyordo.cms.CmsProto
+import com.fyordo.cms.CmsDtos
 import com.fyordo.cms.server.config.CmsMetrics
 import com.fyordo.cms.server.serialization.property.deserializePropertyKey
 import com.fyordo.cms.server.serialization.property.deserializePropertyValue
@@ -118,7 +118,7 @@ class RaftStateMachine(
         }
 
         try {
-            val entries = mutableListOf<CmsProto.PropertyInternalDto>()
+            val entries = mutableListOf<CmsDtos.PropertyInternalDto>()
             val revision: Long
 
             DataInputStream(BufferedInputStream(file.inputStream())).use { din ->
@@ -135,7 +135,7 @@ class RaftStateMachine(
                     val keyBytes = ByteArray(keyLen).also { din.readFully(it) }
                     val valueLen = din.readInt()
                     val valueBytes = ByteArray(valueLen).also { din.readFully(it) }
-                    entries += CmsProto.PropertyInternalDto.newBuilder()
+                    entries += CmsDtos.PropertyInternalDto.newBuilder()
                         .setKey(deserializePropertyKey(keyBytes))
                         .setValue(deserializePropertyValue(valueBytes))
                         .build()
@@ -234,27 +234,25 @@ class RaftStateMachine(
         }
 
     private fun processCommand(
-        command: CmsProto.RaftCommand,
+        command: CmsDtos.RaftCommand,
         logIndex: Long = 0L
-    ): CmsProto.RaftResult {
+    ): CmsDtos.RaftResult {
         val commandKey = command.key
 
         return when (command.operation) {
-            CmsProto.RaftOp.RAFT_OP_PUT -> {
+            CmsDtos.RaftOp.RAFT_OP_PUT -> {
                 val key = requireNotNull(commandKey) { "Command PUT should contain a key" }
                 val propertyValue = deserializePropertyValue(command.value.toByteArray())
                 store.setWithRevision(key, propertyValue, logIndex)
                 publishUpdateFailSafe(key, propertyValue, logIndex)
-                metrics.raftPutTotal.increment()
-                raftOkResult()
+                raftOkResult().also { metrics.raftPutTotal.increment() }
             }
 
-            CmsProto.RaftOp.RAFT_OP_DELETE -> {
+            CmsDtos.RaftOp.RAFT_OP_DELETE -> {
                 val key = requireNotNull(commandKey) { "Command DELETE should contain a key" }
                 store.removeWithRevision(key, logIndex)?.let {
                     publishUpdateFailSafe(key, null, logIndex)
-                    metrics.raftDeleteTotal.increment()
-                    raftOkResult()
+                    raftOkResult().also { metrics.raftDeleteTotal.increment() }
                 } ?: raftNotFoundResult()
             }
 
@@ -263,8 +261,8 @@ class RaftStateMachine(
     }
 
     private fun publishUpdateFailSafe(
-        key: CmsProto.PropertyKey,
-        propertyValue: CmsProto.PropertyValue?,
+        key: CmsDtos.PropertyKey,
+        propertyValue: CmsDtos.PropertyValue?,
         revision: Long
     ) {
         try {

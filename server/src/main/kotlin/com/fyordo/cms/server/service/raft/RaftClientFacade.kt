@@ -1,12 +1,13 @@
 package com.fyordo.cms.server.service.raft
 
-import com.fyordo.cms.CmsProto
+import com.fyordo.cms.CmsDtos
 import com.fyordo.cms.server.config.props.RaftConfiguration
 import com.fyordo.cms.server.dto.raft.RaftOperationResult
 import com.fyordo.cms.server.serialization.raft.serializeRaftCommand
 import com.fyordo.cms.server.utils.raft.parsePeers
 import jakarta.annotation.PostConstruct
 import jakarta.annotation.PreDestroy
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.future.await
 import kotlinx.coroutines.withTimeout
@@ -78,6 +79,11 @@ class RaftClientFacade(
                 msg.contains("is CLOSED", ignoreCase = true)
     }
 
+    private fun commandContext(command: CmsDtos.RaftCommand): String {
+        val key = command.key
+        return "operation=${command.operation}, key=${key.namespace}/${key.service}/${key.appId}/${key.key}, version=${key.version}"
+    }
+
     private fun validatePeerConfiguration() {
         raftProps.peers.forEach { peerConfig ->
             if (peerConfig.isNotBlank()) {
@@ -139,12 +145,17 @@ class RaftClientFacade(
         }
     }
 
-    suspend fun sendCommand(command: CmsProto.RaftCommand): RaftOperationResult {
+    suspend fun sendCommand(command: CmsDtos.RaftCommand): RaftOperationResult {
+        val context = commandContext(command)
         return try {
             doSendCommand(command)
         } catch (e: TimeoutCancellationException) {
-            logger.error(e) { "Timeout sending command: $command (timeout: ${raftProps.clusterMessageTimeoutMs}ms)" }
+            logger.error(e) { "Timeout sending command: $context (timeout: ${raftProps.clusterMessageTimeoutMs}ms)" }
             RaftOperationResult.Error("Command timeout after ${raftProps.clusterMessageTimeoutMs}ms", e)
+        } catch (e: CancellationException) {
+            // Expected under load/re-election: avoid noisy ERROR logs and large payload dumps.
+            logger.warn { "RAFT command cancelled: $context (${e::class.simpleName}: ${e.message})" }
+            RaftOperationResult.Error("RAFT command cancelled", e)
         } catch (e: Exception) {
             if (isClosedError(e)) {
                 logger.warn { "RAFT client was CLOSED, reconnecting and retrying command..." }
@@ -152,50 +163,19 @@ class RaftClientFacade(
                 return try {
                     doSendCommand(command)
                 } catch (retryEx: Exception) {
-                    logger.error(retryEx) { "Error sending command after reconnect: $command" }
+                    logger.error(retryEx) { "Error sending command after reconnect: $context" }
                     RaftOperationResult.Error("Failed to send command: ${retryEx.message}", retryEx)
                 }
             }
-            logger.error(e) { "Error sending command: $command" }
+            logger.error(e) { "Error sending command: $context" }
             RaftOperationResult.Error("Failed to send command: ${e.message}", e)
         }
     }
 
-    private suspend fun doSendCommand(command: CmsProto.RaftCommand): RaftOperationResult {
+    private suspend fun doSendCommand(command: CmsDtos.RaftCommand): RaftOperationResult {
         val serialized = serializeRaftCommand(command)
         val response = withTimeout(raftProps.clusterMessageTimeoutMs) {
             val reply = raftClient.async().send(Message.valueOf(ByteString.copyFrom(serialized))).await()
-            reply.message.content.toByteArray()
-        }
-        return RaftOperationResult.Success(response)
-    }
-
-    suspend fun sendQuery(command: CmsProto.RaftCommand): RaftOperationResult {
-        return try {
-            doSendQuery(command)
-        } catch (e: TimeoutCancellationException) {
-            logger.error(e) { "Timeout sending query: $command (timeout: ${raftProps.clusterMessageTimeoutMs}ms)" }
-            RaftOperationResult.Error("Query timeout after ${raftProps.clusterMessageTimeoutMs}ms", e)
-        } catch (e: Exception) {
-            if (isClosedError(e)) {
-                logger.warn { "RAFT client was CLOSED, reconnecting and retrying query..." }
-                reconnect()
-                return try {
-                    doSendQuery(command)
-                } catch (retryEx: Exception) {
-                    logger.error(retryEx) { "Error sending query after reconnect: $command" }
-                    RaftOperationResult.Error("Failed to send query: ${retryEx.message}", retryEx)
-                }
-            }
-            logger.error(e) { "Error sending query: $command" }
-            RaftOperationResult.Error("Failed to send query: ${e.message}", e)
-        }
-    }
-
-    private suspend fun doSendQuery(command: CmsProto.RaftCommand): RaftOperationResult {
-        val serialized = serializeRaftCommand(command)
-        val response = withTimeout(raftProps.clusterMessageTimeoutMs) {
-            val reply = raftClient.async().sendReadOnly(Message.valueOf(ByteString.copyFrom(serialized))).await()
             reply.message.content.toByteArray()
         }
         return RaftOperationResult.Success(response)

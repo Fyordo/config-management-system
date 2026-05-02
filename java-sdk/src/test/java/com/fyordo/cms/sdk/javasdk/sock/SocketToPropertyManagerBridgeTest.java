@@ -5,6 +5,7 @@ import com.fyordo.cms.sdk.javasdk.property.PropertyManager;
 import com.fyordo.cms.sdk.javasdk.property.repo.PropertyRepository;
 import com.fyordo.cms.sdk.javasdk.property.repo.PropertyRepositoryImpl;
 import com.google.protobuf.ByteString;
+import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.Test;
 
 import java.io.ByteArrayInputStream;
@@ -19,6 +20,15 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 
 class SocketToPropertyManagerBridgeTest {
 
+    @NotNull
+    private CmsProto.Property property(@NotNull String key, @NotNull byte[] value) {
+        return CmsProto.Property.newBuilder()
+                .setKey(key)
+                .setValue(ByteString.copyFrom(value))
+                .setModifiedMs(System.currentTimeMillis())
+                .build();
+    }
+
     @Test
     void processStreamAppliesUpdatesToPropertyManager() throws IOException {
         PropertyRepository repository = new PropertyRepositoryImpl();
@@ -29,8 +39,8 @@ class SocketToPropertyManagerBridgeTest {
         );
 
         byte[] stream = buildStream(
-                new PropertyUpdateMessage("key1", "val1".getBytes(StandardCharsets.UTF_8)),
-                new PropertyUpdateMessage("key2", new byte[]{1, 2, 3})
+                property("key1", "val1".getBytes(StandardCharsets.UTF_8)),
+                property("key2", new byte[]{1, 2, 3})
         );
 
         SocketToPropertyManagerBridge bridge =
@@ -48,12 +58,12 @@ class SocketToPropertyManagerBridgeTest {
         assertEquals(new String(new byte[]{1, 2, 3}), v2);
     }
 
-    private static byte[] buildStream(PropertyUpdateMessage... messages) throws IOException {
+    private static byte[] buildStream(CmsProto.Property... messages) throws IOException {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
-        for (PropertyUpdateMessage msg : messages) {
+        for (CmsProto.Property msg : messages) {
             byte[] payload = CmsProto.Property.newBuilder()
                     .setKey(msg.getKey())
-                    .setValue(ByteString.copyFrom(msg.getValue()))
+                    .setValue(ByteString.copyFrom(msg.getValue().toByteArray()))
                     .build()
                     .toByteArray();
             writeInt(out, payload.length);

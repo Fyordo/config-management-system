@@ -17,7 +17,7 @@
 #include <cstring>
 #include <cerrno>
 
-#include "AgentChannelService.grpc.pb.h"
+#include "CmsEvents.grpc.pb.h"
 #include "grpc_starter.h"
 
 using grpc::ClientContext;
@@ -127,7 +127,7 @@ void AgentChannelClient::Run()
 
             std::thread read_thread(
                 &AgentChannelClient::RunStreamSession, this,
-                stream.get(), std::ref(is_reading)
+                stream.get(), std::ref(is_reading), std::ref(is_writing)
             );
             std::thread ack_thread(
                 &AgentChannelClient::SendAck, this,
@@ -170,7 +170,7 @@ void AgentChannelClient::Run()
     }
 }
 
-void AgentChannelClient::RunStreamSession(ClientReaderWriterInterface<AgentStreamEvent, ServerStreamEvent>* stream, std::atomic<bool>& is_reading)
+void AgentChannelClient::RunStreamSession(ClientReaderWriterInterface<AgentStreamEvent, ServerStreamEvent>* stream, std::atomic<bool>& is_reading, std::atomic<bool>& is_writing)
 {
     ServerStreamEvent event;
 
@@ -178,7 +178,7 @@ void AgentChannelClient::RunStreamSession(ClientReaderWriterInterface<AgentStrea
         if (event.has_initevent()) {
             HandleInitEvent(event.initevent());
         } else if (event.has_updateevent()) {
-            HandlePropertyUpdate(event.updateevent());
+            HandlePropertyUpdate(event.updateevent(), stream, is_reading, is_writing);
         }
     }
     is_reading.store(false);
@@ -210,7 +210,6 @@ void AgentChannelClient::HandleInitEvent(const com::fyordo::cms::ServerInitEvent
     const int64_t stored_revision = current_revision_.load();
 
     std::cout << "AgentChannelClient: Received ServerInitEvent - "
-              << "lastModifiedMs: " << init_event.lastmodifiedms() << ", "
               << "revision: " << new_revision << ", "
               << "properties count: " << init_event.properties_size() << std::endl;
 
@@ -232,14 +231,19 @@ void AgentChannelClient::HandleInitEvent(const com::fyordo::cms::ServerInitEvent
     }
 }
 
-void AgentChannelClient::HandlePropertyUpdate(const com::fyordo::cms::ServerPropertyUpdateEvent& update_event)
+void AgentChannelClient::HandlePropertyUpdate(
+    const com::fyordo::cms::ServerPropertyUpdateEvent& update_event,
+    ClientReaderWriterInterface<AgentStreamEvent, ServerStreamEvent>* stream,
+    std::atomic<bool>& is_reading,
+    std::atomic<bool>& is_writing
+)
 {
     const int64_t new_revision = update_event.revision();
     const int64_t stored_revision = current_revision_.load();
 
     std::cout << "AgentChannelClient: Received ServerPropertyUpdateEvent - "
               << "key: " << update_event.property().key() << ", "
-              << "lastModifiedMs: " << update_event.lastmodifiedms() << ", "
+              << "lastModifiedMs: " << update_event.property().modifiedms() << ", "
               << "revision: " << new_revision << std::endl;
 
     if (stored_revision >= 0 && new_revision < stored_revision) {
@@ -253,17 +257,23 @@ void AgentChannelClient::HandlePropertyUpdate(const com::fyordo::cms::ServerProp
         std::cerr << "AgentChannelClient: Skipping property update (CMS_PROPERTIES_FILE not set)" << std::endl;
         return;
     }
-    if (!ApplyPropertyUpdateToFile(update_event.property().key(), update_event.property().value())) {
-        std::cerr << "AgentChannelClient: Failed to apply property update for key "
-                  << update_event.property().key() << std::endl;
+    try {
+        if (!ApplyPropertyUpdateToFile(update_event.property().key(), update_event.property().value())) {
+            std::cerr << "AgentChannelClient: Failed to apply property update for key "
+                      << update_event.property().key() << std::endl;
+            return;
+        }
+    
+        SendUpdateToUnixSocket(update_event.property());
+    
+        if (WriteRevisionToFile(new_revision)) {
+            current_revision_.store(new_revision);
+            std::cout << "AgentChannelClient: Revision updated to " << new_revision << std::endl;
+        }
+    } catch (const std::exception& e) {
+        std::cerr << "AgentChannelClient: Exception: " << e.what() << std::endl;
+        SendAck(stream, is_reading, is_writing);
         return;
-    }
-
-    SendUpdateToUnixSocket(update_event.property());
-
-    if (WriteRevisionToFile(new_revision)) {
-        current_revision_.store(new_revision);
-        std::cout << "AgentChannelClient: Revision updated to " << new_revision << std::endl;
     }
 }
 

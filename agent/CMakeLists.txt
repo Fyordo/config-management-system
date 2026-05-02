@@ -40,7 +40,7 @@ set(GENERATED_PROTO_DIR "${CMAKE_BINARY_DIR}/generated/proto")
 file(MAKE_DIRECTORY "${GENERATED_PROTO_DIR}")
 
 set(PROTO_FILES
-    "${PROTO_DIR}/AgentChannelService.proto"
+    "${PROTO_DIR}/CmsEvents.proto"
 )
 
 set(PROTO_SRCS)

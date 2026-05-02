@@ -50,7 +50,7 @@ namespace {
 
 }
 
-void SignalHandler(int /*signum*/)
+void SignalHandler(int)
 {
     g_shutdown_requested.store(true);
     if (g_shutdown_pipe[1] != -1) {

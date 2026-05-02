@@ -2,7 +2,7 @@ package com.fyordo.cms.server.rest.v1
 
 import com.fasterxml.jackson.annotation.JsonCreator
 import com.fasterxml.jackson.annotation.JsonProperty
-import com.fyordo.cms.CmsProto
+import com.fyordo.cms.CmsDtos
 import com.fyordo.cms.server.config.props.PropertyValueProperties
 import com.fyordo.cms.server.dto.property.PropertyKeyDto
 import com.fyordo.cms.server.dto.raft.RaftOperationResult
@@ -39,7 +39,7 @@ class PropertyModificationController(
 
         val command = raftPutCommand(
             key = data.key.toProto(),
-            valuePayload = CmsProto.PropertyValue.newBuilder()
+            valuePayload = CmsDtos.PropertyValue.newBuilder()
                 .setVersion(versionConfig.currentVersion)
                 .setValue(ByteString.copyFrom(valueBytes))
                 .setLastModifiedMs(System.currentTimeMillis())
@@ -65,7 +65,7 @@ class PropertyModificationController(
     }
 
     @PostMapping("/delete")
-    suspend fun delete(@Valid @RequestBody data: PropertyKeyDto): Map<String, CmsProto.RaftResultStatus> {
+    suspend fun delete(@Valid @RequestBody data: PropertyKeyDto): Map<String, CmsDtos.RaftResultStatus> {
         val command = raftDeleteCommand(data.toProto())
         return when (val result = clientFacade.sendCommand(command)) {
             is RaftOperationResult.Success -> {

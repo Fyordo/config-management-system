@@ -1,7 +1,7 @@
 package com.fyordo.cms.server.grpc.stream
 
 import com.fyordo.cms.AgentChannelServiceGrpc
-import com.fyordo.cms.AgentChannelServiceOuterClass
+import com.fyordo.cms.CmsEvents
 import com.fyordo.cms.server.dto.grpc.AgentId
 import com.fyordo.cms.server.service.agent.AgentConnectionManager
 import io.grpc.stub.StreamObserver
@@ -17,16 +17,16 @@ class AgentChannelGrpcService(
     private val agentConnectionManager: AgentConnectionManager,
 ) : AgentChannelServiceGrpc.AgentChannelServiceImplBase() {
     override fun watchProperties(
-        responseObserver: StreamObserver<AgentChannelServiceOuterClass.ServerStreamEvent>
-    ): StreamObserver<AgentChannelServiceOuterClass.AgentStreamEvent> {
+        responseObserver: StreamObserver<CmsEvents.ServerStreamEvent>
+    ): StreamObserver<CmsEvents.AgentStreamEvent> {
 
         val sessionId = UUID.randomUUID().toString()
         val registeredAgent = AtomicReference<AgentId?>(null)
 
         logger.info { "New bidirectional watch session started: sessionId=$sessionId" }
 
-        return object : StreamObserver<AgentChannelServiceOuterClass.AgentStreamEvent> {
-            override fun onNext(request: AgentChannelServiceOuterClass.AgentStreamEvent) {
+        return object : StreamObserver<CmsEvents.AgentStreamEvent> {
+            override fun onNext(request: CmsEvents.AgentStreamEvent) {
                 when {
                     request.hasConnectEvent() -> {
                         val connectEvent = request.connectEvent
@@ -61,7 +61,7 @@ class AgentChannelGrpcService(
     private fun handleAckEvent(
         registeredAgent: AtomicReference<AgentId?>,
         sessionId: String,
-        ackEvent: AgentChannelServiceOuterClass.AgentAckEvent
+        ackEvent: CmsEvents.AgentAckEvent
     ) {
         val agentId = registeredAgent.get()
         if (agentId == null) {
@@ -72,10 +72,10 @@ class AgentChannelGrpcService(
     }
 
     private fun handleConnectEvent(
-        connectEvent: AgentChannelServiceOuterClass.AgentConnectEvent,
+        connectEvent: CmsEvents.AgentConnectEvent,
         registeredAgent: AtomicReference<AgentId?>,
         sessionId: String,
-        responseObserver: StreamObserver<AgentChannelServiceOuterClass.ServerStreamEvent>
+        responseObserver: StreamObserver<CmsEvents.ServerStreamEvent>
     ) {
         val agentId = AgentId(
             connectEvent.namespace,

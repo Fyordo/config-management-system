@@ -1,6 +1,6 @@
 package com.fyordo.cms.server.service
 
-import com.fyordo.cms.CmsProto
+import com.fyordo.cms.CmsDtos
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -21,7 +21,7 @@ class PropertyUpdatePublisher {
 
     val updateFlow: SharedFlow<PropertyUpdateEvent> = _updateFlow.asSharedFlow()
 
-    fun publishUpdate(key: CmsProto.PropertyKey, value: CmsProto.PropertyValue?, revision: Long) {
+    fun publishUpdate(key: CmsDtos.PropertyKey, value: CmsDtos.PropertyValue?, revision: Long) {
         val event = PropertyUpdateEvent(key, value, revision)
         val emitted = _updateFlow.tryEmit(event)
 
@@ -34,7 +34,7 @@ class PropertyUpdatePublisher {
 }
 
 data class PropertyUpdateEvent(
-    val key: CmsProto.PropertyKey,
-    val value: CmsProto.PropertyValue? = null,
+    val key: CmsDtos.PropertyKey,
+    val value: CmsDtos.PropertyValue? = null,
     val revision: Long = 0L
 )

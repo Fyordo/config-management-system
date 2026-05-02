@@ -1,6 +1,6 @@
 package com.fyordo.cms.server.service.agent
 
-import com.fyordo.cms.AgentChannelServiceOuterClass
+import com.fyordo.cms.CmsEvents
 import com.fyordo.cms.server.config.CmsMetrics
 import com.fyordo.cms.server.dto.grpc.AgentId
 import com.fyordo.cms.server.service.PropertyUpdatePublisher
@@ -28,7 +28,7 @@ import kotlin.concurrent.withLock
 private val logger = KotlinLogging.logger {}
 
 private data class Connection(
-    val streamObserver: StreamObserver<AgentChannelServiceOuterClass.ServerStreamEvent>,
+    val streamObserver: StreamObserver<CmsEvents.ServerStreamEvent>,
     val lock: ReentrantLock = ReentrantLock()
 )
 
@@ -56,19 +56,20 @@ class AgentConnectionManager(
                     event.key.appId
                 )
 
-                val updateEvent = AgentChannelServiceOuterClass.ServerPropertyUpdateEvent.newBuilder()
+                val modifiedMs = event.value?.lastModifiedMs ?: 0
+                val updateEvent = CmsEvents.ServerPropertyUpdateEvent.newBuilder()
                     .setProperty(
-                        AgentChannelServiceOuterClass.Property.newBuilder()
+                        CmsEvents.Property.newBuilder()
                             .setKey(event.key.key)
                             .setValue(event.value?.value ?: ByteString.copyFrom(EMPTY_BYTES))
+                            .setModifiedMs(modifiedMs)
                     )
-                    .setLastModifiedMs(event.value?.lastModifiedMs ?: 0)
                     .setRevision(event.revision)
                     .build()
 
                 sendToAgent(
                     agentId,
-                    AgentChannelServiceOuterClass.ServerStreamEvent.newBuilder()
+                    CmsEvents.ServerStreamEvent.newBuilder()
                         .setUpdateEvent(updateEvent)
                         .build()
                 )
@@ -91,13 +92,13 @@ class AgentConnectionManager(
         return connections.keys.size
     }
 
-    fun register(agentId: AgentId, streamObserver: StreamObserver<AgentChannelServiceOuterClass.ServerStreamEvent>) {
+    fun register(agentId: AgentId, streamObserver: StreamObserver<CmsEvents.ServerStreamEvent>) {
         logger.info { "Registering stream event [$agentId]" }
         connections[agentId] = Connection(streamObserver)
         metrics.agentConnectionsTotal.increment()
     }
 
-    fun sendToAgent(agentId: AgentId, result: AgentChannelServiceOuterClass.ServerStreamEvent) {
+    fun sendToAgent(agentId: AgentId, result: CmsEvents.ServerStreamEvent) {
         connections[agentId]?.let { connection ->
             connection.lock.withLock {
                 try {
@@ -137,22 +138,21 @@ class AgentConnectionManager(
                     agentId.appId
                 )
 
-                val properties = AgentChannelServiceOuterClass.ServerInitEvent.newBuilder()
+                val properties = CmsEvents.ServerInitEvent.newBuilder()
                 val lastModifiedMs = propertiesList.fold(0L) { maxTime, property ->
                     val key = property.key
                     val value = property.value
                     properties.addProperties(
-                        AgentChannelServiceOuterClass.Property.newBuilder()
+                        CmsEvents.Property.newBuilder()
                             .setKey(key.key)
                             .setValue(value.value)
                     )
                     maxOf(maxTime, value.lastModifiedMs)
                 }
 
-                val result = AgentChannelServiceOuterClass.ServerStreamEvent.newBuilder()
+                val result = CmsEvents.ServerStreamEvent.newBuilder()
                     .setInitEvent(
                         properties
-                            .setLastModifiedMs(lastModifiedMs)
                             .setRevision(propertyInMemoryStorage.currentRevision.get())
                             .build()
                     )

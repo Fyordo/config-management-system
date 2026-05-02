@@ -1,6 +1,6 @@
 package com.fyordo.cms.server.rest.v1
 
-import com.fyordo.cms.CmsProto
+import com.fyordo.cms.CmsDtos
 import com.fyordo.cms.server.config.CmsMetrics
 import com.fyordo.cms.server.dto.property.PropertyDto
 import com.fyordo.cms.server.dto.property.PropertyKeyDto
@@ -28,7 +28,7 @@ class PropertyQueryController(
         val timer = Timer.start()
         metrics.propertyGetTotal.increment()
         try {
-            val value: CmsProto.PropertyValue =
+            val value: CmsDtos.PropertyValue =
                 inMemoryStorage[key.toProto()] ?: run {
                     metrics.propertyGetNotFoundTotal.increment()
                     throw ResponseStatusException(HttpStatus.NOT_FOUND)

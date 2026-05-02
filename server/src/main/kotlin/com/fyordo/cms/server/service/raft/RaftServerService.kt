@@ -64,7 +64,7 @@ class RaftServerService(
 
                 RaftServerConfigKeys.Rpc.setRequestTimeout(
                     this,
-                    TimeDuration.valueOf(raftProps.heartbeatIntervalMs, TimeUnit.MILLISECONDS)
+                    TimeDuration.valueOf(raftProps.requestIntervalMs, TimeUnit.MILLISECONDS)
                 )
 
                 RaftServerConfigKeys.Log.setSegmentSizeMax(this, SizeInBytes.valueOf(raftProps.segmentSizeMax))

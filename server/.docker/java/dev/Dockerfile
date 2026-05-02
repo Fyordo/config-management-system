@@ -20,5 +20,6 @@ ENTRYPOINT ["java", \
     "-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005", \
     "-agentpath:/opt/async-profiler/lib/libasyncProfiler.so", \
     "-XX:+UnlockDiagnosticVMOptions", "-XX:+DebugNonSafepoints", \
+    "-XX:+UseZGC", \
     "-Dspring.profiles.active=dev", \
     "-jar", "cms-server.jar"]
