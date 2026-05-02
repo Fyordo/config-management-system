@@ -1,17 +1,15 @@
 package com.fyordo.cms.server.service.raft
 
 import com.fyordo.cms.CmsDtos
+import com.fyordo.cms.server.config.CmsMetrics
 import com.fyordo.cms.server.config.props.RaftConfiguration
 import com.fyordo.cms.server.serialization.property.serializePropertyValue
-import com.fyordo.cms.server.serialization.raft.deserializeRaftResult
 import com.fyordo.cms.server.service.PropertyUpdatePublisher
 import com.fyordo.cms.server.service.agent.AgentConnectionManager
 import com.fyordo.cms.server.service.storage.PropertyInMemoryStorage
-import com.fyordo.cms.server.config.CmsMetrics
-import io.micrometer.core.instrument.simple.SimpleMeterRegistry
 import com.fyordo.cms.server.service.storage.PropertyPartsHolder
-import com.fyordo.cms.server.utils.EMPTY_BYTES
 import com.google.protobuf.ByteString
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import org.apache.ratis.client.RaftClient
@@ -25,7 +23,6 @@ import java.io.File
 import java.net.InetSocketAddress
 import java.nio.file.Files
 import java.util.*
-import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import com.fyordo.cms.server.serialization.property.deserializePropertyValue as deserializePropertyValueBytes
 import com.fyordo.cms.server.serialization.raft.serializeRaftCommand as serializeRaftCommandBytes

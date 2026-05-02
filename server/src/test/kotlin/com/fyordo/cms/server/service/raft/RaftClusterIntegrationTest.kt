@@ -1,25 +1,22 @@
 package com.fyordo.cms.server.service.raft
 
-import com.fyordo.cms.server.config.props.RaftConfiguration
 import com.fyordo.cms.CmsDtos
-import com.google.protobuf.ByteString
-import com.fyordo.cms.server.service.PropertyUpdatePublisher
+import com.fyordo.cms.server.config.CmsMetrics
+import com.fyordo.cms.server.config.props.RaftConfiguration
 import com.fyordo.cms.server.serialization.property.serializePropertyValue
-import com.fyordo.cms.server.serialization.property.deserializePropertyValue as deserializePropertyValueBytes
 import com.fyordo.cms.server.serialization.raft.deserializeRaftResult
-import com.fyordo.cms.server.serialization.raft.serializeRaftCommand as serializeRaftCommandBytes
+import com.fyordo.cms.server.service.PropertyUpdatePublisher
 import com.fyordo.cms.server.service.agent.AgentConnectionManager
 import com.fyordo.cms.server.service.storage.PropertyInMemoryStorage
-import com.fyordo.cms.server.config.CmsMetrics
-import io.micrometer.core.instrument.simple.SimpleMeterRegistry
 import com.fyordo.cms.server.service.storage.PropertyPartsHolder
 import com.fyordo.cms.server.utils.EMPTY_BYTES
+import com.google.protobuf.ByteString
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import org.apache.ratis.client.RaftClient
 import org.apache.ratis.conf.RaftProperties
 import org.apache.ratis.protocol.*
-import org.apache.ratis.thirdparty.com.google.protobuf.ByteString as RatisByteString
 import org.junit.jupiter.api.AfterAll
 import org.junit.jupiter.api.BeforeAll
 import org.junit.jupiter.api.Test
@@ -31,6 +28,9 @@ import java.util.*
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
+import com.fyordo.cms.server.serialization.property.deserializePropertyValue as deserializePropertyValueBytes
+import com.fyordo.cms.server.serialization.raft.serializeRaftCommand as serializeRaftCommandBytes
+import org.apache.ratis.thirdparty.com.google.protobuf.ByteString as RatisByteString
 
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class RaftClusterIntegrationTest {

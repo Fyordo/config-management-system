@@ -174,7 +174,7 @@ class PropertyPathHolderTest {
 
         pathHolder.addProperty(key1)
         pathHolder.addProperty(key2)
-        
+
         // Remove key1, but key2 still uses the same namespace/service/appId
         pathHolder.removeProperty(
             key1,
@@ -326,7 +326,7 @@ class PropertyPathHolderTest {
         assertTrue(services.contains("svc"))
         assertTrue(appIds.contains("app"))
         assertTrue(keys.contains("key"))
-        
+
         // Verify they are not the same instance as internal collections
         // (cannot directly test immutability in Kotlin, but they are Set<String> not MutableSet)
         assertEquals(1, namespaces.size)
@@ -380,7 +380,7 @@ class PropertyPathHolderTest {
             hasOtherWithAppId = true,
             hasOtherWithKey = false
         )
-        
+
         // Remove last key - no other properties left
         pathHolder.removeProperty(
             keys[2],
@@ -389,7 +389,7 @@ class PropertyPathHolderTest {
             hasOtherWithAppId = false,
             hasOtherWithKey = false
         )
-        
+
         assertEquals(0, pathHolder.getKeys().size)
         // All metadata should be removed too
         assertTrue(pathHolder.getNamespaces().isEmpty())
@@ -408,7 +408,7 @@ class PropertyPathHolderTest {
         )
 
         pathHolder.addProperty(key)
-        
+
         // Remove the only property - all metadata should be cleaned up
         pathHolder.removeProperty(
             key,
@@ -445,7 +445,7 @@ class PropertyPathHolderTest {
         assertFalse(pathHolder.getServices().contains("svc1"))
         assertFalse(pathHolder.getAppIds().contains("app1"))
         assertFalse(pathHolder.getKeys().contains("key1"))
-        
+
         assertTrue(pathHolder.getServices().contains("svc2"))
         assertTrue(pathHolder.getAppIds().contains("app2"))
         assertTrue(pathHolder.getKeys().contains("key2"))

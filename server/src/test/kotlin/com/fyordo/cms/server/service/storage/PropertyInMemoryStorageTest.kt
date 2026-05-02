@@ -1,9 +1,9 @@
 package com.fyordo.cms.server.service.storage
 
 import com.fyordo.cms.CmsDtos
-import com.google.protobuf.ByteString
 import com.fyordo.cms.server.dto.query.PropertyQueryFilter
 import com.fyordo.cms.server.utils.EMPTY_BYTES
+import com.google.protobuf.ByteString
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
@@ -757,8 +757,16 @@ class PropertyInMemoryStorageTest {
 
         @Test
         fun `snapshot revision should match last setWithRevision call`() {
-            storage.setWithRevision(PropertyKey(1, "ns", "svc", "app", "k1"), PropertyValue(1, "v".toByteArray(), 1L), revision = 7L)
-            storage.setWithRevision(PropertyKey(1, "ns", "svc", "app", "k2"), PropertyValue(1, "v".toByteArray(), 2L), revision = 8L)
+            storage.setWithRevision(
+                PropertyKey(1, "ns", "svc", "app", "k1"),
+                PropertyValue(1, "v".toByteArray(), 1L),
+                revision = 7L
+            )
+            storage.setWithRevision(
+                PropertyKey(1, "ns", "svc", "app", "k2"),
+                PropertyValue(1, "v".toByteArray(), 2L),
+                revision = 8L
+            )
             storage.removeWithRevision(PropertyKey(1, "ns", "svc", "app", "k1"), revision = 9L)
 
             val (revision, entries) = storage.getSnapshotData()
@@ -776,8 +784,14 @@ class PropertyInMemoryStorageTest {
         @Test
         fun `should restore entries and revision from snapshot`() {
             val entries = listOf(
-                PropertyInternalDto(PropertyKey(1, "ns", "svc", "app", "key1"), PropertyValue(1, "v1".toByteArray(), 100L)),
-                PropertyInternalDto(PropertyKey(1, "ns", "svc", "app", "key2"), PropertyValue(1, "v2".toByteArray(), 200L))
+                PropertyInternalDto(
+                    PropertyKey(1, "ns", "svc", "app", "key1"),
+                    PropertyValue(1, "v1".toByteArray(), 100L)
+                ),
+                PropertyInternalDto(
+                    PropertyKey(1, "ns", "svc", "app", "key2"),
+                    PropertyValue(1, "v2".toByteArray(), 200L)
+                )
             )
 
             storage.restoreFromSnapshot(entries, revision = 42L)
@@ -789,7 +803,11 @@ class PropertyInMemoryStorageTest {
 
         @Test
         fun `should clear existing state before restoring`() {
-            storage.setWithRevision(PropertyKey(1, "old-ns", "old-svc", "old-app", "old-key"), PropertyValue(1, "old".toByteArray(), 1L), revision = 1L)
+            storage.setWithRevision(
+                PropertyKey(1, "old-ns", "old-svc", "old-app", "old-key"),
+                PropertyValue(1, "old".toByteArray(), 1L),
+                revision = 1L
+            )
 
             val newEntry = PropertyInternalDto(
                 PropertyKey(1, "new-ns", "new-svc", "new-app", "new-key"),
@@ -805,8 +823,14 @@ class PropertyInMemoryStorageTest {
         @Test
         fun `should restore partsHolder indices from snapshot`() {
             val entries = listOf(
-                PropertyInternalDto(PropertyKey(1, "ns1", "svc1", "app1", "key1"), PropertyValue(1, "v1".toByteArray(), 100L)),
-                PropertyInternalDto(PropertyKey(1, "ns2", "svc2", "app2", "key2"), PropertyValue(1, "v2".toByteArray(), 200L))
+                PropertyInternalDto(
+                    PropertyKey(1, "ns1", "svc1", "app1", "key1"),
+                    PropertyValue(1, "v1".toByteArray(), 100L)
+                ),
+                PropertyInternalDto(
+                    PropertyKey(1, "ns2", "svc2", "app2", "key2"),
+                    PropertyValue(1, "v2".toByteArray(), 200L)
+                )
             )
 
             storage.restoreFromSnapshot(entries, revision = 5L)
@@ -819,7 +843,11 @@ class PropertyInMemoryStorageTest {
 
         @Test
         fun `should clear partsHolder indices of old entries after restore`() {
-            storage.setWithRevision(PropertyKey(1, "old-ns", "old-svc", "old-app", "old-key"), PropertyValue(1, "v".toByteArray(), 1L), revision = 1L)
+            storage.setWithRevision(
+                PropertyKey(1, "old-ns", "old-svc", "old-app", "old-key"),
+                PropertyValue(1, "v".toByteArray(), 1L),
+                revision = 1L
+            )
 
             storage.restoreFromSnapshot(emptyList(), revision = 2L)
 
@@ -831,7 +859,11 @@ class PropertyInMemoryStorageTest {
 
         @Test
         fun `restoring empty snapshot should reset revision to given value`() {
-            storage.setWithRevision(PropertyKey(1, "ns", "svc", "app", "key"), PropertyValue(1, "v".toByteArray(), 1L), revision = 99L)
+            storage.setWithRevision(
+                PropertyKey(1, "ns", "svc", "app", "key"),
+                PropertyValue(1, "v".toByteArray(), 1L),
+                revision = 99L
+            )
 
             storage.restoreFromSnapshot(emptyList(), revision = 0L)
 
