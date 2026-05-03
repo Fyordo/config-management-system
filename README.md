@@ -43,7 +43,7 @@ This combines low-latency update propagation with self-healing consistency check
 - [Server OpenAPI](server/openapi.yaml)
 - [Admin API OpenAPI](admin-api/openapi.yaml)
 
-## E2E Test Results
+## E2E Tests
 
 ### How to run?
 1. Start necessary docker containers: `e2e/docker`
@@ -59,4 +59,4 @@ make cleanup # Cleans raft-nodes from test values
 ```
 
 ### Reports
-- [v1.0.0 results](e2e/results/analysis_summary.md)
+- [v1.0.0 results](e2e/_results/v_1_0_0/analysis_summary.md)

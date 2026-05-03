@@ -1,0 +1,89 @@
+name: cms-admin
+
+networks:
+  admin-net:
+    driver: bridge
+  shared-external-net:
+    external: true
+    name: ${CMS_SHARED_EXTERNAL_NETWORK:-cms-shared-external-net}
+
+services:
+  cms-admin-pg:
+    image: postgres:15-alpine
+    stop_grace_period: 30s
+    networks:
+      admin-net:
+        aliases:
+          - admin-db
+    ports:
+      - "${POSTGRES_PUBLISH_PORT:-5432}:5432"
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-cms_admin}
+      POSTGRES_USER: ${POSTGRES_USER:-cms_admin}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-cms_admin}
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - cms-admin-pg-data:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "pg_isready",
+          "-U",
+          "${POSTGRES_USER:-cms_admin}",
+          "-d",
+          "${POSTGRES_DB:-cms_admin}",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 30s
+    deploy:
+      resources:
+        reservations:
+          cpus: "0.1"
+          memory: 64M
+        limits:
+          cpus: "0.5"
+          memory: 1G
+
+  cms-admin-api:
+    image:  cms-admin-api:1.0.0
+    hostname: cms-admin-api
+    stop_grace_period: 60s
+    networks:
+      admin-net:
+        aliases:
+          - admin-api
+      shared-external-net:
+    ports:
+      - "8078:8078"
+    environment:
+      DB_URL: jdbc:postgresql://admin-db:5432/cms_admin
+      DB_USERNAME: cms_admin
+      DB_PASSWORD: cms_admin
+      DB_DRIVER_CLASS_NAME: org.postgresql.Driver
+      NO_CORS_URLS: ${NO_CORS_URLS:-http://localhost:8079}
+
+  cms-admin:
+    build:
+      context: ../../../admin
+      dockerfile: .docker/node/prod/Dockerfile
+      args:
+        VITE_API_URL: ${VITE_API_URL:-http://localhost:8078}
+        VITE_SERVER_URL: ${VITE_SERVER_URL:-http://localhost:8889}
+    image: cms-admin:latest
+    hostname: cms-admin
+    stop_grace_period: 30s
+    depends_on:
+      - cms-admin-api
+    networks:
+      admin-net:
+        aliases:
+          - admin
+      shared-external-net:
+    ports:
+      - "8079:80"
+
+volumes:
+  cms-admin-pg-data:
