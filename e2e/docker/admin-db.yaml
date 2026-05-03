@@ -1,0 +1,40 @@
+name: cms-admin-db
+
+services:
+  cms-admin-pg:
+    image: postgres:15-alpine
+    stop_grace_period: 30s
+    ports:
+      - "${POSTGRES_PUBLISH_PORT:-5432}:5432"
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-cms_admin}
+      POSTGRES_USER: ${POSTGRES_USER:-cms_admin}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-cms_admin}
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - cms-admin-pg-data:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "pg_isready",
+          "-U",
+          "${POSTGRES_USER:-cms_admin}",
+          "-d",
+          "${POSTGRES_DB:-cms_admin}",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 30s
+    deploy:
+      resources:
+        reservations:
+          cpus: "0.1"
+          memory: 64M
+        limits:
+          cpus: "0.5"
+          memory: 1G
+
+volumes:
+  cms-admin-pg-data:

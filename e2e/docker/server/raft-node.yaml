@@ -1,0 +1,95 @@
+name: cms-server-cms-raft-node
+
+networks:
+  raft-net:
+    driver: bridge
+
+services:
+  cms-raft-node-1:
+    image:  cms-server:1.0.0-b-12
+    hostname: cms-raft-node-1
+    stop_grace_period: 60s
+    networks:
+      raft-net:
+        aliases:
+          - raft-peer-0
+    ports:
+      - "8081:8080"
+      - "9091:9090"
+      - "6001:6001"
+    environment:
+      POD_NAME: cms-raft-node-1
+      RAFT_NODE_ID: cms-raft-node-1
+      RAFT_NODE_HOST: raft-peer-0
+      RAFT_NODE_PORT: "6001"
+      RAFT_GROUP: cms-raft-cluster
+      RAFT_PEERS: cms-raft-node-2:raft-peer-1:6002:8080,cms-raft-node-3:raft-peer-2:6003:8080
+      RAFT_NODE_DIR: /app/.data/raft/cms-raft-node-1
+      RAFT_ELECTION_TIMEOUT: "8000"
+      RAFT_HEARTBEAT_INTERVAL: "1000"
+      RAFT_SNAPSHOT_THRESHOLD: "400"
+      GRPC_PORT: "9090"
+      CORS_URLS: http://admin.cms.local
+    volumes:
+      - cms-raft-node-n0-data:/app/.data/raft
+
+  cms-raft-node-2:
+    image:  cms-server:1.0.0-b-12
+    hostname: cms-raft-node-2
+    stop_grace_period: 60s
+    networks:
+      raft-net:
+        aliases:
+          - raft-peer-1
+    ports:
+      - "8082:8080"
+      - "9092:9090"
+      - "6002:6002"
+    environment:
+      POD_NAME: cms-raft-node-2
+      RAFT_NODE_ID: cms-raft-node-2
+      RAFT_NODE_HOST: raft-peer-1
+      RAFT_NODE_PORT: "6002"
+      RAFT_GROUP: cms-raft-cluster
+      RAFT_PEERS: cms-raft-node-1:raft-peer-0:6001:8080,cms-raft-node-3:raft-peer-2:6003:8080
+      RAFT_NODE_DIR: /app/.data/raft/cms-raft-node-2
+      RAFT_ELECTION_TIMEOUT: "8000"
+      RAFT_HEARTBEAT_INTERVAL: "1000"
+      RAFT_SNAPSHOT_THRESHOLD: "400"
+      GRPC_PORT: "9090"
+      CORS_URLS: http://admin.cms.local
+    volumes:
+      - cms-raft-node-n1-data:/app/.data/raft
+
+  cms-raft-node-3:
+    image:  cms-server:1.0.0-b-12
+    hostname: cms-raft-node-3
+    stop_grace_period: 60s
+    networks:
+      raft-net:
+        aliases:
+          - raft-peer-2
+    ports:
+      - "8083:8080"
+      - "9093:9090"
+      - "6003:6003"
+    environment:
+      POD_NAME: cms-raft-node-3
+      RAFT_NODE_ID: cms-raft-node-3
+      RAFT_NODE_HOST: raft-peer-2
+      RAFT_NODE_PORT: "6003"
+      RAFT_GROUP: cms-raft-cluster
+      RAFT_PEERS: cms-raft-node-1:raft-peer-0:6001:8080,cms-raft-node-2:raft-peer-1:6002:8080
+      RAFT_NODE_DIR: /app/.data/raft/cms-raft-node-3
+      RAFT_ELECTION_TIMEOUT: "8000"
+      RAFT_HEARTBEAT_INTERVAL: "1000"
+      RAFT_SNAPSHOT_THRESHOLD: "400"
+      GRPC_PORT: "9090"
+      CORS_URLS: http://admin.cms.local
+    volumes:
+      - cms-raft-node-n2-data:/app/.data/raft
+
+volumes:
+  cms-raft-node-n0-data:
+  cms-raft-node-n1-data:
+  cms-raft-node-n2-data:

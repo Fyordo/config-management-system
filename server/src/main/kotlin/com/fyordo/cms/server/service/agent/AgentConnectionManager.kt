@@ -124,6 +124,7 @@ class AgentConnectionManager(
         }
 
         connection.lock.withLock {
+            val startTime = System.currentTimeMillis()
             try {
                 val streamObserver = connection.streamObserver
                 if (streamObserver is ServerCallStreamObserver && streamObserver.isCancelled) {
@@ -146,6 +147,7 @@ class AgentConnectionManager(
                         CmsEvents.Property.newBuilder()
                             .setKey(key.key)
                             .setValue(value.value)
+                            .setModifiedMs(startTime)
                     )
                     maxOf(maxTime, value.lastModifiedMs)
                 }

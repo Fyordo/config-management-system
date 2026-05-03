@@ -42,3 +42,21 @@ This combines low-latency update propagation with self-healing consistency check
 
 - [Server OpenAPI](server/openapi.yaml)
 - [Admin API OpenAPI](admin-api/openapi.yaml)
+
+## E2E Test Results
+
+### How to run?
+1. Start necessary docker containers: `e2e/docker`
+2. Start nginx proxy with [config](e2e/docker/server/nginx-cms-raft-http.conf) for raft nodes
+3. Configure (if needed) ip and port in [Makefile](e2e/Makefile)
+4. Run
+```bash
+cd e2e
+make run-e2e # Runs all e2e tests
+make kill-e2e # Kills e2e-tests scripts (if present)
+make analyze # Runs python script with plots building and md-file generation
+make cleanup # Cleans raft-nodes from test values
+```
+
+### Reports
+- [v1.0.0 results](e2e/results/analysis_summary.md)
