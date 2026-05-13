@@ -28,8 +28,7 @@ import kotlin.concurrent.withLock
 
 private val logger = KotlinLogging.logger {}
 
-@OptIn(ExperimentalAtomicApi::class)
-private data class AgentState (
+private data class AgentState(
     val streamObserver: StreamObserver<CmsEvents.ServerStreamEvent>,
     val lock: ReentrantLock = ReentrantLock(),
     var lastAppliedRevision: Long = 0,
@@ -96,26 +95,28 @@ class AgentConnectionManager(
         return agentStates.keys.size
     }
 
-    @OptIn(ExperimentalAtomicApi::class)
     fun register(agentId: AgentId, streamObserver: StreamObserver<CmsEvents.ServerStreamEvent>) {
         logger.info { "Registering stream event [$agentId]" }
         agentStates[agentId] = AgentState(streamObserver)
         metrics.agentConnectionsTotal.increment()
     }
 
-    fun sendToAgent(agentId: AgentId, result: CmsEvents.ServerStreamEvent) {
-        agentStates[agentId]?.let { connection ->
-            connection.lock.withLock {
+    fun sendToAgent(agentId: AgentId, event: CmsEvents.ServerStreamEvent) {
+        agentStates[agentId]?.let { agentState ->
+            agentState.lock.withLock {
                 try {
-                    val streamObserver = connection.streamObserver
+                    val streamObserver = agentState.streamObserver
                     if (streamObserver is ServerCallStreamObserver && streamObserver.isCancelled) {
-                        logger.warn { "Stream is cancelled for agent [$agentId], removing connection" }
+                        logger.warn { "Stream is cancelled for agent [$agentId], removing agentState" }
                         closeStream(agentId)
                         return
                     }
-                    streamObserver.onNext(result)
+                    streamObserver.onNext(event)
+
+                    agentState.lastSentRevision = event.updateEvent.revision
+                    logger.debug { "Change lastSentRevision for agent [$agentId] to [${agentState.lastSentRevision}]" }
                 } catch (e: Exception) {
-                    logger.error(e) { "Error sending message to agent [$agentId], removing connection" }
+                    logger.error(e) { "Error sending message to agent [$agentId], removing agentState" }
                     closeStream(agentId)
                 }
             }
@@ -123,49 +124,46 @@ class AgentConnectionManager(
     }
 
     fun sendInitToAgent(agentId: AgentId) {
-        val connection = agentStates[agentId] ?: run {
-            logger.error { "AgentConnectionFacade.sendInitToAgent failed, no stream found for agentId [$agentId]" }
+        val state = agentStates[agentId] ?: run {
+            logger.error { "No AgentState found for agentId [$agentId]" }
             return
         }
 
-        connection.lock.withLock {
-            val startTime = System.currentTimeMillis()
+        state.lock.withLock {
             try {
-                val streamObserver = connection.streamObserver
+                val streamObserver = state.streamObserver
                 if (streamObserver is ServerCallStreamObserver && streamObserver.isCancelled) {
                     logger.warn { "Stream is cancelled for agent [$agentId], removing connection" }
                     closeStream(agentId)
                     return
                 }
 
+                val initEvent = CmsEvents.ServerInitEvent.newBuilder()
                 val propertiesList = propertyInMemoryStorage.getInitForApp(
                     agentId.namespace,
                     agentId.service,
                     agentId.appId
-                )
-
-                val properties = CmsEvents.ServerInitEvent.newBuilder()
-                val lastModifiedMs = propertiesList.fold(0L) { maxTime, property ->
-                    val key = property.key
-                    val value = property.value
-                    properties.addProperties(
-                        CmsEvents.Property.newBuilder()
-                            .setKey(key.key)
-                            .setValue(value.value)
-                            .setModifiedMs(startTime)
-                    )
-                    maxOf(maxTime, value.lastModifiedMs)
+                ).map { property ->
+                    CmsEvents.Property.newBuilder()
+                        .setKey(property.key.key)
+                        .setModifiedMs(property.value.lastModifiedMs)
+                        .setValue(property.value.value)
+                        .build()
                 }
 
                 val result = CmsEvents.ServerStreamEvent.newBuilder()
                     .setInitEvent(
-                        properties
+                        initEvent
                             .setRevision(propertyInMemoryStorage.currentRevision.get())
+                            .addAllProperties(propertiesList)
                             .build()
                     )
 
                 streamObserver.onNext(result.build())
-                logger.info { "Sent init config to agent [$agentId] with lastModifiedMs=[$lastModifiedMs]" }
+
+                logger.info { "Sent init config to agent [$agentId] with revision [${propertyInMemoryStorage.currentRevision.get()}]" }
+
+                state.lastSentRevision = propertyInMemoryStorage.currentRevision.get()
             } catch (e: Exception) {
                 logger.error(e) { "Error sending init config to agent [$agentId], removing connection" }
                 closeStream(agentId)
@@ -187,8 +185,10 @@ class AgentConnectionManager(
             state.lastAppliedRevision = revision
 
             if (state.lastAppliedRevision < state.lastSentRevision) {
-                logger.info { "Agent [$agentId] last applied revision [${state.lastAppliedRevision}] is less" +
-                        "then last sent revision [${state.lastSentRevision}], sending init" }
+                logger.info {
+                    "Agent [$agentId] last applied revision [${state.lastAppliedRevision}] is less" +
+                            "then last sent revision [${state.lastSentRevision}], sending init"
+                }
 
                 sendInitToAgent(agentId)
 
