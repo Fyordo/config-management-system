@@ -35,7 +35,7 @@ private:
     static constexpr int KEEPALIVE_TIMEOUT_MS    =  5'000;
 
     void Run();
-    void RunStreamSession(grpc::ClientReaderWriterInterface<com::fyordo::cms::AgentStreamEvent, com::fyordo::cms::ServerStreamEvent>* stream, std::atomic<bool>& is_reading, std::atomic<bool>& is_writing);
+    void RunStreamSession(grpc::ClientReaderWriterInterface<com::fyordo::cms::AgentStreamEvent, com::fyordo::cms::ServerStreamEvent>* stream, std::atomic<bool>& is_reading);
     void RunStreamWriter(grpc::ClientReaderWriterInterface<com::fyordo::cms::AgentStreamEvent, com::fyordo::cms::ServerStreamEvent>* stream, std::atomic<bool>& is_reading, std::atomic<bool>& is_writing);
     void RequestAckFlush();
 

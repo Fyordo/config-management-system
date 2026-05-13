@@ -23,13 +23,17 @@ import mu.KotlinLogging
 import org.springframework.stereotype.Component
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.locks.ReentrantLock
+import kotlin.concurrent.atomics.ExperimentalAtomicApi
 import kotlin.concurrent.withLock
 
 private val logger = KotlinLogging.logger {}
 
-private data class Connection(
+@OptIn(ExperimentalAtomicApi::class)
+private data class AgentState (
     val streamObserver: StreamObserver<CmsEvents.ServerStreamEvent>,
-    val lock: ReentrantLock = ReentrantLock()
+    val lock: ReentrantLock = ReentrantLock(),
+    var lastAppliedRevision: Long = 0,
+    var lastSentRevision: Long = 0
 )
 
 @Component
@@ -39,11 +43,11 @@ class AgentConnectionManager(
     private val metrics: CmsMetrics,
     registry: MeterRegistry
 ) {
-    private val connections: MutableMap<AgentId, Connection> = ConcurrentHashMap()
+    private val agentStates: MutableMap<AgentId, AgentState> = ConcurrentHashMap()
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     init {
-        registry.gaugeMapSize("cms_agent_connected", emptyList(), connections)
+        registry.gaugeMapSize("cms_agent_connected", emptyList(), agentStates)
     }
 
     @PostConstruct
@@ -89,17 +93,18 @@ class AgentConnectionManager(
     }
 
     fun getConnectedAgents(): Int {
-        return connections.keys.size
+        return agentStates.keys.size
     }
 
+    @OptIn(ExperimentalAtomicApi::class)
     fun register(agentId: AgentId, streamObserver: StreamObserver<CmsEvents.ServerStreamEvent>) {
         logger.info { "Registering stream event [$agentId]" }
-        connections[agentId] = Connection(streamObserver)
+        agentStates[agentId] = AgentState(streamObserver)
         metrics.agentConnectionsTotal.increment()
     }
 
     fun sendToAgent(agentId: AgentId, result: CmsEvents.ServerStreamEvent) {
-        connections[agentId]?.let { connection ->
+        agentStates[agentId]?.let { connection ->
             connection.lock.withLock {
                 try {
                     val streamObserver = connection.streamObserver
@@ -118,7 +123,7 @@ class AgentConnectionManager(
     }
 
     fun sendInitToAgent(agentId: AgentId) {
-        val connection = connections[agentId] ?: run {
+        val connection = agentStates[agentId] ?: run {
             logger.error { "AgentConnectionFacade.sendInitToAgent failed, no stream found for agentId [$agentId]" }
             return
         }
@@ -168,24 +173,40 @@ class AgentConnectionManager(
         }
     }
 
+    @OptIn(ExperimentalAtomicApi::class)
     fun checkAgentRevision(agentId: AgentId, revision: Long) {
         logger.debug { "Received ack from agent: agentId=[$agentId], revision=[$revision]" }
 
-        if (revision < propertyInMemoryStorage.currentRevision.get()) {
-            logger.info { "Agent [$agentId] has old revision [$revision], sending init" }
-            sendInitToAgent(agentId)
-        }
-    }
-
-    fun closeStream(agentId: AgentId) {
-        val connection = connections.remove(agentId) ?: run {
-            logger.error { "Stream for agent [$agentId] doesn't exist, skip closing stream" }
+        val state = agentStates[agentId]
+        if (state == null) {
+            logger.error { "No AgentState found for [$agentId]" }
             return
         }
 
-        connection.lock.withLock {
+        state.lock.withLock {
+            state.lastAppliedRevision = revision
+
+            if (state.lastAppliedRevision < state.lastSentRevision) {
+                logger.info { "Agent [$agentId] last applied revision [${state.lastAppliedRevision}] is less" +
+                        "then last sent revision [${state.lastSentRevision}], sending init" }
+
+                sendInitToAgent(agentId)
+
+                state.lastSentRevision = propertyInMemoryStorage.currentRevision.get()
+            }
+        }
+
+    }
+
+    fun closeStream(agentId: AgentId) {
+        val agentState = agentStates.remove(agentId) ?: run {
+            logger.error { "State for agent [$agentId] doesn't exist, skip closing stream" }
+            return
+        }
+
+        agentState.lock.withLock {
             try {
-                connection.streamObserver.onCompleted()
+                agentState.streamObserver.onCompleted()
             } catch (e: Exception) {
                 logger.warn(e) { "Error completing stream for agent [$agentId]" }
             }

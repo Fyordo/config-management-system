@@ -128,7 +128,7 @@ void AgentChannelClient::Run()
 
             std::thread read_thread(
                 &AgentChannelClient::RunStreamSession, this,
-                stream.get(), std::ref(is_reading), std::ref(is_writing)
+                stream.get(), std::ref(is_reading)
             );
             std::thread writer_thread(
                 &AgentChannelClient::RunStreamWriter, this,
@@ -171,7 +171,7 @@ void AgentChannelClient::Run()
     }
 }
 
-void AgentChannelClient::RunStreamSession(ClientReaderWriterInterface<AgentStreamEvent, ServerStreamEvent>* stream, std::atomic<bool>& is_reading, std::atomic<bool>& is_writing)
+void AgentChannelClient::RunStreamSession(ClientReaderWriterInterface<AgentStreamEvent, ServerStreamEvent>* stream, std::atomic<bool>& is_reading)
 {
     ServerStreamEvent event;
 
@@ -281,9 +281,9 @@ void AgentChannelClient::HandlePropertyUpdate(
                       << update_event.property().key() << std::endl;
             return;
         }
-    
+
         SendUpdateToUnixSocket(update_event.property());
-    
+
         if (WriteRevisionToFile(new_revision)) {
             current_revision_.store(new_revision);
             std::cout << "AgentChannelClient: Revision updated to " << new_revision << std::endl;
