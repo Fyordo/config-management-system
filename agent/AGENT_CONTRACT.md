@@ -4,7 +4,7 @@ This contract describes how the agent (`agent/grpc/agent_channel_client.cpp`) se
 
 ## High-level model
 
-1. The agent connects to a UNIX socket at `CMS_UNIX_SOCKET_PATH` (field `config.unixSocketPath`).
+1. The agent connects to a UNIX socket at `CMS_UNIX_SOCKET_PATH` (field `config.unix_socket_path`).
 2. For each update (and also during initial properties sync) the agent sends **a single message** and then closes the connection.
 3. The message is transported over `AF_UNIX` + `SOCK_STREAM` (connection-oriented byte stream, similar to TCP but using a UNIX-domain address).
 

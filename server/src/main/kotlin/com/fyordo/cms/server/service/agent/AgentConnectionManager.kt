@@ -3,6 +3,7 @@ package com.fyordo.cms.server.service.agent
 import com.fyordo.cms.CmsEvents
 import com.fyordo.cms.server.config.CmsMetrics
 import com.fyordo.cms.server.dto.grpc.AgentId
+import com.fyordo.cms.server.dto.query.PropertyQueryFilter
 import com.fyordo.cms.server.service.PropertyUpdatePublisher
 import com.fyordo.cms.server.service.storage.PropertyInMemoryStorage
 import com.fyordo.cms.server.utils.EMPTY_BYTES
@@ -23,16 +24,13 @@ import mu.KotlinLogging
 import org.springframework.stereotype.Component
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.locks.ReentrantLock
-import kotlin.concurrent.atomics.ExperimentalAtomicApi
 import kotlin.concurrent.withLock
 
 private val logger = KotlinLogging.logger {}
 
 private data class AgentState(
     val streamObserver: StreamObserver<CmsEvents.ServerStreamEvent>,
-    val lock: ReentrantLock = ReentrantLock(),
-    var lastAppliedRevision: Long = 0,
-    var lastSentRevision: Long = 0
+    val lock: ReentrantLock = ReentrantLock()
 )
 
 @Component
@@ -113,8 +111,7 @@ class AgentConnectionManager(
                     }
                     streamObserver.onNext(event)
 
-                    agentState.lastSentRevision = event.updateEvent.revision
-                    logger.debug { "Change lastSentRevision for agent [$agentId] to [${agentState.lastSentRevision}]" }
+                    logger.debug { "Sent update event for agent [$agentId]" }
                 } catch (e: Exception) {
                     logger.error(e) { "Error sending message to agent [$agentId], removing agentState" }
                     closeStream(agentId)
@@ -124,14 +121,14 @@ class AgentConnectionManager(
     }
 
     fun sendInitToAgent(agentId: AgentId) {
-        val state = agentStates[agentId] ?: run {
+        val agentState = agentStates[agentId] ?: run {
             logger.error { "No AgentState found for agentId [$agentId]" }
             return
         }
 
-        state.lock.withLock {
+        agentState.lock.withLock {
             try {
-                val streamObserver = state.streamObserver
+                val streamObserver = agentState.streamObserver
                 if (streamObserver is ServerCallStreamObserver && streamObserver.isCancelled) {
                     logger.warn { "Stream is cancelled for agent [$agentId], removing connection" }
                     closeStream(agentId)
@@ -162,8 +159,6 @@ class AgentConnectionManager(
                 streamObserver.onNext(result.build())
 
                 logger.info { "Sent init config to agent [$agentId] with revision [${propertyInMemoryStorage.currentRevision.get()}]" }
-
-                state.lastSentRevision = propertyInMemoryStorage.currentRevision.get()
             } catch (e: Exception) {
                 logger.error(e) { "Error sending init config to agent [$agentId], removing connection" }
                 closeStream(agentId)
@@ -171,31 +166,42 @@ class AgentConnectionManager(
         }
     }
 
-    @OptIn(ExperimentalAtomicApi::class)
-    fun checkAgentRevision(agentId: AgentId, revision: Long) {
-        logger.debug { "Received ack from agent: agentId=[$agentId], revision=[$revision]" }
+    fun checkAgentConsistency(agentId: AgentId, failedKeys: List<String>) {
+        logger.debug { "Received ack from agent: agentId=[$agentId]" }
 
-        val state = agentStates[agentId]
-        if (state == null) {
+        val agentState = agentStates[agentId] ?: run {
             logger.error { "No AgentState found for [$agentId]" }
             return
         }
 
-        state.lock.withLock {
-            state.lastAppliedRevision = revision
+        agentState.lock.withLock {
+            logger.warn { "Agent [$agentId] has [${failedKeys.size}] failed keys, resending" }
+            checkFailedKeys(failedKeys, agentId)
+        }
+    }
 
-            if (state.lastAppliedRevision < state.lastSentRevision) {
-                logger.info {
-                    "Agent [$agentId] last applied revision [${state.lastAppliedRevision}] is less" +
-                            "then last sent revision [${state.lastSentRevision}], sending init"
-                }
-
-                sendInitToAgent(agentId)
-
-                state.lastSentRevision = propertyInMemoryStorage.currentRevision.get()
-            }
+    private fun checkFailedKeys(
+        failedKeys: List<String>,
+        agentId: AgentId
+    ) {
+        if (failedKeys.isEmpty()) {
+            return
         }
 
+        propertyInMemoryStorage.getByFilter(
+            PropertyQueryFilter(
+                namespaceRegex = agentId.namespace,
+                serviceRegex = agentId.service,
+                appIdRegex = agentId.appId,
+                keyRegex = failedKeys.joinToString("|"),
+            )
+        ).forEach {
+            broadcaster.publishUpdate(
+                it.key,
+                it.value,
+                propertyInMemoryStorage.currentRevision.get()
+            )
+        }
     }
 
     fun closeStream(agentId: AgentId) {

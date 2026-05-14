@@ -20,7 +20,7 @@ message AgentConnectEvent {
 }
 
 message AgentAckEvent {
-  int64 revision = 1;
+  repeated string failedKeys = 1;
 }
 
 message ServerStreamEvent {

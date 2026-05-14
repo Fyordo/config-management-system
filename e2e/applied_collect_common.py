@@ -7,6 +7,7 @@ import os
 import re
 import subprocess
 import sys
+import time
 from collections.abc import Callable
 from pathlib import Path
 
@@ -15,6 +16,7 @@ E2E_RESULTS = E2E_DIR / "results"
 WRK_LUA = E2E_DIR / "wrk2" / "property_modify_put.lua"
 WRK_URL = "http://127.0.0.1:8888"
 DEFAULT_ITERATIONS = 50
+COOLDOWN_SECONDS_AFTER_ITERATION = 30
 
 TARGET_PHRASE = "Applied property [app.e2e.p"
 APPLIED_LINE_RE = re.compile(
@@ -151,6 +153,12 @@ def collect_iterations(
             f"[{i}/{iterations}] wrk={n_req} applied={n_applied} rows={len(rows)} "
             f"log_lines={n_log} -> {path}"
         )
+        if i < iterations:
+            print(
+                f"[{i}/{iterations}] cooling down {COOLDOWN_SECONDS_AFTER_ITERATION}s "
+                "before next iteration..."
+            )
+            time.sleep(COOLDOWN_SECONDS_AFTER_ITERATION)
     print("Done.")
     return 0
 

@@ -12,7 +12,7 @@ namespace {
         const char* value = std::getenv(name);
         return (value != nullptr && value[0] != '\0') ? std::string(value) : default_value;
     }
-    
+
     bool ParseBoolEnv(const char* name, bool default_value)
     {
         const char* value = std::getenv(name);
@@ -20,7 +20,7 @@ namespace {
         std::string s(value);
         return s == "true" || s == "1" || s == "yes" || s == "TRUE" || s == "YES";
     }
-    
+
     std::string ReadFileContent(const std::string& path)
     {
         std::ifstream file(path);

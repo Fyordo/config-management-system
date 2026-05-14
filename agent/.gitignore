@@ -1,4 +1,7 @@
 build
+compile_commands.json
 .vscode
 /Makefile
 .idea
+.zed
+.clangd

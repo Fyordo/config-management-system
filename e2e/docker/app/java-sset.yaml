@@ -20,7 +20,7 @@ services:
     restart: "no"
 
   cms-j-sset-agent:
-    image: cms-agent:1.0.0
+    image: cms-agent:1.0.0-beta3-2
     user: "1000:1000"
     stop_grace_period: 60s
     depends_on:

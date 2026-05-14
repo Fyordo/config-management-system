@@ -31,7 +31,7 @@ namespace {
         if (config.ns.empty()) std::cerr << "  - CMS_NAMESPACE" << std::endl;
         if (config.service.empty()) std::cerr << "  - CMS_SERVICE" << std::endl;
         if (config.appId.empty()) std::cerr << "  - CMS_APPID" << std::endl;
-        if (config.cmsServerHost.empty()) std::cerr << "  - CMS_SERVER_HOST" << std::endl;
+        if (config.cms_server_host.empty()) std::cerr << "  - CMS_SERVER_HOST" << std::endl;
         std::cerr << "Please set all required environment variables before starting the agent." << std::endl;
     }
 
@@ -41,13 +41,10 @@ namespace {
         std::cout << "  CMS_NAMESPACE: " << config.ns << std::endl;
         std::cout << "  CMS_SERVICE: " << config.service << std::endl;
         std::cout << "  CMS_APPID: " << config.appId << std::endl;
-        std::cout << "  CMS_SERVER_HOST: " << config.cmsServerHost << std::endl;
+        std::cout << "  CMS_SERVER_HOST: " << config.cms_server_host << std::endl;
         PrintTlsConfig(config.tls);
-        if (!config.propertiesJsonPath.empty()) {
-            std::cout << "  CMS_PROPERTIES_FILE: " << config.propertiesJsonPath << std::endl;
-        }
-        if (!config.cmsRevisionFilePath.empty()) {
-            std::cout << "  CMS_REVISION_FILE: " << config.cmsRevisionFilePath << std::endl;
+        if (!config.properties_json_path.empty()) {
+            std::cout << "  CMS_PROPERTIES_FILE: " << config.properties_json_path << std::endl;
         }
     }
 
@@ -103,9 +100,9 @@ void GrpcServerStarter::RunServer()
     PrintAgentConfig(config);
     SetupSignalHandlers();
 
-    AgentChannelClient client(config, config.cmsServerHost);
+    AgentChannelClient client(config);
     client.Start();
-    std::cout << "AgentChannelClient: Started, connecting to " << config.cmsServerHost << std::endl;
+    std::cout << "AgentChannelClient: Started, connecting to " << config.cms_server_host << std::endl;
     std::cout << "Agent running, press Ctrl+C to stop..." << std::endl;
 
     if (g_shutdown_pipe[0] != -1) {
@@ -133,10 +130,9 @@ AgentConfig GrpcServerStarter::BuildConfig()
     config.ns = GetEnvOrDefault("CMS_NAMESPACE", "");
     config.service = GetEnvOrDefault("CMS_SERVICE", "");
     config.appId = GetEnvOrDefault("CMS_APPID", "");
-    config.cmsServerHost = GetEnvOrDefault("CMS_SERVER_HOST", "");
-    config.propertiesJsonPath = GetEnvOrDefault("CMS_PROPERTIES_FILE", "");
-    config.unixSocketPath = GetEnvOrDefault("CMS_UNIX_SOCKET_PATH", "");
-    config.cmsRevisionFilePath = GetEnvOrDefault("CMS_REVISION_FILE", "");
+    config.cms_server_host = GetEnvOrDefault("CMS_SERVER_HOST", "");
+    config.properties_json_path = GetEnvOrDefault("CMS_PROPERTIES_FILE", "");
+    config.unix_socket_path = GetEnvOrDefault("CMS_UNIX_SOCKET_PATH", "");
     config.tls = BuildTlsConfigFromEnv();
 
     if (!config.isValid()) {
@@ -152,7 +148,7 @@ AgentConfig GrpcServerStarter::BuildConfig()
 bool AgentConfig::isValid() const
 {
     if (ns.empty() || service.empty() || appId.empty()) return false;
-    if (cmsServerHost.empty()) return false;
+    if (cms_server_host.empty()) return false;
     if (!tls.isValid()) return false;
     return true;
 }
