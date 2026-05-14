@@ -57,23 +57,27 @@ class AgentConnectionManager(
                     event.key.appId
                 )
 
-                val modifiedMs = event.value?.lastModifiedMs ?: 0
-                val updateEvent = CmsEvents.ServerPropertyUpdateEvent.newBuilder()
-                    .setProperty(
-                        CmsEvents.Property.newBuilder()
-                            .setKey(event.key.key)
-                            .setValue(event.value?.value ?: ByteString.copyFrom(EMPTY_BYTES))
-                            .setModifiedMs(modifiedMs)
-                    )
-                    .setRevision(event.revision)
-                    .build()
-
-                sendToAgent(
-                    agentId,
-                    CmsEvents.ServerStreamEvent.newBuilder()
-                        .setUpdateEvent(updateEvent)
+                // Launch in a separate coroutine to avoid blocking the main update flow
+                // if one agent's gRPC stream is slow or full.
+                scope.launch {
+                    val modifiedMs = event.value?.lastModifiedMs ?: 0
+                    val updateEvent = CmsEvents.ServerPropertyUpdateEvent.newBuilder()
+                        .setProperty(
+                            CmsEvents.Property.newBuilder()
+                                .setKey(event.key.key)
+                                .setValue(event.value?.value ?: ByteString.copyFrom(EMPTY_BYTES))
+                                .setModifiedMs(modifiedMs)
+                        )
+                        .setRevision(event.revision)
                         .build()
-                )
+
+                    sendToAgent(
+                        agentId,
+                        CmsEvents.ServerStreamEvent.newBuilder()
+                            .setUpdateEvent(updateEvent)
+                            .build()
+                    )
+                }
             }
             .catch { e ->
                 logger.error(e) { "Error processing property update" }

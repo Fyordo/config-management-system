@@ -73,8 +73,11 @@ class RaftServerService(
                 RaftServerConfigKeys.Snapshot.setAutoTriggerEnabled(this, true)
                 RaftServerConfigKeys.Snapshot.setAutoTriggerThreshold(this, raftProps.autoTriggerThreshold)
 
-                // Настройка gRPC транспорта
                 GrpcConfigKeys.Server.setPort(this, raftProps.port)
+                GrpcConfigKeys.Server.setLeaderOutstandingAppendsMax(
+                    this,
+                    raftProps.leaderOutstandingAppendsMax
+                )
             }
 
             val localPeerId = RaftPeerId.valueOf(raftProps.nodeId)

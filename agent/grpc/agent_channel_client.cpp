@@ -266,6 +266,7 @@ void AgentChannelClient::HandlePropertyUpdate(
         std::cerr << "AgentChannelClient: ERROR - update event revision " << new_revision
                   << " is less than last_delivered revision " << last_delivered_revision
                   << ". Rejecting event." << std::endl;
+        failed_keys_.insert(update_event.property().key());
         return;
     }
 

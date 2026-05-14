@@ -19,7 +19,7 @@ data class RaftConfiguration(
 
     val heartbeatIntervalMs: Long = 1_000,
 
-    val requestIntervalMs: Long = 1_000,
+    val requestIntervalMs: Long = 5_000,
 
     val peers: List<String> = emptyList(),
 
@@ -33,4 +33,21 @@ data class RaftConfiguration(
 
     /** HTTP port of peer REST APIs (for cluster status aggregation). */
     val peerHttpPort: Int = 8080,
+
+    val leaderOutstandingAppendsMax: Int = 128,
+
+    val clientPoolSize: Int = 4,
+
+    /**
+     * Max number of outstanding requests per RaftClient.
+     * Ratis default is 100, which is too low for high RPS.
+     * When this limit is reached, client.async().send() BLOCKS the calling thread.
+     */
+    val clientOutstandingRequestsMax: Int = 5000,
+
+    /**
+     * Ratis client-side request timeout.
+     * Ratis default is 3s.
+     */
+    val clientRequestTimeoutMs: Long = 5_000,
 )

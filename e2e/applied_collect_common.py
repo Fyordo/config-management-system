@@ -19,8 +19,11 @@ DEFAULT_ITERATIONS = 50
 COOLDOWN_SECONDS_AFTER_ITERATION = 30
 
 TARGET_PHRASE = "Applied property [app.e2e.p"
+# Milliseconds may use a thousands separator, e.g. "5,408ms" (not "5.408" as decimal comma).
+# Do not use "for.*?(\d+...)" — the non-greedy skip can consume "5," and capture only "408".
+_MS_TOKEN = r"(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?"
 APPLIED_LINE_RE = re.compile(
-    r"Applied property \[app\.e2e\.p\d+\] for.*?(\d+(?:\.\d+)?)\s*ms\b",
+    rf"Applied property \[app\.e2e\.p\d+\] for\s*({_MS_TOKEN})\s*ms\b",
     re.IGNORECASE,
 )
 WRK_REQUESTS_RE = re.compile(r"^\s*(\d+)\s+requests\s+in\s+", re.MULTILINE)
@@ -90,7 +93,8 @@ def format_result_line(line: str, ms_raw: str) -> str | None:
     ts = parse_log_timestamp_display(line)
     if ts is None:
         return None
-    return f"[{ts}],{int(round(float(ms_raw)))}"
+    ms_clean = ms_raw.replace(",", "").strip()
+    return f"[{ts}],{int(round(float(ms_clean)))}"
 
 
 def fetch_docker_logs_since(container: str, since_time: str) -> str:
