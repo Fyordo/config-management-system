@@ -108,7 +108,8 @@ def mean_ci95(values: Sequence[float]) -> tuple[float, float]:
     mean = float(np.mean(arr))
     std = float(np.std(arr, ddof=1))
     margin = 1.96 * std / math.sqrt(n)
-    return mean - margin, mean + margin
+    # Latency cannot be negative, so we clip the lower bound at 0.0
+    return max(0.0, mean - margin), mean + margin
 
 
 def analyze_test_type(label: str, pattern: str) -> TestTypeStats:
