@@ -30,8 +30,6 @@ private:
     static constexpr std::chrono::seconds RECONNECT_DELAY{5};
     static constexpr std::chrono::seconds CONNECTION_TIMEOUT{5};
 
-    static constexpr std::chrono::seconds ACK_INTERVAL{10};
-
     static constexpr int KEEPALIVE_TIME_MS       = 10'000;
     static constexpr int KEEPALIVE_TIMEOUT_MS    =  5'000;
 
@@ -41,13 +39,14 @@ private:
     void RequestAckFlush();
 
     void HandleInitEvent(const com::fyordo::cms::ServerInitEvent& init_event);
-    void HandlePropertyUpdate(const com::fyordo::cms::ServerPropertyUpdateEvent& update_event);
+    void HandlePropertyUpdate(const com::fyordo::cms::ServerPropertyUpdateEvent& update_event, std::atomic<bool>& is_reading);
 
     bool WritePropertiesToFile(const com::fyordo::cms::ServerInitEvent& init_event);
     bool ApplyPropertyUpdateToFile(const std::string& key, const std::string& value);
     void SendUpdateToUnixSocket(const com::fyordo::cms::Property& property);
     bool WaitForConnected(grpc::Channel* channel);
     bool WriteJsonToPath(const nlohmann::json& j);
+    void AddToFailedKeys(const std::string& key, std::atomic<bool>& is_reading);
 
     AgentConfig config_;
     std::atomic<bool> running_;
@@ -71,5 +70,6 @@ private:
     std::shared_ptr<grpc::Channel> channel_;
     std::unique_ptr<com::fyordo::cms::AgentChannelService::Stub> stub_;
 
+    std::mutex failed_keys_mutex_;
     std::unordered_set<std::string> failed_keys_;
 };

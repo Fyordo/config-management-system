@@ -177,7 +177,7 @@ void AgentChannelClient::RunStreamSession(ClientReaderWriterInterface<AgentStrea
         if (event.has_initevent()) {
             HandleInitEvent(event.initevent());
         } else if (event.has_updateevent()) {
-            HandlePropertyUpdate(event.updateevent());
+            HandlePropertyUpdate(event.updateevent(), is_reading);
         }
     }
     is_reading.store(false);
@@ -197,7 +197,8 @@ void AgentChannelClient::RunStreamWriter(
     std::atomic<bool>& is_writing)
 {
     using clock = std::chrono::steady_clock;
-    auto next_ack = clock::now() + ACK_INTERVAL;
+    const std::chrono::seconds ack_interval{config_.ack_interval_seconds};
+    auto next_ack = clock::now() + ack_interval;
 
     while (running_.load() && is_reading.load() && is_writing.load()) {
         {
@@ -211,18 +212,27 @@ void AgentChannelClient::RunStreamWriter(
             break;
         }
         ack_flush_pending_.store(false);
-        if (!failed_keys_.empty()) {
-            size_t failed_keys_count = failed_keys_.size();
+
+        std::unordered_set<std::string> keys_to_send;
+        {
+            std::lock_guard<std::mutex> lock(failed_keys_mutex_);
+            if (!failed_keys_.empty()) {
+                keys_to_send = std::move(failed_keys_);
+                failed_keys_.clear();
+            }
+        }
+
+        if (!keys_to_send.empty()) {
+            size_t failed_keys_count = keys_to_send.size();
             AgentStreamEvent ack_message;
-            ack_message.mutable_ackevent()->mutable_failedkeys()->Add(failed_keys_.begin(), failed_keys_.end());
+            ack_message.mutable_ackevent()->mutable_failedkeys()->Add(keys_to_send.begin(), keys_to_send.end());
             if (!stream->Write(ack_message)) {
                 std::cerr << "AgentChannelClient: Failed to send ack to server with failed keys count " << failed_keys_count << std::endl;
                 return;
             }
-            failed_keys_.clear();
             std::cout << "AgentChannelClient: Sent ack to server for failed keys count " << failed_keys_count << std::endl;
         }
-        next_ack = clock::now() + ACK_INTERVAL;
+        next_ack = clock::now() + ack_interval;
     }
 }
 
@@ -252,7 +262,8 @@ void AgentChannelClient::HandleInitEvent(const com::fyordo::cms::ServerInitEvent
 }
 
 void AgentChannelClient::HandlePropertyUpdate(
-    const com::fyordo::cms::ServerPropertyUpdateEvent& update_event)
+    const com::fyordo::cms::ServerPropertyUpdateEvent& update_event,
+    std::atomic<bool>& is_reading)
 {
     const int64_t new_revision = update_event.revision();
     const int64_t last_delivered_revision = delivered_revision_.load();
@@ -266,7 +277,7 @@ void AgentChannelClient::HandlePropertyUpdate(
         std::cerr << "AgentChannelClient: ERROR - update event revision " << new_revision
                   << " is less than last_delivered revision " << last_delivered_revision
                   << ". Rejecting event." << std::endl;
-        failed_keys_.insert(update_event.property().key());
+        AddToFailedKeys(update_event.property().key(), is_reading);
         return;
     }
 
@@ -281,16 +292,27 @@ void AgentChannelClient::HandlePropertyUpdate(
         if (!ApplyPropertyUpdateToFile(update_event.property().key(), update_event.property().value())) {
             std::cerr << "AgentChannelClient: Failed to apply property update for key "
                       << update_event.property().key() << std::endl;
-            failed_keys_.insert(update_event.property().key());
+            AddToFailedKeys(update_event.property().key(), is_reading);
             return;
         }
 
         SendUpdateToUnixSocket(update_event.property());
     } catch (const std::exception& e) {
         std::cerr << "AgentChannelClient: Exception: " << e.what() << std::endl;
-        failed_keys_.insert(update_event.property().key());
+        AddToFailedKeys(update_event.property().key(), is_reading);
         RequestAckFlush();
         return;
+    }
+}
+
+void AgentChannelClient::AddToFailedKeys(const std::string& key, std::atomic<bool>& is_reading)
+{
+    std::lock_guard<std::mutex> lock(failed_keys_mutex_);
+    failed_keys_.insert(key);
+    if (failed_keys_.size() > static_cast<size_t>(config_.max_failed_queue_size)) {
+        std::cerr << "ERROR: Failed keys queue overload, restarting connection" << std::endl;
+        is_reading.store(false);
+        stream_cv_.notify_one();
     }
 }
 

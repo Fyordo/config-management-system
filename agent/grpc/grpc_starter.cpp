@@ -46,6 +46,8 @@ namespace {
         if (!config.properties_json_path.empty()) {
             std::cout << "  CMS_PROPERTIES_FILE: " << config.properties_json_path << std::endl;
         }
+        std::cout << "  CMS_ACK_INTERVAL_SECONDS: " << config.ack_interval_seconds << std::endl;
+        std::cout << "  CMS_MAX_FAILED_QUEUE_SIZE: " << config.max_failed_queue_size << std::endl;
     }
 
     void RegisterSignalOrThrow(int signo)
@@ -131,8 +133,24 @@ AgentConfig GrpcServerStarter::BuildConfig()
     config.service = GetEnvOrDefault("CMS_SERVICE", "");
     config.appId = GetEnvOrDefault("CMS_APPID", "");
     config.cms_server_host = GetEnvOrDefault("CMS_SERVER_HOST", "");
+
     config.properties_json_path = GetEnvOrDefault("CMS_PROPERTIES_FILE", "");
     config.unix_socket_path = GetEnvOrDefault("CMS_UNIX_SOCKET_PATH", "");
+    
+    std::string ack_interval_str = GetEnvOrDefault("CMS_ACK_INTERVAL_SECONDS", "10");
+    try {
+        config.ack_interval_seconds = std::stoi(ack_interval_str);
+    } catch (...) {
+        config.ack_interval_seconds = 10;
+    }
+
+    std::string max_failed_str = GetEnvOrDefault("CMS_MAX_FAILED_QUEUE_SIZE", "100");
+    try {
+        config.max_failed_queue_size = std::stoi(max_failed_str);
+    } catch (...) {
+        config.max_failed_queue_size = 100;
+    }
+
     config.tls = BuildTlsConfigFromEnv();
 
     if (!config.isValid()) {
