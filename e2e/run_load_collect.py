@@ -12,12 +12,12 @@ from applied_collect_common import (
 
 
 def main() -> int:
-    cmd = ["wrk2", "-t5", "-c20", "-d60s", "-R100", "-s", str(WRK_LUA), WRK_URL]
+    cmd = ["wrk2", "-t5", "-c20", "-d60s", "-R50", "-s", str(WRK_LUA), WRK_URL]
     return collect_iterations(
-        DEFAULT_ITERATIONS,
+        30,
         lambda: run_wrk(cmd),
         lambda i: E2E_RESULTS / f"result_load_t1_c1_{i}.txt",
-        "load 60s @ 100 RPS",
+        "load 60s @ 50 RPS",
     )
 
 

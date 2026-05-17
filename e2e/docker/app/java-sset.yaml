@@ -40,6 +40,7 @@ services:
       CMS_PROPERTIES_FILE: /app/config/application.json
       CMS_REVISION_FILE: /app/config/сms.revision
       CMS_UNIX_SOCKET_PATH: /app/config/cms.sock
+      CMS_MAX_FAILED_QUEUE_SIZE: 1500
     entrypoint: ["/bin/sh", "-c"]
     command:
       - |

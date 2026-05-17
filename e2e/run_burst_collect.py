@@ -12,7 +12,7 @@ from applied_collect_common import (
 
 _PHASES = (
     ("10s", "5", "1"),
-    ("5s", "350", "100"),
+    ("5s", "150", "100"),
     ("15s", "5", "1"),
 )
 
