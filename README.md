@@ -59,4 +59,6 @@ make cleanup # Cleans raft-nodes from test values
 ```
 
 ### Reports
+- [v1.0.0-rc results](e2e/_results/v_1_0_0_rc/analysis_summary.md)
+- [v1.0.0-beta3 results](e2e/_results/v_1_0_0_beta3/analysis_summary.md)
 - [v1.0.0 results](e2e/_results/v_1_0_0/analysis_summary.md)

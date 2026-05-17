@@ -83,6 +83,7 @@ class PropertyInMemoryStorage(
         return removed
     }
 
+    @Synchronized
     fun setWithRevision(key: CmsDtos.PropertyKey, value: CmsDtos.PropertyValue, revision: Long) {
         storage[key] = value
         partsHolder.addProperty(key)

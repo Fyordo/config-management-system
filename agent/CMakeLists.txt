@@ -1,6 +1,9 @@
 cmake_minimum_required(VERSION 3.20)
 project(cmsagent CXX)
 
+# Lets clangd / IDEs see generated proto includes (see agent/.clangd CompilationDatabase path).
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
 # Set C++ standard
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)

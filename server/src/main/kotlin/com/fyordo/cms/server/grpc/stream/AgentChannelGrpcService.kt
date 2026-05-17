@@ -68,7 +68,7 @@ class AgentChannelGrpcService(
             logger.warn { "Ignoring ack before connect for session [$sessionId]" }
             return
         }
-        agentConnectionManager.checkAgentRevision(agentId, ackEvent.revision)
+        agentConnectionManager.checkAgentConsistency(agentId, ackEvent.failedKeysList)
     }
 
     private fun handleConnectEvent(

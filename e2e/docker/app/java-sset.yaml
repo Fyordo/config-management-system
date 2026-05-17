@@ -20,7 +20,7 @@ services:
     restart: "no"
 
   cms-j-sset-agent:
-    image: cms-agent:1.0.0
+    image: cms-agent:1.0.0-beta3-6
     user: "1000:1000"
     stop_grace_period: 60s
     depends_on:
@@ -35,23 +35,15 @@ services:
       POD_NAME: cms-j-sset-0
       CMS_NAMESPACE: dev
       CMS_SERVICE: cms-j-sset
-      CMS_SERVER_HOST: ${CMS_SERVER_HOST:-auto}
+      CMS_SERVER_HOST: ipv4:///172.20.0.3:9090,172.20.0.2:9090,172.20.0.6:9090
       CMS_APPID: cms-j-sset-0
       CMS_PROPERTIES_FILE: /app/config/application.json
       CMS_REVISION_FILE: /app/config/сms.revision
       CMS_UNIX_SOCKET_PATH: /app/config/cms.sock
+      CMS_MAX_FAILED_QUEUE_SIZE: 1500
     entrypoint: ["/bin/sh", "-c"]
     command:
       - |
-        if [ -n "$$CMS_SERVER_HOST" ] && [ "$$CMS_SERVER_HOST" != "auto" ]; then
-          exec /app/cmsagent
-        fi
-        R=$$(($$(od -An -tu1 -N1 /dev/urandom | tr -d ' \n') % 3))
-        case $$R in
-          0) export CMS_SERVER_HOST=cms-raft-node-1:9090 ;;
-          1) export CMS_SERVER_HOST=cms-raft-node-2:9090 ;;
-          *) export CMS_SERVER_HOST=cms-raft-node-3:9090 ;;
-        esac
         exec /app/cmsagent
     volumes:
       - app-shared:/app/config

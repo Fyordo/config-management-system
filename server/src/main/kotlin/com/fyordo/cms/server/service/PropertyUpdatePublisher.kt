@@ -15,7 +15,7 @@ class PropertyUpdatePublisher {
 
     private val _updateFlow = MutableSharedFlow<PropertyUpdateEvent>(
         replay = 0,
-        extraBufferCapacity = 1000,
+        extraBufferCapacity = 10000,
         onBufferOverflow = BufferOverflow.SUSPEND
     )
 

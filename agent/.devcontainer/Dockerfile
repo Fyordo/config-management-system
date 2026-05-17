@@ -9,6 +9,7 @@ RUN apt-get update && \
     apt-get install -y --no-install-recommends \
         build-essential \
         clang \
+        clangd \
         clang-format \
         cmake \
         ninja-build \
@@ -22,4 +23,3 @@ RUN apt-get update && \
         grpc-proto \
         nlohmann-json3-dev && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
-
